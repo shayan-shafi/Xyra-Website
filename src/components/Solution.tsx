@@ -70,15 +70,15 @@ export default function Solution() {
               className="mb-10"
             >
               <p className="font-[family-name:var(--font-eb-garamond)] text-lg sm:text-xl text-ink-light leading-relaxed mb-6">
-                Xyra is an AI &ldquo;everything dashboard&rdquo; that replaces
-                fragmented tools with a single conversational interface. You never
-                touch a template — you simply speak to create.
+                Xyra is your AI everything dashboard. Tell it what you need
+                and it builds it. No templates, no dragging boxes around, no
+                setup guides.
               </p>
               <p className="font-[family-name:var(--font-eb-garamond)] text-lg sm:text-xl text-ink-light leading-relaxed">
-                We are replacing the manual complexity of &ldquo;Lego-set&rdquo;
-                tools like Notion with a simple, human interface.{" "}
+                Think of it as the opposite of Notion. Instead of assembling
+                Lego pieces yourself, you just talk.{" "}
                 <span className="text-ink font-medium">
-                  You speak, Xyra builds.
+                  Xyra does the rest.
                 </span>
               </p>
             </motion.div>

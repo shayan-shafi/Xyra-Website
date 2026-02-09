@@ -54,8 +54,7 @@ export default function Demo() {
           transition={{ duration: 0.6, delay: 0.25 }}
           className="font-[family-name:var(--font-eb-garamond)] text-lg sm:text-xl text-ink-light text-center max-w-xl mx-auto mb-12"
         >
-          Watch how Xyra transforms the way you manage your day — 
-          from scattered chaos to effortless clarity.
+          See what using Xyra actually looks like.
         </motion.p>
 
         {/* Video container */}
@@ -110,7 +109,7 @@ export default function Demo() {
           transition={{ duration: 0.6, delay: 0.5 }}
           className="font-[family-name:var(--font-jetbrains)] text-xs text-ink-faint text-center mt-6 tracking-wide"
         >
-          Product demo — Xyra early preview
+          Early preview
         </motion.p>
       </div>
     </section>

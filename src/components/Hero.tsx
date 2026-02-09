@@ -64,34 +64,24 @@ export default function Hero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: isTypingDone ? 1 : 0, y: isTypingDone ? 0 : 20 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="font-[family-name:var(--font-eb-garamond)] text-xl sm:text-2xl text-ink-light max-w-2xl mx-auto leading-relaxed mb-4"
+          className="font-[family-name:var(--font-eb-garamond)] text-xl sm:text-2xl text-ink-light max-w-2xl mx-auto leading-relaxed mb-10"
         >
-          The AI-native personal operating system that replaces fragmented 
-          productivity tools with a single conversational interface.
-        </motion.p>
-
-        {/* Tagline */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: isTypingDone ? 1 : 0 }}
-          transition={{ duration: 0.8, delay: 0.6 }}
-          className="font-[family-name:var(--font-jetbrains)] text-sm text-ink-faint tracking-wider uppercase mb-10"
-        >
-          No templates. No setup. Just speak.
+          Your AI personal operating system. One conversation
+          replaces every productivity app you juggle.
         </motion.p>
 
         {/* CTA Buttons */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: isTypingDone ? 1 : 0, y: isTypingDone ? 0 : 20 }}
-          transition={{ duration: 0.6, delay: 0.8 }}
+          transition={{ duration: 0.6, delay: 0.6 }}
           className="flex flex-col sm:flex-row items-center justify-center gap-4"
         >
           <a
             href="#waitlist"
             className="font-[family-name:var(--font-jetbrains)] text-sm px-8 py-3.5 bg-ink text-cream rounded-full hover:bg-ink-light transition-all duration-300 tracking-wide hover:shadow-lg hover:shadow-ink/10"
           >
-            Join the Beta — It&apos;s Free
+            Join the Beta
           </a>
           <a
             href="#demo"

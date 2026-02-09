@@ -20,12 +20,19 @@ export default function Waitlist() {
 
     setStatus("loading");
 
-    // Simulate API call - replace with your actual waitlist API
     try {
-      // TODO: Replace with actual API endpoint (e.g., Mailchimp, ConvertKit, or custom API route)
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setStatus("success");
-      setEmail("");
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      if (res.ok) {
+        setStatus("success");
+        setEmail("");
+      } else {
+        setStatus("error");
+      }
     } catch {
       setStatus("error");
     }
@@ -75,8 +82,7 @@ export default function Waitlist() {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="font-[family-name:var(--font-eb-garamond)] text-lg sm:text-xl text-ink-light leading-relaxed mb-10 max-w-lg mx-auto"
         >
-          Join the beta waitlist and get free access when we launch. 
-          No credit card required. Just your email and your ambition.
+          Sign up for the beta and get free access when we launch.
         </motion.p>
 
         {/* Form */}

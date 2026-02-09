@@ -14,26 +14,26 @@ const features = [
     number: "01",
     title: "Conversational Dashboards",
     description:
-      "Say what you need, and Xyra instantly generates a functional, purpose-built dashboard. Call lists, workout trackers, project boards — all created through natural language.",
-    accent: "No templates. No drag-and-drop.",
+      "Tell Xyra what you need and it builds a working dashboard on the spot. Call lists, period trackers, project boards. Just say it.",
+    accent: "Say it. Done.",
     media: { type: "image" as const, src: "/assets/feature-conversational.png" },
-    imageAlt: "Xyra creating a period tracker dashboard via conversation",
+    imageAlt: "Xyra creating a period tracker via conversation",
   },
   {
     number: "02",
     title: "Brain Dump",
     description:
-      "Pour out your scattered thoughts, and Xyra organizes them into their rightful home. Ideas become structured dashboards. Chaos becomes clarity.",
-    accent: "De-cluster your mind.",
+      "Talk through your scattered thoughts and Xyra sorts them out. Your rambling becomes structured tasks, reminders, and calendar events.",
+    accent: "Think out loud. Xyra organizes.",
     media: { type: "image" as const, src: "/assets/feature-braindump.png" },
-    imageAlt: "Xyra organizing a voice brain dump into structured tasks",
+    imageAlt: "Voice brain dump organized into structured tasks",
   },
   {
     number: "03",
     title: "Knowledge Graph",
     description:
-      "Xyra constructs a visible 3D graph of your life — mapping the hidden connections between your health, work, relationships, and goals.",
-    accent: "See how everything connects.",
+      "A visual 3D map of your life. Xyra connects your health, work, goals, and habits so you can see how everything relates.",
+    accent: "Your life, visualized.",
     media: { type: "video" as const, src: "/assets/feature-knowledgegraph.mov" },
     imageAlt: "Xyra knowledge graph visualization",
   },
@@ -41,10 +41,10 @@ const features = [
     number: "04",
     title: "AI Advisor",
     description:
-      "Powered by your personal knowledge graph, the Advisor layer offers proactive, intelligent insights. Get tailored advice on any goal or piece of your life, grounded in your own data.",
-    accent: "Guidance that knows your context.",
+      "Xyra knows your context. It reads your knowledge graph and gives you real advice on your goals, schedule, and priorities. Not generic tips.",
+    accent: "Advice that actually knows you.",
     media: { type: "image" as const, src: "/assets/feature-advisor.png" },
-    imageAlt: "Xyra AI Advisor providing personalized daily insights",
+    imageAlt: "Xyra AI Advisor with personalized daily insights",
   },
 ];
 
