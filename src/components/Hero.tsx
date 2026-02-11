@@ -31,24 +31,26 @@ export default function Hero() {
       <div className="absolute bottom-20 left-10 w-48 h-48 rounded-full bg-accent/5 blur-3xl" />
 
       <div className="relative z-10 mx-auto max-w-4xl px-6 sm:px-8 text-center pt-24 pb-16">
-        {/* Small logo icon */}
+        {/* Logo — above headline, fades in after typing finishes */}
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
+          animate={{ opacity: isTypingDone ? 1 : 0, scale: isTypingDone ? 1 : 0.8 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
           className="mb-10"
         >
           <Image
             src="/assets/xyra-logo-square.png"
             alt="Xyra"
-            width={120}
-            height={120}
-            className="mx-auto h-20 w-20 sm:h-28 sm:w-28"
+            width={476}
+            height={514}
+            className="mx-auto h-32 w-32 sm:h-40 sm:w-40 object-contain"
+            quality={100}
+            unoptimized
             priority
           />
         </motion.div>
 
-        {/* Typewriter headline */}
+        {/* Typewriter headline — appears first */}
         <div className="min-h-[80px] sm:min-h-[100px] flex items-center justify-center mb-6">
           <h1
             className={`font-[family-name:var(--font-playfair)] text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-medium text-ink leading-tight tracking-tight ${
@@ -63,7 +65,7 @@ export default function Hero() {
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: isTypingDone ? 1 : 0, y: isTypingDone ? 0 : 20 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
+          transition={{ duration: 0.8, delay: 0.3 }}
           className="font-[family-name:var(--font-eb-garamond)] text-xl sm:text-2xl text-ink-light max-w-2xl mx-auto leading-relaxed mb-10"
         >
           Your AI personal operating system. One conversation
@@ -108,7 +110,7 @@ export default function Hero() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: isTypingDone ? 0.5 : 0 }}
-          transition={{ duration: 1, delay: 1.5 }}
+          transition={{ duration: 1, delay: 1 }}
           className="absolute bottom-8 left-1/2 -translate-x-1/2"
         >
           <motion.div

@@ -152,8 +152,6 @@ function FeatureCard({
           >
             {/* Phone frame */}
             <div className="relative w-[240px] sm:w-[260px] rounded-[2.2rem] border-[7px] border-ink/90 bg-ink/90 shadow-xl shadow-ink/15 overflow-hidden">
-              {/* Notch */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-ink/90 rounded-b-xl z-10" />
               {/* Media */}
               {feature.media.type === "image" ? (
                 <Image

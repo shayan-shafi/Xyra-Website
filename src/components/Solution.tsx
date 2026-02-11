@@ -114,8 +114,6 @@ export default function Solution() {
             <div className="relative">
               {/* Phone frame */}
               <div className="relative w-[280px] sm:w-[300px] rounded-[2.5rem] border-[8px] border-ink/90 bg-ink/90 shadow-2xl shadow-ink/20 overflow-hidden">
-                {/* Notch */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-6 bg-ink/90 rounded-b-2xl z-10" />
                 {/* Screenshot */}
                 <Image
                   src="/assets/xyra-app-screenshot.png"

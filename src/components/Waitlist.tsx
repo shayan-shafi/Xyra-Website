@@ -13,6 +13,7 @@ export default function Waitlist() {
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [betaLink, setBetaLink] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -28,8 +29,12 @@ export default function Waitlist() {
       });
 
       if (res.ok) {
+        const data = await res.json();
         setStatus("success");
         setEmail("");
+        if (data.betaLink) {
+          setBetaLink(data.betaLink);
+        }
       } else {
         setStatus("error");
       }
@@ -104,6 +109,39 @@ export default function Waitlist() {
               <p className="font-[family-name:var(--font-eb-garamond)] text-lg text-ink-light">
                 We&apos;ll be in touch when Xyra is ready for you.
               </p>
+              {betaLink && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.3 }}
+                  className="mt-6"
+                >
+                  <p className="font-[family-name:var(--font-eb-garamond)] text-base text-ink-light mb-3">
+                    Want to try the beta right now?
+                  </p>
+                  <a
+                    href={betaLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-7 py-3.5 bg-ink text-cream rounded-full font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-ink-light transition-all duration-300 hover:shadow-lg hover:shadow-ink/10"
+                  >
+                    Try the Beta
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                      />
+                    </svg>
+                  </a>
+                </motion.div>
+              )}
             </motion.div>
           ) : (
             <form onSubmit={handleSubmit} className="max-w-md mx-auto">
