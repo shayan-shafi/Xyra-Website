@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useInView } from "framer-motion";
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -12,14 +12,10 @@ export default function Demo() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const [isPlaying, setIsPlaying] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
-  const handlePlay = () => {
-    if (videoRef.current) {
-      videoRef.current.play();
-      setIsPlaying(true);
-    }
-  };
+  const handlePlay = useCallback(() => {
+    setIsPlaying(true);
+  }, []);
 
   return (
     <section id="demo" className="relative py-24 sm:py-32 bg-warm-white">
@@ -65,29 +61,31 @@ export default function Demo() {
           transition={{ duration: 0.8, delay: 0.35 }}
           className="relative rounded-xl overflow-hidden shadow-2xl shadow-ink/10 border border-ink-faint/10 bg-ink/5"
         >
-          {/* Video aspect ratio container */}
+          {/* YouTube embed */}
           <div className="relative aspect-video">
-            <video
-              ref={videoRef}
-              className="w-full h-full object-cover"
-              controls={isPlaying}
-              playsInline
-              preload="metadata"
-              onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-            >
-              <source src="/assets/xyra-demo.mp4" type="video/mp4" />
-              Your browser does not support the video tag.
-            </video>
-
-            {/* Custom play overlay */}
-            {!isPlaying && (
+            {isPlaying ? (
+              <iframe
+                src="https://www.youtube-nocookie.com/embed/AC1F7KEL-JU?autoplay=1&rel=0&modestbranding=1"
+                title="Xyra Demo"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="absolute inset-0 w-full h-full"
+              />
+            ) : (
               <button
                 onClick={handlePlay}
-                className="absolute inset-0 flex items-center justify-center bg-ink/10 hover:bg-ink/20 transition-colors cursor-pointer group"
+                className="absolute inset-0 w-full h-full flex items-center justify-center bg-ink/10 hover:bg-ink/20 transition-colors cursor-pointer group"
                 aria-label="Play video"
               >
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-cream/90 backdrop-blur-sm flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
+                {/* YouTube thumbnail as background */}
+                <img
+                  src="https://img.youtube.com/vi/AC1F7KEL-JU/maxresdefault.jpg"
+                  alt="Xyra demo preview"
+                  className="absolute inset-0 w-full h-full object-cover"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-ink/10 group-hover:bg-ink/20 transition-colors" />
+                <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-cream/90 backdrop-blur-sm flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
                   <svg
                     className="w-8 h-8 sm:w-10 sm:h-10 text-ink ml-1"
                     fill="currentColor"

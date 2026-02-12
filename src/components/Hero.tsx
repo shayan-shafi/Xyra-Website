@@ -22,11 +22,12 @@ export default function Hero() {
           loop
           muted
           playsInline
+          preload="auto"
+          poster="/assets/xyra-hero-poster.jpg"
           className="h-full w-full object-cover"
           onLoadedData={() => setIsLoaded(true)}
         >
-          <source src="/assets/xyra-hero.mp4" type="video/mp4" />
-          <source src="/assets/xyra-hero.mov" type="video/quicktime" />
+          <source src="/assets/xyra-hero-compressed.mp4" type="video/mp4" />
         </video>
         {/* Dark overlay for text readability */}
         <div className="absolute inset-0 bg-black/40" />
