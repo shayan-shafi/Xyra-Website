@@ -1,18 +1,46 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 
+type NavTheme = "transparent" | "light" | "dark";
+
 export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false);
+  const [theme, setTheme] = useState<NavTheme>("transparent");
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+  const updateTheme = useCallback(() => {
+    const scrollY = window.scrollY;
+
+    // Not scrolled — transparent over the hero
+    if (scrollY <= 40) {
+      setTheme("transparent");
+      return;
+    }
+
+    // Check if the navbar overlaps the waitlist section (dark video)
+    const waitlist = document.getElementById("waitlist");
+    if (waitlist) {
+      const rect = waitlist.getBoundingClientRect();
+      // If the top of the waitlist section is at or above the navbar height
+      if (rect.top <= 96) {
+        setTheme("dark");
+        return;
+      }
+    }
+
+    // Otherwise we're in the light middle sections
+    setTheme("light");
   }, []);
+
+  useEffect(() => {
+    window.addEventListener("scroll", updateTheme, { passive: true });
+    updateTheme();
+    return () => window.removeEventListener("scroll", updateTheme);
+  }, [updateTheme]);
+
+  const isDark = theme === "transparent" || theme === "dark";
 
   return (
     <motion.nav
@@ -20,9 +48,11 @@ export default function Navbar() {
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        scrolled
-          ? "bg-white/90 backdrop-blur-md border-b border-ink-faint/20"
-          : "bg-transparent"
+        theme === "transparent"
+          ? "bg-transparent"
+          : theme === "light"
+            ? "bg-white/90 backdrop-blur-md border-b border-ink-faint/20"
+            : "bg-black/90 backdrop-blur-md border-b border-white/10"
       }`}
     >
       <div className="mx-auto px-6 sm:px-8 lg:px-12">
@@ -35,7 +65,7 @@ export default function Navbar() {
               width={280}
               height={90}
               className={`h-20 sm:h-24 w-auto transition-all duration-500 ${
-                scrolled ? "" : "brightness-0 invert"
+                isDark ? "brightness-0 invert" : ""
               }`}
               priority
             />
@@ -45,40 +75,40 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-8">
             <a
               href="#demo"
-              className={`font-[family-name:var(--font-eb-garamond)] transition-colors text-[17px] ${
-                scrolled
-                  ? "text-ink-light hover:text-ink"
-                  : "text-white/70 hover:text-white"
+              className={`font-[family-name:var(--font-eb-garamond)] transition-colors duration-500 text-[17px] ${
+                isDark
+                  ? "text-white/70 hover:text-white"
+                  : "text-ink-light hover:text-ink"
               }`}
             >
               Demo
             </a>
             <a
               href="#solution"
-              className={`font-[family-name:var(--font-eb-garamond)] transition-colors text-[17px] ${
-                scrolled
-                  ? "text-ink-light hover:text-ink"
-                  : "text-white/70 hover:text-white"
+              className={`font-[family-name:var(--font-eb-garamond)] transition-colors duration-500 text-[17px] ${
+                isDark
+                  ? "text-white/70 hover:text-white"
+                  : "text-ink-light hover:text-ink"
               }`}
             >
               The Solution
             </a>
             <a
               href="#features"
-              className={`font-[family-name:var(--font-eb-garamond)] transition-colors text-[17px] ${
-                scrolled
-                  ? "text-ink-light hover:text-ink"
-                  : "text-white/70 hover:text-white"
+              className={`font-[family-name:var(--font-eb-garamond)] transition-colors duration-500 text-[17px] ${
+                isDark
+                  ? "text-white/70 hover:text-white"
+                  : "text-ink-light hover:text-ink"
               }`}
             >
               Features
             </a>
             <a
               href="#waitlist"
-              className={`font-[family-name:var(--font-jetbrains)] text-sm px-5 py-2.5 rounded-full transition-all duration-300 tracking-wide ${
-                scrolled
-                  ? "bg-ink text-cream hover:bg-ink-light"
-                  : "border border-white/30 text-white hover:bg-white hover:text-black backdrop-blur-sm"
+              className={`font-[family-name:var(--font-jetbrains)] text-sm px-5 py-2.5 rounded-full transition-all duration-500 tracking-wide ${
+                isDark
+                  ? "border border-white/30 text-white hover:bg-white hover:text-black backdrop-blur-sm"
+                  : "bg-ink text-cream hover:bg-ink-light"
               }`}
             >
               Join Beta
@@ -92,18 +122,18 @@ export default function Navbar() {
             aria-label="Toggle menu"
           >
             <span
-              className={`block w-5 h-[1.5px] transition-all duration-300 ${
-                scrolled ? "bg-ink" : "bg-white"
+              className={`block w-5 h-[1.5px] transition-all duration-500 ${
+                isDark ? "bg-white" : "bg-ink"
               } ${menuOpen ? "rotate-45 translate-y-[7.5px]" : ""}`}
             />
             <span
-              className={`block w-5 h-[1.5px] transition-all duration-300 ${
-                scrolled ? "bg-ink" : "bg-white"
+              className={`block w-5 h-[1.5px] transition-all duration-500 ${
+                isDark ? "bg-white" : "bg-ink"
               } ${menuOpen ? "opacity-0" : ""}`}
             />
             <span
-              className={`block w-5 h-[1.5px] transition-all duration-300 ${
-                scrolled ? "bg-ink" : "bg-white"
+              className={`block w-5 h-[1.5px] transition-all duration-500 ${
+                isDark ? "bg-white" : "bg-ink"
               } ${menuOpen ? "-rotate-45 -translate-y-[4.5px]" : ""}`}
             />
           </button>
@@ -118,9 +148,9 @@ export default function Navbar() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             className={`md:hidden overflow-hidden backdrop-blur-md border-b ${
-              scrolled
-                ? "bg-white/95 border-ink-faint/20"
-                : "bg-black/80 border-white/10"
+              isDark
+                ? "bg-black/90 border-white/10"
+                : "bg-white/95 border-ink-faint/20"
             }`}
           >
             <div className="px-6 py-4 flex flex-col gap-3">
@@ -130,9 +160,9 @@ export default function Navbar() {
                   href={`#${section}`}
                   onClick={() => setMenuOpen(false)}
                   className={`font-[family-name:var(--font-eb-garamond)] transition-colors text-lg py-1 capitalize ${
-                    scrolled
-                      ? "text-ink-light hover:text-ink"
-                      : "text-white/70 hover:text-white"
+                    isDark
+                      ? "text-white/70 hover:text-white"
+                      : "text-ink-light hover:text-ink"
                   }`}
                 >
                   {section === "solution"
@@ -144,9 +174,9 @@ export default function Navbar() {
                 href="#waitlist"
                 onClick={() => setMenuOpen(false)}
                 className={`font-[family-name:var(--font-jetbrains)] text-sm px-5 py-2.5 rounded-full transition-colors tracking-wide text-center mt-2 ${
-                  scrolled
-                    ? "bg-ink text-cream hover:bg-ink-light"
-                    : "border border-white/30 text-white hover:bg-white hover:text-black"
+                  isDark
+                    ? "border border-white/30 text-white hover:bg-white hover:text-black"
+                    : "bg-ink text-cream hover:bg-ink-light"
                 }`}
               >
                 Join Beta
