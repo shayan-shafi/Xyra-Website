@@ -116,9 +116,6 @@ export default function Waitlist() {
                   transition={{ duration: 0.5, delay: 0.3 }}
                   className="mt-6"
                 >
-                  <p className="font-[family-name:var(--font-eb-garamond)] text-base text-ink-light mb-3">
-                    Want to try the beta right now?
-                  </p>
                   <a
                     href={betaLink}
                     target="_blank"

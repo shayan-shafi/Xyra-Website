@@ -19,17 +19,24 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fetch the beta link in parallel with the duplicate check
-    const [existingResult, betaLink] = await Promise.all([
-      supabase
-        .from("waitlist")
-        .select("email")
-        .eq("email", email.toLowerCase().trim())
-        .single(),
-      getBetaTestLink(),
-    ]);
+    const normalizedEmail = email.toLowerCase().trim();
 
-    if (existingResult.data) {
+    // Check if email already exists
+    const { data: existing } = await supabase
+      .from("waitlist")
+      .select("email")
+      .eq("email", normalizedEmail)
+      .single();
+
+    if (existing) {
+      // Fetch beta link separately — don't let it break the flow
+      let betaLink: string | null = null;
+      try {
+        betaLink = await getBetaTestLink();
+      } catch {
+        // silently ignore
+      }
+
       return NextResponse.json(
         {
           message: "You're already on the list!",
@@ -42,7 +49,7 @@ export async function POST(request: Request) {
     // Insert new email
     const { error } = await supabase
       .from("waitlist")
-      .insert({ email: email.toLowerCase().trim() });
+      .insert({ email: normalizedEmail });
 
     if (error) {
       console.error("Supabase error:", error);
@@ -52,6 +59,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // Fetch beta link separately — don't let it break the flow
+    let betaLink: string | null = null;
+    try {
+      betaLink = await getBetaTestLink();
+    } catch {
+      // silently ignore
+    }
+
     return NextResponse.json(
       {
         message: "You're on the list!",
@@ -59,7 +74,8 @@ export async function POST(request: Request) {
       },
       { status: 201 }
     );
-  } catch {
+  } catch (err) {
+    console.error("Waitlist error:", err);
     return NextResponse.json(
       { error: "Something went wrong" },
       { status: 500 }

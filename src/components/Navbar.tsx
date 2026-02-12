@@ -25,7 +25,7 @@ export default function Navbar() {
           : "bg-transparent"
       }`}
     >
-      <div className="mx-auto max-w-6xl px-6 sm:px-8 lg:px-12">
+      <div className="mx-auto px-6 sm:px-8 lg:px-12">
         <div className="flex h-20 sm:h-24 items-center justify-between">
           {/* Logo */}
           <a href="#" className="flex items-center gap-3">
@@ -34,7 +34,9 @@ export default function Navbar() {
               alt="Xyra"
               width={280}
               height={90}
-              className="h-20 sm:h-24 w-auto"
+              className={`h-20 sm:h-24 w-auto transition-all duration-500 ${
+                scrolled ? "" : "brightness-0 invert"
+              }`}
               priority
             />
           </a>
@@ -43,25 +45,41 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-8">
             <a
               href="#demo"
-              className="font-[family-name:var(--font-eb-garamond)] text-ink-light hover:text-ink transition-colors text-[17px]"
+              className={`font-[family-name:var(--font-eb-garamond)] transition-colors text-[17px] ${
+                scrolled
+                  ? "text-ink-light hover:text-ink"
+                  : "text-white/70 hover:text-white"
+              }`}
             >
               Demo
             </a>
             <a
               href="#solution"
-              className="font-[family-name:var(--font-eb-garamond)] text-ink-light hover:text-ink transition-colors text-[17px]"
+              className={`font-[family-name:var(--font-eb-garamond)] transition-colors text-[17px] ${
+                scrolled
+                  ? "text-ink-light hover:text-ink"
+                  : "text-white/70 hover:text-white"
+              }`}
             >
               The Solution
             </a>
             <a
               href="#features"
-              className="font-[family-name:var(--font-eb-garamond)] text-ink-light hover:text-ink transition-colors text-[17px]"
+              className={`font-[family-name:var(--font-eb-garamond)] transition-colors text-[17px] ${
+                scrolled
+                  ? "text-ink-light hover:text-ink"
+                  : "text-white/70 hover:text-white"
+              }`}
             >
               Features
             </a>
             <a
               href="#waitlist"
-              className="font-[family-name:var(--font-jetbrains)] text-sm px-5 py-2.5 bg-ink text-cream rounded-full hover:bg-ink-light transition-colors tracking-wide"
+              className={`font-[family-name:var(--font-jetbrains)] text-sm px-5 py-2.5 rounded-full transition-all duration-300 tracking-wide ${
+                scrolled
+                  ? "bg-ink text-cream hover:bg-ink-light"
+                  : "border border-white/30 text-white hover:bg-white hover:text-black backdrop-blur-sm"
+              }`}
             >
               Join Beta
             </a>
@@ -74,19 +92,19 @@ export default function Navbar() {
             aria-label="Toggle menu"
           >
             <span
-              className={`block w-5 h-[1.5px] bg-ink transition-all duration-300 ${
-                menuOpen ? "rotate-45 translate-y-[7.5px]" : ""
-              }`}
+              className={`block w-5 h-[1.5px] transition-all duration-300 ${
+                scrolled ? "bg-ink" : "bg-white"
+              } ${menuOpen ? "rotate-45 translate-y-[7.5px]" : ""}`}
             />
             <span
-              className={`block w-5 h-[1.5px] bg-ink transition-all duration-300 ${
-                menuOpen ? "opacity-0" : ""
-              }`}
+              className={`block w-5 h-[1.5px] transition-all duration-300 ${
+                scrolled ? "bg-ink" : "bg-white"
+              } ${menuOpen ? "opacity-0" : ""}`}
             />
             <span
-              className={`block w-5 h-[1.5px] bg-ink transition-all duration-300 ${
-                menuOpen ? "-rotate-45 -translate-y-[4.5px]" : ""
-              }`}
+              className={`block w-5 h-[1.5px] transition-all duration-300 ${
+                scrolled ? "bg-ink" : "bg-white"
+              } ${menuOpen ? "-rotate-45 -translate-y-[4.5px]" : ""}`}
             />
           </button>
         </div>
@@ -99,7 +117,11 @@ export default function Navbar() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-white/95 backdrop-blur-md border-b border-ink-faint/20 overflow-hidden"
+            className={`md:hidden overflow-hidden backdrop-blur-md border-b ${
+              scrolled
+                ? "bg-white/95 border-ink-faint/20"
+                : "bg-black/80 border-white/10"
+            }`}
           >
             <div className="px-6 py-4 flex flex-col gap-3">
               {["demo", "solution", "features"].map((section) => (
@@ -107,7 +129,11 @@ export default function Navbar() {
                   key={section}
                   href={`#${section}`}
                   onClick={() => setMenuOpen(false)}
-                  className="font-[family-name:var(--font-eb-garamond)] text-ink-light hover:text-ink transition-colors text-lg py-1 capitalize"
+                  className={`font-[family-name:var(--font-eb-garamond)] transition-colors text-lg py-1 capitalize ${
+                    scrolled
+                      ? "text-ink-light hover:text-ink"
+                      : "text-white/70 hover:text-white"
+                  }`}
                 >
                   {section === "solution"
                     ? "The Solution"
@@ -117,7 +143,11 @@ export default function Navbar() {
               <a
                 href="#waitlist"
                 onClick={() => setMenuOpen(false)}
-                className="font-[family-name:var(--font-jetbrains)] text-sm px-5 py-2.5 bg-ink text-cream rounded-full hover:bg-ink-light transition-colors tracking-wide text-center mt-2"
+                className={`font-[family-name:var(--font-jetbrains)] text-sm px-5 py-2.5 rounded-full transition-colors tracking-wide text-center mt-2 ${
+                  scrolled
+                    ? "bg-ink text-cream hover:bg-ink-light"
+                    : "border border-white/30 text-white hover:bg-white hover:text-black"
+                }`}
               >
                 Join Beta
               </a>

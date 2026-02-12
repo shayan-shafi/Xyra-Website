@@ -5,134 +5,85 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 
 export default function Hero() {
-  const fullText = "You speak, Xyra builds.";
-  const [displayedText, setDisplayedText] = useState("");
-  const [isTypingDone, setIsTypingDone] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    let index = 0;
-    const timer = setInterval(() => {
-      if (index < fullText.length) {
-        setDisplayedText(fullText.slice(0, index + 1));
-        index++;
-      } else {
-        setIsTypingDone(true);
-        clearInterval(timer);
-      }
-    }, 65);
-
-    return () => clearInterval(timer);
+    // Small delay so the video has time to start rendering
+    const timer = setTimeout(() => setIsLoaded(true), 300);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center paper-texture overflow-hidden">
-      {/* Subtle decorative elements */}
-      <div className="absolute top-20 right-10 w-64 h-64 rounded-full bg-accent/5 blur-3xl" />
-      <div className="absolute bottom-20 left-10 w-48 h-48 rounded-full bg-accent/5 blur-3xl" />
+    <section className="relative h-screen w-full overflow-hidden bg-black">
+      {/* Video Background */}
+      <div className="absolute inset-0 z-0">
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="h-full w-full object-cover"
+          onLoadedData={() => setIsLoaded(true)}
+        >
+          <source src="/assets/xyra-hero.mp4" type="video/mp4" />
+          <source src="/assets/xyra-hero.mov" type="video/quicktime" />
+        </video>
+        {/* Dark overlay for text readability */}
+        <div className="absolute inset-0 bg-black/40" />
+        {/* Black bar to cover subtitle/dialogue text in the video */}
+        <div className="absolute bottom-0 left-0 right-0 h-[8%] bg-black z-[1]" />
+      </div>
 
-      <div className="relative z-10 mx-auto max-w-4xl px-6 sm:px-8 text-center pt-24 pb-16">
-        {/* Logo — above headline, fades in after typing finishes */}
+      {/* Content overlay */}
+      <div className="relative z-10 flex h-full flex-col justify-between px-8 sm:px-12 lg:px-20 py-8">
+        {/* Top: Logo */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: isTypingDone ? 1 : 0, scale: isTypingDone ? 1 : 0.8 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="mb-10"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: isLoaded ? 1 : 0 }}
+          transition={{ duration: 1, delay: 0.2 }}
+          className="pt-24"
         >
           <Image
             src="/assets/xyra-logo-square.png"
             alt="Xyra"
             width={476}
             height={514}
-            className="mx-auto h-32 w-32 sm:h-40 sm:w-40 object-contain"
+            className="h-10 w-10 sm:h-12 sm:w-12 object-contain brightness-0 invert"
             quality={100}
             unoptimized
             priority
           />
         </motion.div>
 
-        {/* Typewriter headline — appears first */}
-        <div className="min-h-[80px] sm:min-h-[100px] flex items-center justify-center mb-6">
-          <h1
-            className={`font-[family-name:var(--font-playfair)] text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-medium text-ink leading-tight tracking-tight ${
-              !isTypingDone ? "typewriter-cursor" : ""
-            }`}
+        {/* Middle: Main headline — left aligned */}
+        <div className="flex-1 flex items-center">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: isLoaded ? 1 : 0, y: isLoaded ? 0 : 30 }}
+            transition={{ duration: 1, delay: 0.5, ease: "easeOut" }}
+            className="max-w-2xl"
           >
-            {displayedText}
-          </h1>
+            <h1 className="font-[family-name:var(--font-playfair)] text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-medium text-white leading-[1.1] tracking-tight">
+              You speak,
+              <br />
+              Xyra builds.
+            </h1>
+          </motion.div>
         </div>
 
-        {/* Subtitle */}
-        <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: isTypingDone ? 1 : 0, y: isTypingDone ? 0 : 20 }}
-          transition={{ duration: 0.8, delay: 0.3 }}
-          className="font-[family-name:var(--font-eb-garamond)] text-xl sm:text-2xl text-ink-light max-w-2xl mx-auto leading-relaxed mb-10"
-        >
-          Your AI personal operating system. One conversation
-          replaces every productivity app you juggle.
-        </motion.p>
-
-        {/* CTA Buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: isTypingDone ? 1 : 0, y: isTypingDone ? 0 : 20 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-4"
-        >
-          <a
-            href="#waitlist"
-            className="font-[family-name:var(--font-jetbrains)] text-sm px-8 py-3.5 bg-ink text-cream rounded-full hover:bg-ink-light transition-all duration-300 tracking-wide hover:shadow-lg hover:shadow-ink/10"
-          >
-            Join the Beta
-          </a>
-          <a
-            href="#demo"
-            className="font-[family-name:var(--font-eb-garamond)] text-lg text-ink-light hover:text-ink transition-colors flex items-center gap-2 group"
-          >
-            Watch the demo
-            <svg
-              className="w-4 h-4 transition-transform group-hover:translate-x-1"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M17.25 8.25L21 12m0 0l-3.75 3.75M21 12H3"
-              />
-            </svg>
-          </a>
-        </motion.div>
-
-        {/* Scroll indicator */}
+        {/* Bottom: Tagline centered in the black bar area */}
         <motion.div
           initial={{ opacity: 0 }}
-          animate={{ opacity: isTypingDone ? 0.5 : 0 }}
+          animate={{ opacity: isLoaded ? 1 : 0 }}
           transition={{ duration: 1, delay: 1 }}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2"
+          className="flex items-center justify-center pb-1"
         >
-          <motion.div
-            animate={{ y: [0, 8, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          >
-            <svg
-              className="w-5 h-5 text-ink-faint"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-              />
-            </svg>
-          </motion.div>
+          <p className="font-[family-name:var(--font-eb-garamond)] text-white/60 text-base sm:text-lg text-center">
+            Your AI personal operating system. One conversation replaces every app you juggle.
+          </p>
         </motion.div>
       </div>
+
     </section>
   );
 }
