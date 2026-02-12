@@ -8,18 +8,30 @@ const fadeUp = {
   visible: { opacity: 1, y: 0 },
 };
 
+type Step = "email" | "survey" | "done";
+
 export default function Waitlist() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [betaLink, setBetaLink] = useState<string | null>(null);
 
-  const handleSubmit = async (e: FormEvent) => {
+  // Step state
+  const [step, setStep] = useState<Step>("email");
+
+  // Email step
+  const [email, setEmail] = useState("");
+  const [emailStatus, setEmailStatus] = useState<"idle" | "loading" | "error">("idle");
+
+  // Survey step
+  const [surveyAppCount, setSurveyAppCount] = useState("");
+  const [surveyCurrentApps, setSurveyCurrentApps] = useState("");
+  const [surveyMustHave, setSurveyMustHave] = useState("");
+  const [surveyStatus, setSurveyStatus] = useState<"idle" | "loading" | "error">("idle");
+
+  const handleEmailSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!email) return;
 
-    setStatus("loading");
+    setEmailStatus("loading");
 
     try {
       const res = await fetch("/api/waitlist", {
@@ -29,19 +41,49 @@ export default function Waitlist() {
       });
 
       if (res.ok) {
-        const data = await res.json();
-        setStatus("success");
-        setEmail("");
-        if (data.betaLink) {
-          setBetaLink(data.betaLink);
-        }
+        setEmailStatus("idle");
+        setStep("survey");
       } else {
-        setStatus("error");
+        setEmailStatus("error");
       }
     } catch {
-      setStatus("error");
+      setEmailStatus("error");
     }
   };
+
+  const handleSurveySubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSurveyStatus("loading");
+
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          surveyAppCount,
+          surveyCurrentApps,
+          surveyMustHave,
+        }),
+      });
+
+      if (res.ok) {
+        setSurveyStatus("idle");
+        setStep("done");
+      } else {
+        setSurveyStatus("error");
+      }
+    } catch {
+      setSurveyStatus("error");
+    }
+  };
+
+  const handleSkipSurvey = () => {
+    setStep("done");
+  };
+
+  const inputClass =
+    "w-full px-5 py-3.5 rounded-2xl border border-ink-faint/30 bg-warm-white/80 font-[family-name:var(--font-jetbrains)] text-sm text-ink placeholder:text-ink-faint/60 focus:outline-none focus:border-ink-faint/60 focus:ring-1 focus:ring-ink-faint/20 transition-all";
 
   return (
     <section id="waitlist" className="relative py-24 sm:py-32 paper-texture">
@@ -90,58 +132,16 @@ export default function Waitlist() {
           Sign up for the beta and get free access when we launch.
         </motion.p>
 
-        {/* Form */}
+        {/* Content area */}
         <motion.div
           variants={fadeUp}
           initial="hidden"
           animate={isInView ? "visible" : "hidden"}
           transition={{ duration: 0.6, delay: 0.4 }}
         >
-          {status === "success" ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="py-8"
-            >
-              <div className="font-[family-name:var(--font-playfair)] text-2xl sm:text-3xl text-ink mb-3">
-                You&apos;re on the list.
-              </div>
-              <p className="font-[family-name:var(--font-eb-garamond)] text-lg text-ink-light">
-                We&apos;ll be in touch when Xyra is ready for you.
-              </p>
-              {betaLink && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.3 }}
-                  className="mt-6"
-                >
-                  <a
-                    href={betaLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-7 py-3.5 bg-ink text-cream rounded-full font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-ink-light transition-all duration-300 hover:shadow-lg hover:shadow-ink/10"
-                  >
-                    Try the Beta
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={1.5}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
-                      />
-                    </svg>
-                  </a>
-                </motion.div>
-              )}
-            </motion.div>
-          ) : (
-            <form onSubmit={handleSubmit} className="max-w-md mx-auto">
+          {/* ── Step 1: Email ─────────────────────────────────────── */}
+          {step === "email" && (
+            <form onSubmit={handleEmailSubmit} className="max-w-md mx-auto">
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="email"
@@ -153,10 +153,10 @@ export default function Waitlist() {
                 />
                 <button
                   type="submit"
-                  disabled={status === "loading"}
+                  disabled={emailStatus === "loading"}
                   className="px-7 py-3.5 bg-ink text-cream rounded-full font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-ink-light transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-ink/10 shrink-0"
                 >
-                  {status === "loading" ? (
+                  {emailStatus === "loading" ? (
                     <span className="flex items-center gap-2">
                       <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                         <circle
@@ -181,12 +181,138 @@ export default function Waitlist() {
                   )}
                 </button>
               </div>
-              {status === "error" && (
+              {emailStatus === "error" && (
                 <p className="font-[family-name:var(--font-eb-garamond)] text-sm text-red-600 mt-3">
                   Something went wrong. Please try again.
                 </p>
               )}
             </form>
+          )}
+
+          {/* ── Step 2: Survey ────────────────────────────────────── */}
+          {step === "survey" && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="max-w-lg mx-auto"
+            >
+              <div className="font-[family-name:var(--font-playfair)] text-2xl sm:text-3xl text-ink mb-3">
+                You&apos;re on the list.
+              </div>
+              <p className="font-[family-name:var(--font-eb-garamond)] text-lg text-ink-light mb-2">
+                We&apos;ll be in touch when Xyra is ready for you.
+              </p>
+              <p className="font-[family-name:var(--font-eb-garamond)] text-base text-ink-light mb-8">
+                While you&apos;re here, help us build something great &mdash; answer a few quick questions:
+              </p>
+
+              <form onSubmit={handleSurveySubmit} className="space-y-5 text-left">
+                {/* Q1 */}
+                <div>
+                  <label className="block font-[family-name:var(--font-jetbrains)] text-xs tracking-wide text-ink-light mb-2">
+                    How many apps do you currently juggle for tracking things?
+                  </label>
+                  <input
+                    type="text"
+                    value={surveyAppCount}
+                    onChange={(e) => setSurveyAppCount(e.target.value)}
+                    placeholder="e.g. 3-4 apps"
+                    className={inputClass}
+                  />
+                </div>
+
+                {/* Q2 */}
+                <div>
+                  <label className="block font-[family-name:var(--font-jetbrains)] text-xs tracking-wide text-ink-light mb-2">
+                    Which apps do you use to track things?
+                  </label>
+                  <input
+                    type="text"
+                    value={surveyCurrentApps}
+                    onChange={(e) => setSurveyCurrentApps(e.target.value)}
+                    placeholder="e.g. Notion, Google Sheets, Apple Notes"
+                    className={inputClass}
+                  />
+                </div>
+
+                {/* Q3 */}
+                <div>
+                  <label className="block font-[family-name:var(--font-jetbrains)] text-xs tracking-wide text-ink-light mb-2">
+                    What is a must-have dashboard for you?
+                  </label>
+                  <textarea
+                    value={surveyMustHave}
+                    onChange={(e) => setSurveyMustHave(e.target.value)}
+                    placeholder="e.g. A single view of all my tasks, habits, and goals"
+                    rows={3}
+                    className={inputClass + " rounded-2xl resize-none"}
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                  <button
+                    type="submit"
+                    disabled={surveyStatus === "loading"}
+                    className="px-7 py-3.5 bg-ink text-cream rounded-full font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-ink-light transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-ink/10"
+                  >
+                    {surveyStatus === "loading" ? (
+                      <span className="flex items-center gap-2">
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="none"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          />
+                        </svg>
+                        Submitting...
+                      </span>
+                    ) : (
+                      "Submit"
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSkipSurvey}
+                    className="font-[family-name:var(--font-jetbrains)] text-xs text-ink-faint hover:text-ink-light transition-colors"
+                  >
+                    Skip for now
+                  </button>
+                </div>
+
+                {surveyStatus === "error" && (
+                  <p className="font-[family-name:var(--font-eb-garamond)] text-sm text-red-600 text-center">
+                    Something went wrong. Please try again.
+                  </p>
+                )}
+              </form>
+            </motion.div>
+          )}
+
+          {/* ── Step 3: Done ──────────────────────────────────────── */}
+          {step === "done" && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+              className="py-8"
+            >
+              <div className="font-[family-name:var(--font-playfair)] text-2xl sm:text-3xl text-ink mb-3">
+                Thank you!
+              </div>
+              <p className="font-[family-name:var(--font-eb-garamond)] text-lg text-ink-light">
+                We appreciate your feedback. We&apos;ll be in touch when Xyra is ready for you.
+              </p>
+            </motion.div>
           )}
         </motion.div>
 

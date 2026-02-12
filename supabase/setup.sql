@@ -5,10 +5,18 @@
 
 -- 1. Waitlist table (if not already created)
 CREATE TABLE IF NOT EXISTS waitlist (
-  id          BIGSERIAL PRIMARY KEY,
-  email       TEXT NOT NULL UNIQUE,
-  created_at  TIMESTAMPTZ DEFAULT now()
+  id                       BIGSERIAL PRIMARY KEY,
+  email                    TEXT NOT NULL UNIQUE,
+  survey_app_count         TEXT,
+  survey_current_apps      TEXT,
+  survey_must_have         TEXT,
+  created_at               TIMESTAMPTZ DEFAULT now()
 );
+
+-- Add survey columns if table already exists (safe to run multiple times)
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS survey_app_count    TEXT;
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS survey_current_apps TEXT;
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS survey_must_have    TEXT;
 
 -- Enable Row-Level Security
 ALTER TABLE waitlist ENABLE ROW LEVEL SECURITY;
@@ -22,6 +30,12 @@ CREATE POLICY "Allow anonymous insert" ON waitlist
 CREATE POLICY "Allow anonymous select" ON waitlist
   FOR SELECT
   USING (true);
+
+-- Allow anonymous updates (for survey responses)
+CREATE POLICY "Allow anonymous update" ON waitlist
+  FOR UPDATE
+  USING (true)
+  WITH CHECK (true);
 
 
 -- 2. Beta Config table — stores key/value pairs you can manage from the dashboard
