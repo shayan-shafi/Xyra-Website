@@ -6,6 +6,7 @@
 -- 1. Waitlist table (if not already created)
 CREATE TABLE IF NOT EXISTS waitlist (
   id                       BIGSERIAL PRIMARY KEY,
+  name                     TEXT NOT NULL,
   email                    TEXT NOT NULL UNIQUE,
   survey_app_count         TEXT,
   survey_current_apps      TEXT,
@@ -13,7 +14,8 @@ CREATE TABLE IF NOT EXISTS waitlist (
   created_at               TIMESTAMPTZ DEFAULT now()
 );
 
--- Add survey columns if table already exists (safe to run multiple times)
+-- Add columns if table already exists (safe to run multiple times)
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS name               TEXT;
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS survey_app_count    TEXT;
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS survey_current_apps TEXT;
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS survey_must_have    TEXT;
@@ -21,19 +23,24 @@ ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS survey_must_have    TEXT;
 -- Enable Row-Level Security
 ALTER TABLE waitlist ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies (safe to re-run)
+DROP POLICY IF EXISTS "Allow anonymous insert" ON waitlist;
+DROP POLICY IF EXISTS "Allow anonymous select" ON waitlist;
+DROP POLICY IF EXISTS "Allow anonymous update" ON waitlist;
+
 -- Allow anonymous inserts (for the website form)
 CREATE POLICY "Allow anonymous insert" ON waitlist
-  FOR INSERT
+  FOR INSERT TO anon
   WITH CHECK (true);
 
 -- Allow anonymous select for duplicate checking
 CREATE POLICY "Allow anonymous select" ON waitlist
-  FOR SELECT
+  FOR SELECT TO anon
   USING (true);
 
 -- Allow anonymous updates (for survey responses)
 CREATE POLICY "Allow anonymous update" ON waitlist
-  FOR UPDATE
+  FOR UPDATE TO anon
   USING (true)
   WITH CHECK (true);
 
@@ -51,9 +58,12 @@ CREATE TABLE IF NOT EXISTS beta_config (
 -- Enable Row-Level Security
 ALTER TABLE beta_config ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies (safe to re-run)
+DROP POLICY IF EXISTS "Allow anonymous read" ON beta_config;
+
 -- Allow anonymous reads (the website fetches these)
 CREATE POLICY "Allow anonymous read" ON beta_config
-  FOR SELECT
+  FOR SELECT TO anon
   USING (true);
 
 

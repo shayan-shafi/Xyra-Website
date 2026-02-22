@@ -23,7 +23,8 @@ export default function Waitlist() {
   // Step state
   const [step, setStep] = useState<Step>("email");
 
-  // Email step
+  // Signup step
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [emailStatus, setEmailStatus] = useState<"idle" | "loading" | "error">("idle");
 
@@ -35,7 +36,7 @@ export default function Waitlist() {
 
   const handleEmailSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!name || !email) return;
 
     setEmailStatus("loading");
 
@@ -43,7 +44,7 @@ export default function Waitlist() {
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ name: name.trim(), email }),
       });
 
       if (res.ok) {
@@ -159,22 +160,30 @@ export default function Waitlist() {
               {/* ── Step 1: Email ─────────────────────────────────────── */}
               {step === "email" && (
                 <form onSubmit={handleEmailSubmit} className="max-w-md mx-auto">
-                  <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex flex-col gap-3">
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Your name"
+                      required
+                      className="w-full px-5 py-3.5 rounded-full border border-white/15 bg-white/10 backdrop-blur-sm font-[family-name:var(--font-jetbrains)] text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/15 transition-all"
+                    />
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="your@email.com"
                       required
-                      className="flex-1 px-5 py-3.5 rounded-full border border-white/15 bg-white/10 backdrop-blur-sm font-[family-name:var(--font-jetbrains)] text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/15 transition-all"
+                      className="w-full px-5 py-3.5 rounded-full border border-white/15 bg-white/10 backdrop-blur-sm font-[family-name:var(--font-jetbrains)] text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/15 transition-all"
                     />
                     <button
                       type="submit"
                       disabled={emailStatus === "loading"}
-                      className="px-7 py-3.5 bg-white text-black rounded-full font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-white/90 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-white/10 shrink-0"
+                      className="w-full px-7 py-3.5 bg-white text-black rounded-full font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-white/90 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-white/10"
                     >
                       {emailStatus === "loading" ? (
-                        <span className="flex items-center gap-2">
+                        <span className="flex items-center justify-center gap-2">
                           <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                             <circle
                               className="opacity-25"

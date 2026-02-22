@@ -11,7 +11,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const { email } = await request.json();
+    const { name, email } = await request.json();
+
+    if (!name || typeof name !== "string") {
+      return NextResponse.json(
+        { error: "Name is required" },
+        { status: 400 }
+      );
+    }
 
     if (!email || typeof email !== "string") {
       return NextResponse.json(
@@ -21,6 +28,7 @@ export async function POST(request: Request) {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const trimmedName = name.trim();
 
     // Check if email already exists
     const { data: existing } = await supabase
@@ -36,13 +44,21 @@ export async function POST(request: Request) {
       );
     }
 
-    // Insert new email
+    // Insert new entry
     const { error } = await supabase
       .from("waitlist")
-      .insert({ email: normalizedEmail });
+      .insert({ name: trimmedName, email: normalizedEmail });
 
     if (error) {
-      console.error("Supabase error:", error);
+      console.error("Supabase insert error:", error);
+
+      if (error.code === "42501") {
+        return NextResponse.json(
+          { error: "Database permissions not configured. Run setup.sql in Supabase SQL Editor." },
+          { status: 503 }
+        );
+      }
+
       return NextResponse.json(
         { error: "Failed to join waitlist" },
         { status: 500 }
@@ -95,6 +111,14 @@ export async function PATCH(request: Request) {
 
     if (error) {
       console.error("Survey update error:", error);
+
+      if (error.code === "42501") {
+        return NextResponse.json(
+          { error: "Database permissions not configured. Run setup.sql in Supabase SQL Editor." },
+          { status: 503 }
+        );
+      }
+
       return NextResponse.json(
         { error: "Failed to save survey" },
         { status: 500 }
