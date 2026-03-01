@@ -95,7 +95,8 @@ export default function Waitlist() {
   return (
     <section
       id="waitlist"
-      className="relative min-h-screen w-full overflow-hidden bg-black"
+      className="relative min-h-screen w-full overflow-hidden bg-black z-[45]"
+      style={{ marginTop: "-100vh" }}
       ref={ref}
     >
       {/* Video Background */}

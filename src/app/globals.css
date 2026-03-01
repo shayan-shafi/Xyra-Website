@@ -3,13 +3,16 @@
 @tailwind utilities;
 
 :root {
+  /* V2 Light Theme Design Tokens */
   --background: #ffffff;
-  --foreground: #1a1a1a;
-}
-
-/* Smooth scrolling */
-html {
-  scroll-behavior: smooth;
+  --foreground: #000000;
+  --card-bg: #ffffff;
+  --card-border: #000000;
+  --muted-bg: hsl(0 0% 96%);
+  --muted-fg: hsl(0 0% 30%);
+  --primary-bg: #000000;
+  --primary-fg: #ffffff;
+  --radius: 0;
 }
 
 body {
@@ -17,37 +20,7 @@ body {
   color: var(--foreground);
 }
 
-/* Typewriter cursor blink */
-@keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
-}
-
-.typewriter-cursor::after {
-  content: '|';
-  animation: blink 1s infinite;
-  font-weight: 100;
-  margin-left: 2px;
-}
-
-/* Subtle paper texture overlay */
-.paper-texture {
-  position: relative;
-}
-
-.paper-texture::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* Custom scrollbar */
+/* Custom scrollbar — light theme */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -57,47 +30,98 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #8a8a7a;
+  background: #cccccc;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4a4a4a;
-}
-
-/* Horizontal rule with kindle style */
-.kindle-divider {
-  border: none;
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    #8a8a7a,
-    transparent
-  );
-  margin: 3rem 0;
+  background: #999999;
 }
 
 /* Selection styling */
 ::selection {
-  background-color: rgba(196, 168, 124, 0.3);
-  color: #1a1a1a;
+  background-color: rgba(0, 0, 0, 0.1);
+  color: #000000;
 }
 
-/* Video play button styling */
-.video-container {
-  position: relative;
+/* Scroll indicator bounce */
+@keyframes scrollBounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
+  }
 }
 
-.video-container::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    transparent 60%,
-    rgba(26, 26, 26, 0.1) 100%
-  );
-  pointer-events: none;
-  border-radius: inherit;
+.animate-scroll-bounce {
+  animation: scrollBounce 2s ease-in-out infinite;
+}
+
+/* Showcase animation utilities */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 800ms ease-in forwards;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 800ms ease-out forwards;
+}
+
+/* Cinematic easing */
+.ease-cinematic {
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Opening conversation animations */
+@keyframes introFadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes thinkingAppearDisappear {
+  0% { opacity: 0; max-height: 0; margin-bottom: 0; overflow: hidden; }
+  10% { opacity: 1; max-height: 100px; margin-bottom: 24px; overflow: visible; }
+  80% { opacity: 1; max-height: 100px; margin-bottom: 24px; overflow: visible; }
+  100% { opacity: 0; max-height: 0; margin-bottom: 0; overflow: hidden; }
+}
+
+@keyframes scrollIndicatorFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

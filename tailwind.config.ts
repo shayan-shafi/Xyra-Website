@@ -21,6 +21,14 @@ const config: Config = {
           DEFAULT: "#C4A87C",
           dark: "#A08050",
         },
+        muted: {
+          DEFAULT: "hsl(0 0% 96%)",
+          foreground: "hsl(0 0% 30%)",
+        },
+        card: {
+          DEFAULT: "#ffffff",
+          foreground: "#000000",
+        },
       },
       fontFamily: {
         serif: ["var(--font-playfair)", "Georgia", "serif"],
