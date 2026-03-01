@@ -40,7 +40,7 @@ export default function DashboardShell({
         className="flex-1 px-4 md:px-8 lg:px-20 overflow-hidden"
       >
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 auto-rows-[64px] md:auto-rows-[98px]">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 md:gap-6 auto-rows-[80px] md:auto-rows-[98px]">
             {children}
           </div>
         </div>
