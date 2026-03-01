@@ -69,6 +69,8 @@ export default function BrainCanvas({ zoomProgress = 0 }: BrainCanvasProps) {
     controls.autoRotateSpeed = 0.5;
     controls.enableZoom = false;
     controls.enablePan = false;
+    controls.enableRotate = false;
+    renderer.domElement.style.touchAction = "auto";
 
     // Create node helper
     let financesPosition = new THREE.Vector3();
