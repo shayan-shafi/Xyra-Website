@@ -106,12 +106,12 @@ export default function Waitlist() {
           loop
           muted
           playsInline
-          preload="none"
+          preload="auto"
           poster="/assets/xyra-waitlist-poster.jpg"
           className="h-full w-full object-cover"
           onLoadedData={() => setIsLoaded(true)}
         >
-          <source src="/assets/xyra-waitlist-compressed.mp4" type="video/mp4" />
+          <source src="/assets/xyra-waitlist-hq.mp4" type="video/mp4" />
         </video>
         {/* Dark overlay for text readability */}
         <div className="absolute inset-0 bg-black/50" />
