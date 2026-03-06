@@ -43,7 +43,7 @@ export default function Hero() {
         </motion.div>
 
         {/* Mobile text — centered with same -mt-16 offset as before */}
-        <div className="relative z-10 h-full flex flex-col items-center justify-center px-8 md:hidden mt-14">
+        <div className="relative z-10 h-full flex flex-col items-center justify-center px-8 md:hidden pt-28">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
