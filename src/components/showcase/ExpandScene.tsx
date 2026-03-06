@@ -48,14 +48,14 @@ export default function ExpandScene() {
 
     setDashboardVisible(v >= 0.34 && v < 0.79);
 
-    // Scroll-driven card stagger
-    setVisibleCards([v >= 0.48, v >= 0.52, v >= 0.56, v >= 0.60]);
+    // Scroll-driven card stagger — wider gaps for smoother reveal
+    setVisibleCards([v >= 0.46, v >= 0.52, v >= 0.58, v >= 0.64]);
   }, []);
 
   useMotionValueEvent(scrollYProgress, "change", handleProgress);
 
   return (
-    <div ref={ref} className="h-[500vh] relative z-30" style={{ marginTop: "-100vh" }}>
+    <div ref={ref} className="h-[700vh] relative z-30" style={{ marginTop: "-100vh" }}>
 <div className="sticky top-0 h-screen overflow-hidden bg-white z-30">
         {/* Conversation phase */}
         {conversationVisible && (

@@ -53,7 +53,7 @@ export default function BrainScene() {
   useMotionValueEvent(scrollYProgress, "change", handleProgress);
 
   return (
-    <div ref={ref} className="h-[600vh] relative z-40" style={{ marginTop: "-100vh" }}>
+    <div ref={ref} className="h-[900vh] relative z-40" style={{ marginTop: "-100vh" }}>
       <div className="sticky top-0 h-screen overflow-hidden bg-white z-40">
         {/* 3D Brain canvas — shifts left on desktop when insights show */}
         {brainVisible && (

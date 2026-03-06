@@ -64,7 +64,7 @@ function OpeningEffect() {
   const transition = "opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1)";
 
   return (
-    <div ref={ref} className="h-[150vh] relative" style={{ marginBottom: "-100vh" }}>
+    <div ref={ref} className="h-[300vh] relative" style={{ marginBottom: "-100vh" }}>
 <div className="sticky top-0 h-screen overflow-hidden bg-white z-30">
         <motion.div
           style={{ opacity: allOpacity }}

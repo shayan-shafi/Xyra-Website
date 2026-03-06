@@ -67,7 +67,7 @@ export default function PeriodScene() {
   useMotionValueEvent(scrollYProgress, "change", handleProgress);
 
   return (
-    <div ref={ref} className="h-[400vh] relative z-0">
+    <div ref={ref} className="h-[600vh] relative z-0">
 <div className="sticky top-0 h-screen overflow-hidden bg-white">
         {/* Dashboard layer */}
         {dashboardVisible && (

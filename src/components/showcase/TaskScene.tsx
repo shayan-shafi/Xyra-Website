@@ -74,8 +74,8 @@ export default function TaskScene() {
 
       setShowExtract(v >= 0.76);
 
-      // Scroll-driven task stagger
-      setVisibleTasks([v >= 0.78, v >= 0.80, v >= 0.82]);
+      // Scroll-driven task stagger — wider gaps for smoother reveal
+      setVisibleTasks([v >= 0.78, v >= 0.82, v >= 0.86]);
     },
     [fullTranscript]
   );
@@ -89,7 +89,7 @@ export default function TaskScene() {
   ];
 
   return (
-    <div ref={ref} className="h-[500vh] relative z-20" style={{ marginTop: "-100vh" }}>
+    <div ref={ref} className="h-[750vh] relative z-20" style={{ marginTop: "-100vh" }}>
 <div className="sticky top-0 h-screen overflow-hidden bg-white z-20">
         {/* Conversation overlay — starts immediately */}
         {conversationVisible && (

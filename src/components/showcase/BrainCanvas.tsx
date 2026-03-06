@@ -17,9 +17,12 @@ const categories = [
 
 interface BrainCanvasProps {
   zoomProgress?: number;
+  hideTitle?: boolean;
+  hideLabels?: boolean;
+  heroMode?: boolean;
 }
 
-export default function BrainCanvas({ zoomProgress = 0 }: BrainCanvasProps) {
+export default function BrainCanvas({ zoomProgress = 0, hideTitle = false, hideLabels = false, heroMode = false }: BrainCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<{
     camera: THREE.PerspectiveCamera;
@@ -37,19 +40,20 @@ export default function BrainCanvas({ zoomProgress = 0 }: BrainCanvasProps) {
     scene.background = new THREE.Color(0xffffff);
     scene.fog = new THREE.FogExp2(0xffffff, 0.02);
 
-    // Camera
+    // Camera — heroMode brings it closer so the brain fills the viewport
+    const isMobile = container.clientWidth < 768;
     const camera = new THREE.PerspectiveCamera(
-      45,
+      heroMode ? (isMobile ? 55 : 50) : 45,
       container.clientWidth / container.clientHeight,
       0.1,
       1000
     );
-    camera.position.set(0, 10, 20);
+    camera.position.set(0, heroMode ? 6 : 10, heroMode ? (isMobile ? 14 : 12) : 20);
 
-    // WebGL Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    // WebGL Renderer — cap pixel ratio on mobile for performance
+    const renderer = new THREE.WebGLRenderer({ antialias: !isMobile });
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, heroMode && isMobile ? 1.5 : 2));
     container.appendChild(renderer.domElement);
 
     // CSS2D Renderer for labels
@@ -100,20 +104,22 @@ export default function BrainCanvas({ zoomProgress = 0 }: BrainCanvasProps) {
       }
 
       // Label
-      const div = document.createElement("div");
-      div.textContent = labelText;
-      div.style.cssText = `
-        color: black;
-        font-family: 'Playfair Display', serif;
-        font-size: ${isNucleus ? "24px" : "14px"};
-        font-weight: ${isNucleus ? "bold" : "normal"};
-        text-shadow: 0 0 2px white;
-        pointer-events: none;
-        white-space: nowrap;
-      `;
-      const label = new CSS2DObject(div);
-      label.position.set(0, isNucleus ? 1.8 : 0.8, 0);
-      sphere.add(label);
+      if (!hideLabels) {
+        const div = document.createElement("div");
+        div.textContent = labelText;
+        div.style.cssText = `
+          color: black;
+          font-family: 'Playfair Display', serif;
+          font-size: ${isNucleus ? "24px" : "14px"};
+          font-weight: ${isNucleus ? "bold" : "normal"};
+          text-shadow: 0 0 2px white;
+          pointer-events: none;
+          white-space: nowrap;
+        `;
+        const label = new CSS2DObject(div);
+        label.position.set(0, isNucleus ? 1.8 : 0.8, 0);
+        sphere.add(label);
+      }
 
       scene.add(sphere);
 
@@ -224,7 +230,7 @@ export default function BrainCanvas({ zoomProgress = 0 }: BrainCanvasProps) {
         container.removeChild(labelRenderer.domElement);
       }
     };
-  }, []);
+  }, [hideLabels, heroMode]);
 
   // Zoom camera towards Finances node based on scroll progress
   useEffect(() => {
@@ -264,17 +270,19 @@ export default function BrainCanvas({ zoomProgress = 0 }: BrainCanvasProps) {
   return (
     <div className="w-full h-full bg-white relative">
       {/* Title overlay */}
-      <div className="absolute top-0 left-0 p-6 md:p-8 z-10 pointer-events-none">
-        <h1
-          className="text-3xl md:text-5xl text-black tracking-tight font-serif"
-          style={{ letterSpacing: "-0.05em" }}
-        >
-          Your World
-        </h1>
-        <p className="text-black/40 italic mt-2 font-serif text-sm md:text-base">
-          Your universe, mapped by Xyra.
-        </p>
-      </div>
+      {!hideTitle && (
+        <div className="absolute top-0 left-0 p-6 md:p-8 z-10 pointer-events-none">
+          <h1
+            className="text-3xl md:text-5xl text-black tracking-tight font-serif"
+            style={{ letterSpacing: "-0.05em" }}
+          >
+            Your World
+          </h1>
+          <p className="text-black/40 italic mt-2 font-serif text-sm md:text-base">
+            Your universe, mapped by Xyra.
+          </p>
+        </div>
+      )}
 
       {/* Three.js canvas */}
       <div ref={containerRef} className="w-full h-full" />
