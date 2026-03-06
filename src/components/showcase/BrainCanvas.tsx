@@ -50,10 +50,10 @@ export default function BrainCanvas({ zoomProgress = 0, hideTitle = false, hideL
     );
     camera.position.set(0, heroMode ? 6 : 10, heroMode ? (isMobile ? 14 : 12) : 20);
 
-    // WebGL Renderer — cap pixel ratio on mobile for performance
-    const renderer = new THREE.WebGLRenderer({ antialias: !isMobile });
+    // WebGL Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, heroMode && isMobile ? 1.5 : 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
 
     // CSS2D Renderer for labels

@@ -72,8 +72,8 @@ export default function BrainScene() {
 
         {/* Conversation overlay */}
         <motion.div style={{ opacity: chatOpacity }} className="absolute inset-0 z-20 pointer-events-none">
-          <div className="w-full h-full flex flex-col justify-end pb-4 md:pb-28 px-4 md:px-12">
-            <div className="max-w-md mx-auto w-full space-y-4">
+          <div className="w-full h-full flex flex-col justify-center md:justify-end pb-0 md:pb-28 px-4 md:px-12">
+            <div className="max-w-md mx-auto w-full space-y-3 md:space-y-4">
               {showUser && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
@@ -81,7 +81,7 @@ export default function BrainScene() {
                   transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                   className="flex justify-end"
                 >
-                  <div className="bg-black text-white px-6 py-4 font-mono text-sm md:text-base max-w-sm">
+                  <div className="bg-black text-white px-4 py-3 md:px-6 md:py-4 font-mono text-xs md:text-base max-w-[85%] md:max-w-sm">
                     Hey, what is this?
                   </div>
                 </motion.div>
@@ -111,7 +111,7 @@ export default function BrainScene() {
                   transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                   className="flex justify-start"
                 >
-                  <div className="bg-white border border-black px-6 py-4 font-mono text-sm md:text-base text-black max-w-sm">
+                  <div className="bg-white border border-black px-4 py-3 md:px-6 md:py-4 font-mono text-xs md:text-base text-black max-w-[85%] md:max-w-sm">
                     This is where I visualize your life. Let me show you your finances as an example.
                   </div>
                 </motion.div>
@@ -136,12 +136,12 @@ export default function BrainScene() {
         {insightsVisible && (
           <motion.div
             style={{ opacity: insightsOpacity }}
-            className="absolute top-0 right-0 w-full md:w-1/2 h-full z-30 flex items-start pt-6 md:items-center md:pt-0 justify-center pointer-events-none bg-white md:bg-transparent"
+            className="absolute top-0 right-0 w-full md:w-1/2 h-full z-30 flex items-start md:items-center justify-center pointer-events-none bg-white md:bg-transparent overflow-y-auto"
           >
-            <div className="w-full max-w-sm mx-auto px-5 md:px-8 space-y-2 md:space-y-4">
+            <div className="w-full max-w-sm mx-auto px-5 md:px-8 py-4 md:py-0 space-y-2 md:space-y-4">
               {/* Mobile: rotating finance node replaces the header */}
               <div className="md:hidden">
-                <div className="w-full h-40">
+                <div className="w-full h-28">
                   <FinanceNode />
                 </div>
                 <p className="font-mono text-[9px] text-black/40 text-center -mt-1">
