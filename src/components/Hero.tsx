@@ -62,8 +62,6 @@ export default function Hero() {
             Your AI-native personal operating system.
             <br />
             <span className="text-black/35">You speak, Xyra builds.</span>
-            <br />
-            <span className="text-black/35">Xyra builds, Agents read.</span>
           </motion.p>
 
           <motion.div
@@ -122,8 +120,6 @@ export default function Hero() {
             Your AI-native personal operating system.
             <br />
             <span className="text-black/35">You speak, Xyra builds.</span>
-            <br />
-            <span className="text-black/35">Xyra builds, Agents read.</span>
           </motion.p>
 
           <motion.div
