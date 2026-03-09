@@ -269,7 +269,7 @@ export default function Waitlist() {
                     {/* Q3 */}
                     <div>
                       <label className="block font-[family-name:var(--font-jetbrains)] text-xs tracking-wide text-white/50 mb-2">
-                        What is a must-have dashboard for you?
+                        What is one thing you are tracking in your head that you wish you weren't?
                       </label>
                       <textarea
                         value={surveyMustHave}
