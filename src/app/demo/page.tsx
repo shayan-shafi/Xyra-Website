@@ -1,16 +1,14 @@
-import Hero from "@/components/Hero";
-import Explainer from "@/components/Explainer";
+import ScrollShowcase from "@/components/ScrollShowcase";
 import Navbar from "@/components/Navbar";
 import Waitlist from "@/components/Waitlist";
 import Footer from "@/components/Footer";
 
-export default function Home() {
+export default function Demo() {
   return (
     <div className="bg-white min-h-screen">
-      <Hero />
-      <Explainer />
+      <ScrollShowcase />
       <Navbar />
-      <Waitlist />
+      <Waitlist overlapMode />
       <Footer />
     </div>
   );

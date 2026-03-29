@@ -31,13 +31,10 @@ function OpeningEffect() {
     return () => timers.forEach(clearTimeout);
   }, []);
 
-  // Scroll-driven follow-up conversation
+  // Typewriter still needs state (character-by-character)
   const [howSoText, setHowSoText] = useState("");
-  const [showHowSoThinking, setShowHowSoThinking] = useState(false);
-  const [showHowSoReply, setShowHowSoReply] = useState(false);
 
   const handleScroll = useCallback((v: number) => {
-    // Typewriter "How so?" from 20% to 45%
     if (v >= 0.2 && v <= 0.45) {
       const t = (v - 0.2) / 0.25;
       const len = Math.floor(t * HOW_SO.length);
@@ -47,27 +44,23 @@ function OpeningEffect() {
     } else {
       setHowSoText(HOW_SO);
     }
-
-    // Thinking dots from 50% to 65%
-    setShowHowSoThinking(v >= 0.5 && v < 0.65);
-
-    // Reply from 65% onward
-    setShowHowSoReply(v >= 0.65);
   }, []);
 
   useMotionValueEvent(scrollYProgress, "change", handleScroll);
 
-  // Conversation fades out at the end
+  // Pure motion values — no setState needed
   const allOpacity = useTransform(scrollYProgress, [0.8, 0.95], [1, 0]);
   const scrollIndicatorOpacity = useTransform(scrollYProgress, [0.05, 0.15], [1, 0]);
+  const howSoThinkingOpacity = useTransform(scrollYProgress, [0.48, 0.50, 0.63, 0.65], [0, 1, 1, 0]);
+  const howSoReplyOpacity = useTransform(scrollYProgress, [0.63, 0.67], [0, 1]);
 
   const transition = "opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1)";
 
   return (
     <div ref={ref} className="h-[300vh] relative" style={{ marginBottom: "-100vh" }}>
-<div className="sticky top-0 h-screen overflow-hidden bg-white z-30">
+      <div className="sticky top-0 h-screen overflow-hidden bg-white z-30">
         <motion.div
-          style={{ opacity: allOpacity }}
+          style={{ opacity: allOpacity, willChange: "opacity" }}
           className="absolute inset-0 z-10 flex items-center justify-center p-8"
         >
           <div className="max-w-2xl w-full flex flex-col gap-6">
@@ -124,27 +117,29 @@ function OpeningEffect() {
               </div>
             )}
 
-            {/* 5. Thinking dots (scroll-driven) */}
-            {showHowSoThinking && (
-              <div className="flex justify-start">
-                <div className="bg-white border border-black px-6 py-4 font-mono text-sm text-black">
-                  <span className="flex items-center gap-1">
-                    <span className="inline-block w-1.5 h-1.5 bg-black rounded-full animate-bounce [animation-delay:0ms]" />
-                    <span className="inline-block w-1.5 h-1.5 bg-black rounded-full animate-bounce [animation-delay:150ms]" />
-                    <span className="inline-block w-1.5 h-1.5 bg-black rounded-full animate-bounce [animation-delay:300ms]" />
-                  </span>
-                </div>
+            {/* 5. Thinking dots (scroll-driven) — pure motion opacity */}
+            <motion.div
+              style={{ opacity: howSoThinkingOpacity, willChange: "opacity" }}
+              className="flex justify-start"
+            >
+              <div className="bg-white border border-black px-6 py-4 font-mono text-sm text-black">
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-1.5 h-1.5 bg-black rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="inline-block w-1.5 h-1.5 bg-black rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="inline-block w-1.5 h-1.5 bg-black rounded-full animate-bounce [animation-delay:300ms]" />
+                </span>
               </div>
-            )}
+            </motion.div>
 
-            {/* 6. Xyra: "Try it..." */}
-            {showHowSoReply && (
-              <div className="flex justify-start">
-                <div className="bg-white border border-black px-6 py-4 font-mono text-sm md:text-base text-black">
-                  Try it, track anything and let me do the rest.
-                </div>
+            {/* 6. Xyra: "Try it..." — pure motion opacity */}
+            <motion.div
+              style={{ opacity: howSoReplyOpacity, willChange: "opacity" }}
+              className="flex justify-start"
+            >
+              <div className="bg-white border border-black px-6 py-4 font-mono text-sm md:text-base text-black">
+                Try it, track anything and let me do the rest.
               </div>
-            )}
+            </motion.div>
           </div>
         </motion.div>
 

@@ -10,7 +10,7 @@ const fadeUp = {
 
 type Step = "email" | "survey" | "done";
 
-export default function Waitlist() {
+export default function Waitlist({ overlapMode = false }: { overlapMode?: boolean }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
   const [isLoaded, setIsLoaded] = useState(false);
@@ -96,7 +96,7 @@ export default function Waitlist() {
     <section
       id="waitlist"
       className="relative min-h-screen w-full overflow-hidden bg-black z-[45]"
-      style={{ marginTop: "-100vh" }}
+      style={overlapMode ? { marginTop: "-100vh" } : undefined}
       ref={ref}
     >
       {/* Video Background */}
@@ -234,39 +234,10 @@ export default function Waitlist() {
                     We&apos;ll be in touch when Xyra is ready for you.
                   </p>
                   <p className="font-[family-name:var(--font-eb-garamond)] text-base text-white/50 mb-8">
-                    While you&apos;re here, help us build something great &mdash; answer a few quick questions:
+                    One quick question so we can make sure you never have to track in your head again.
                   </p>
 
                   <form onSubmit={handleSurveySubmit} className="space-y-5 text-left">
-                    {/* Q1 */}
-                    <div>
-                      <label className="block font-[family-name:var(--font-jetbrains)] text-xs tracking-wide text-white/50 mb-2">
-                        How many apps do you currently juggle for tracking things?
-                      </label>
-                      <input
-                        type="text"
-                        value={surveyAppCount}
-                        onChange={(e) => setSurveyAppCount(e.target.value)}
-                        placeholder="e.g. 3-4 apps"
-                        className={inputClass}
-                      />
-                    </div>
-
-                    {/* Q2 */}
-                    <div>
-                      <label className="block font-[family-name:var(--font-jetbrains)] text-xs tracking-wide text-white/50 mb-2">
-                        Which apps do you use to track things?
-                      </label>
-                      <input
-                        type="text"
-                        value={surveyCurrentApps}
-                        onChange={(e) => setSurveyCurrentApps(e.target.value)}
-                        placeholder="e.g. Notion, Google Sheets, Apple Notes"
-                        className={inputClass}
-                      />
-                    </div>
-
-                    {/* Q3 */}
                     <div>
                       <label className="block font-[family-name:var(--font-jetbrains)] text-xs tracking-wide text-white/50 mb-2">
                         What is one thing you are tracking in your head that you wish you weren&apos;t?

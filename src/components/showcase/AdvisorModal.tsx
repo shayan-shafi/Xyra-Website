@@ -78,7 +78,7 @@ export default function AdvisorModal({
 
             {/* Insight */}
             <p className="font-serif text-sm md:text-base text-black/70 leading-relaxed">
-              You&apos;re on track for your $10,000 savings goal &mdash; nice
+              You&apos;re on track for your $10,000 savings goal. Nice
               work. That said, you&apos;ve hit Starbucks 6 times this week.
               Maybe skip the daily matcha for a bit?
             </p>

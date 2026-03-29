@@ -38,7 +38,7 @@ export default function Navbar() {
       <div className="mx-auto px-6 sm:px-8 lg:px-12">
         <div className="flex h-20 sm:h-24 items-center justify-between">
           {/* Logo */}
-          <a href="#" className="flex items-center gap-3">
+          <a href="/" className="flex items-center gap-3">
             <Image
               src="/assets/xyra-logo.png"
               alt="Xyra"

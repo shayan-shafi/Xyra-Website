@@ -14,30 +14,25 @@ export default function BrainScene() {
     offset: ["start start", "end end"],
   });
 
-  const [brainVisible, setBrainVisible] = useState(false);
+  // State only for child component props
   const [zoomProgress, setZoomProgress] = useState(0);
   const [showUser, setShowUser] = useState(false);
   const [showThinking, setShowThinking] = useState(false);
   const [showReply, setShowReply] = useState(false);
-  const [insightsVisible, setInsightsVisible] = useState(false);
 
+  // Pure motion values
   const brainOpacity = useTransform(scrollYProgress, [0.0, 0.08, 0.90, 0.97], [0, 1, 1, 0]);
   const chatOpacity = useTransform(scrollYProgress, [0.08, 0.14, 0.38, 0.44], [0, 1, 1, 0]);
   const insightsOpacity = useTransform(scrollYProgress, [0.62, 0.68, 0.88, 0.93], [0, 1, 1, 0]);
   const blackOverlayOpacity = useTransform(scrollYProgress, [0.90, 0.97], [0, 1]);
-
-  // Brain shifts left when insights appear
   const brainX = useTransform(scrollYProgress, [0.58, 0.68], ["0%", "-25%"]);
 
   const handleProgress = useCallback((v: number) => {
-    setBrainVisible(v >= 0.0 && v < 0.97);
-
-    // Conversation
     setShowUser(v >= 0.12);
     setShowThinking(v >= 0.22 && v < 0.30);
     setShowReply(v >= 0.30);
 
-    // Zoom into finance node: 0.50 → 0.65
+    // Zoom into finance node
     if (v >= 0.50 && v <= 0.65) {
       setZoomProgress((v - 0.50) / 0.15);
     } else if (v < 0.50) {
@@ -45,9 +40,6 @@ export default function BrainScene() {
     } else {
       setZoomProgress(1);
     }
-
-    // Insights panel
-    setInsightsVisible(v >= 0.62 && v < 0.93);
   }, []);
 
   useMotionValueEvent(scrollYProgress, "change", handleProgress);
@@ -55,23 +47,24 @@ export default function BrainScene() {
   return (
     <div ref={ref} className="h-[900vh] relative z-40" style={{ marginTop: "-100vh" }}>
       <div className="sticky top-0 h-screen overflow-hidden bg-white z-40">
-        {/* 3D Brain canvas — shifts left on desktop when insights show */}
-        {brainVisible && (
-          <motion.div
-            style={{ opacity: brainOpacity }}
-            className="absolute inset-0 z-10"
-          >
-            <motion.div style={{ x: brainX }} className="w-full h-full hidden md:block">
-              <BrainCanvas zoomProgress={zoomProgress} />
-            </motion.div>
-            <div className="w-full h-full md:hidden">
-              <BrainCanvas zoomProgress={zoomProgress} />
-            </div>
+        {/* 3D Brain canvas — always rendered */}
+        <motion.div
+          style={{ opacity: brainOpacity, willChange: "opacity" }}
+          className="absolute inset-0 z-10"
+        >
+          <motion.div style={{ x: brainX, willChange: "transform" }} className="w-full h-full hidden md:block">
+            <BrainCanvas zoomProgress={zoomProgress} />
           </motion.div>
-        )}
+          <div className="w-full h-full md:hidden">
+            <BrainCanvas zoomProgress={zoomProgress} />
+          </div>
+        </motion.div>
 
-        {/* Conversation overlay */}
-        <motion.div style={{ opacity: chatOpacity }} className="absolute inset-0 z-20 pointer-events-none">
+        {/* Conversation overlay — always rendered */}
+        <motion.div
+          style={{ opacity: chatOpacity, willChange: "opacity" }}
+          className="absolute inset-0 z-20 pointer-events-none"
+        >
           <div className="w-full h-full flex flex-col justify-center md:justify-end pb-0 md:pb-28 px-4 md:px-12">
             <div className="max-w-md mx-auto w-full space-y-3 md:space-y-4">
               {showUser && (
@@ -120,149 +113,146 @@ export default function BrainScene() {
           </div>
         </motion.div>
 
-        {/* Xyra advisor bubble — desktop only, bottom left under the brain */}
-        {insightsVisible && (
-          <motion.div
-            style={{ opacity: insightsOpacity }}
-            className="hidden md:block absolute bottom-40 left-[22%] z-30 pointer-events-none max-w-sm"
-          >
-            <div className="bg-white border border-black px-5 py-4 font-mono text-sm text-black leading-relaxed">
+        {/* Xyra advisor bubble — desktop only */}
+        <motion.div
+          style={{ opacity: insightsOpacity, willChange: "opacity" }}
+          className="hidden md:block absolute bottom-40 left-[22%] z-30 pointer-events-none max-w-sm"
+        >
+          <div className="bg-white border border-black px-5 py-4 font-mono text-sm text-black leading-relaxed">
+            Oh yeah, I also act as your advisor for everything you do. Got you with recommendations, feedback, or tips.
+          </div>
+        </motion.div>
+
+        {/* Finance insights panel — always rendered */}
+        <motion.div
+          style={{ opacity: insightsOpacity, willChange: "opacity" }}
+          className="absolute top-0 right-0 w-full md:w-1/2 h-full z-30 flex items-start md:items-center justify-center pointer-events-none bg-white md:bg-transparent overflow-y-auto"
+        >
+          <div className="w-full max-w-sm mx-auto px-5 md:px-8 py-4 md:py-0 space-y-2 md:space-y-4">
+            {/* Mobile: rotating finance node */}
+            <div className="md:hidden">
+              <div className="w-full h-28">
+                <FinanceNode />
+              </div>
+              <p className="font-mono text-[9px] text-black/40 text-center -mt-1">
+                Node insights powered by Xyra
+              </p>
+            </div>
+
+            {/* Desktop header */}
+            <div className="hidden md:block border-b border-black/10 pb-3">
+              <h2 className="font-serif text-2xl text-black">Finances</h2>
+              <p className="font-mono text-xs text-black/40 mt-1">
+                Node insights powered by Xyra
+              </p>
+            </div>
+
+            {/* Stats grid */}
+            <div className="grid grid-cols-2 gap-2 md:gap-3">
+              <div className="border border-black/10 p-2 md:p-3">
+                <div className="font-mono text-[8px] md:text-[10px] text-black/40 uppercase tracking-wider">
+                  Days Active
+                </div>
+                <div className="text-lg md:text-2xl font-bold text-black mt-0.5 md:mt-1">47</div>
+              </div>
+              <div className="border border-black/10 p-2 md:p-3">
+                <div className="font-mono text-[8px] md:text-[10px] text-black/40 uppercase tracking-wider">
+                  Money Saved
+                </div>
+                <div className="text-lg md:text-2xl font-bold text-emerald-500 mt-0.5 md:mt-1">$2,340</div>
+              </div>
+              <div className="border border-black/10 p-2 md:p-3">
+                <div className="font-mono text-[8px] md:text-[10px] text-black/40 uppercase tracking-wider">
+                  Total Spent
+                </div>
+                <div className="text-lg md:text-2xl font-bold text-black mt-0.5 md:mt-1">$4,120</div>
+              </div>
+              <div className="border border-black/10 p-2 md:p-3">
+                <div className="font-mono text-[8px] md:text-[10px] text-black/40 uppercase tracking-wider">
+                  Budget Left
+                </div>
+                <div className="text-lg md:text-2xl font-bold text-amber-500 mt-0.5 md:mt-1">$760</div>
+              </div>
+            </div>
+
+            {/* Savings progress */}
+            <div className="border border-black/10 p-2 md:p-3">
+              <div className="flex justify-between items-center mb-1 md:mb-2">
+                <span className="font-mono text-[9px] md:text-xs text-black/40">Savings Goal</span>
+                <span className="font-mono text-[9px] md:text-xs text-emerald-500">78%</span>
+              </div>
+              <div className="w-full h-1 md:h-1.5 bg-black/5 rounded-full overflow-hidden">
+                <div className="h-full bg-emerald-500 rounded-full" style={{ width: '78%' }} />
+              </div>
+              <p className="font-mono text-[8px] md:text-[10px] text-black/30 mt-1">
+                $2,340 of $3,000 goal
+              </p>
+            </div>
+
+            {/* Xyra insight */}
+            <div className="bg-black p-3 md:p-4">
+              <div className="flex items-center gap-2 mb-1 md:mb-2">
+                <div className="w-4 md:w-5 h-4 md:h-5 bg-white rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-black text-[8px] md:text-[10px] font-serif font-bold">X</span>
+                </div>
+                <span className="font-mono text-[9px] md:text-[10px] text-white/60">Xyra Insight</span>
+              </div>
+              <p className="font-mono text-[10px] md:text-xs text-white/90 leading-relaxed">
+                You&apos;ve cut dining out by 32% this month. Your savings rate is up 15% since you started tracking. Keep it up!
+              </p>
+            </div>
+
+            {/* Recent activity */}
+            <div className="space-y-1 md:space-y-2">
+              <h3 className="font-mono text-[9px] md:text-xs text-black/40 uppercase tracking-wider">
+                Recent Activity
+              </h3>
+              <div className="flex items-center justify-between py-1 md:py-1.5 border-b border-black/5">
+                <span className="font-mono text-[10px] md:text-xs text-black">Groceries</span>
+                <span className="font-mono text-[10px] md:text-xs text-black/60">-$67</span>
+              </div>
+              <div className="flex items-center justify-between py-1 md:py-1.5 border-b border-black/5">
+                <span className="font-mono text-[10px] md:text-xs text-black">Paycheck</span>
+                <span className="font-mono text-[10px] md:text-xs text-emerald-500">+$2,400</span>
+              </div>
+              <div className="flex items-center justify-between py-1 md:py-1.5 border-b border-black/5">
+                <span className="font-mono text-[10px] md:text-xs text-black">Uber</span>
+                <span className="font-mono text-[10px] md:text-xs text-black/60">-$18</span>
+              </div>
+            </div>
+
+            {/* Mic button */}
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="flex-1 bg-white border border-black/15 px-3 md:px-4 py-2 md:py-3 font-mono text-xs md:text-sm text-black/30">
+                Ask about your finances...
+              </div>
+              <button className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-black flex items-center justify-center flex-shrink-0">
+                <svg
+                  className="w-4 h-4 md:w-5 md:h-5 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Xyra advisor — mobile only */}
+            <div className="md:hidden bg-white border border-black px-4 py-3 font-mono text-[10px] text-black leading-relaxed">
               Oh yeah, I also act as your advisor for everything you do. Got you with recommendations, feedback, or tips.
             </div>
-          </motion.div>
-        )}
+          </div>
+        </motion.div>
 
-        {/* Finance insights panel */}
-        {insightsVisible && (
-          <motion.div
-            style={{ opacity: insightsOpacity }}
-            className="absolute top-0 right-0 w-full md:w-1/2 h-full z-30 flex items-start md:items-center justify-center pointer-events-none bg-white md:bg-transparent overflow-y-auto"
-          >
-            <div className="w-full max-w-sm mx-auto px-5 md:px-8 py-4 md:py-0 space-y-2 md:space-y-4">
-              {/* Mobile: rotating finance node replaces the header */}
-              <div className="md:hidden">
-                <div className="w-full h-28">
-                  <FinanceNode />
-                </div>
-                <p className="font-mono text-[9px] text-black/40 text-center -mt-1">
-                  Node insights powered by Xyra
-                </p>
-              </div>
-
-              {/* Desktop header */}
-              <div className="hidden md:block border-b border-black/10 pb-3">
-                <h2 className="font-serif text-2xl text-black">Finances</h2>
-                <p className="font-mono text-xs text-black/40 mt-1">
-                  Node insights powered by Xyra
-                </p>
-              </div>
-
-              {/* Stats grid */}
-              <div className="grid grid-cols-2 gap-2 md:gap-3">
-                <div className="border border-black/10 p-2 md:p-3">
-                  <div className="font-mono text-[8px] md:text-[10px] text-black/40 uppercase tracking-wider">
-                    Days Active
-                  </div>
-                  <div className="text-lg md:text-2xl font-bold text-black mt-0.5 md:mt-1">47</div>
-                </div>
-                <div className="border border-black/10 p-2 md:p-3">
-                  <div className="font-mono text-[8px] md:text-[10px] text-black/40 uppercase tracking-wider">
-                    Money Saved
-                  </div>
-                  <div className="text-lg md:text-2xl font-bold text-emerald-500 mt-0.5 md:mt-1">$2,340</div>
-                </div>
-                <div className="border border-black/10 p-2 md:p-3">
-                  <div className="font-mono text-[8px] md:text-[10px] text-black/40 uppercase tracking-wider">
-                    Total Spent
-                  </div>
-                  <div className="text-lg md:text-2xl font-bold text-black mt-0.5 md:mt-1">$4,120</div>
-                </div>
-                <div className="border border-black/10 p-2 md:p-3">
-                  <div className="font-mono text-[8px] md:text-[10px] text-black/40 uppercase tracking-wider">
-                    Budget Left
-                  </div>
-                  <div className="text-lg md:text-2xl font-bold text-amber-500 mt-0.5 md:mt-1">$760</div>
-                </div>
-              </div>
-
-              {/* Savings progress */}
-              <div className="border border-black/10 p-2 md:p-3">
-                <div className="flex justify-between items-center mb-1 md:mb-2">
-                  <span className="font-mono text-[9px] md:text-xs text-black/40">Savings Goal</span>
-                  <span className="font-mono text-[9px] md:text-xs text-emerald-500">78%</span>
-                </div>
-                <div className="w-full h-1 md:h-1.5 bg-black/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: '78%' }} />
-                </div>
-                <p className="font-mono text-[8px] md:text-[10px] text-black/30 mt-1">
-                  $2,340 of $3,000 goal
-                </p>
-              </div>
-
-              {/* Xyra insight */}
-              <div className="bg-black p-3 md:p-4">
-                <div className="flex items-center gap-2 mb-1 md:mb-2">
-                  <div className="w-4 md:w-5 h-4 md:h-5 bg-white rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-black text-[8px] md:text-[10px] font-serif font-bold">X</span>
-                  </div>
-                  <span className="font-mono text-[9px] md:text-[10px] text-white/60">Xyra Insight</span>
-                </div>
-                <p className="font-mono text-[10px] md:text-xs text-white/90 leading-relaxed">
-                  You&apos;ve cut dining out by 32% this month. Your savings rate is up 15% since you started tracking. Keep it up!
-                </p>
-              </div>
-
-              {/* Recent activity */}
-              <div className="space-y-1 md:space-y-2">
-                <h3 className="font-mono text-[9px] md:text-xs text-black/40 uppercase tracking-wider">
-                  Recent Activity
-                </h3>
-                <div className="flex items-center justify-between py-1 md:py-1.5 border-b border-black/5">
-                  <span className="font-mono text-[10px] md:text-xs text-black">Groceries</span>
-                  <span className="font-mono text-[10px] md:text-xs text-black/60">-$67</span>
-                </div>
-                <div className="flex items-center justify-between py-1 md:py-1.5 border-b border-black/5">
-                  <span className="font-mono text-[10px] md:text-xs text-black">Paycheck</span>
-                  <span className="font-mono text-[10px] md:text-xs text-emerald-500">+$2,400</span>
-                </div>
-                <div className="flex items-center justify-between py-1 md:py-1.5 border-b border-black/5">
-                  <span className="font-mono text-[10px] md:text-xs text-black">Uber</span>
-                  <span className="font-mono text-[10px] md:text-xs text-black/60">-$18</span>
-                </div>
-              </div>
-
-              {/* Mic button */}
-              <div className="flex items-center gap-2 md:gap-3">
-                <div className="flex-1 bg-white border border-black/15 px-3 md:px-4 py-2 md:py-3 font-mono text-xs md:text-sm text-black/30">
-                  Ask about your finances...
-                </div>
-                <button className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-black flex items-center justify-center flex-shrink-0">
-                  <svg
-                    className="w-4 h-4 md:w-5 md:h-5 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"
-                    />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Xyra advisor — mobile only, below mic */}
-              <div className="md:hidden bg-white border border-black px-4 py-3 font-mono text-[10px] text-black leading-relaxed">
-                Oh yeah, I also act as your advisor for everything you do. Got you with recommendations, feedback, or tips.
-              </div>
-            </div>
-          </motion.div>
-        )}
         {/* Black overlay — crossfade to black before waitlist */}
         <motion.div
-          style={{ opacity: blackOverlayOpacity }}
+          style={{ opacity: blackOverlayOpacity, willChange: "opacity" }}
           className="absolute inset-0 bg-black z-50 pointer-events-none"
         />
       </div>

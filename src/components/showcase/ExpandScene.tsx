@@ -18,107 +18,88 @@ export default function ExpandScene() {
     offset: ["start start", "end end"],
   });
 
-  // Conversation state
-  const [conversationVisible, setConversationVisible] = useState(false);
+  // State only for child component boolean props
   const [showUser, setShowUser] = useState(false);
   const [showThinking, setShowThinking] = useState(false);
   const [showReply, setShowReply] = useState(false);
 
-  // Dashboard state
-  const [dashboardVisible, setDashboardVisible] = useState(false);
-  const [visibleCards, setVisibleCards] = useState<boolean[]>([false, false, false, false]);
+  // Pure motion values
+  const conversationOpacity = useTransform(scrollYProgress, [0.0, 0.02, 0.28, 0.34], [0, 1, 1, 0]);
+  const dashboardOpacity = useTransform(scrollYProgress, [0.34, 0.40, 0.72, 0.78], [0, 1, 1, 0]);
 
-  // Motion values
-  const conversationOpacity = useTransform(
-    scrollYProgress,
-    [0.0, 0.02, 0.28, 0.34],
-    [0, 1, 1, 0]
-  );
-  const dashboardOpacity = useTransform(
-    scrollYProgress,
-    [0.34, 0.40, 0.72, 0.78],
-    [0, 1, 1, 0]
-  );
+  // Staggered card reveals — pure motion values instead of conditional rendering
+  const card1Opacity = useTransform(scrollYProgress, [0.44, 0.50], [0, 1]);
+  const card1Y = useTransform(scrollYProgress, [0.44, 0.50], [20, 0]);
+  const card1Scale = useTransform(scrollYProgress, [0.44, 0.50], [0.9, 1]);
+  const card2Opacity = useTransform(scrollYProgress, [0.50, 0.56], [0, 1]);
+  const card2Y = useTransform(scrollYProgress, [0.50, 0.56], [20, 0]);
+  const card2Scale = useTransform(scrollYProgress, [0.50, 0.56], [0.9, 1]);
+  const card3Opacity = useTransform(scrollYProgress, [0.56, 0.62], [0, 1]);
+  const card3Y = useTransform(scrollYProgress, [0.56, 0.62], [20, 0]);
+  const card3Scale = useTransform(scrollYProgress, [0.56, 0.62], [0.9, 1]);
+  const card4Opacity = useTransform(scrollYProgress, [0.62, 0.68], [0, 1]);
+  const card4Y = useTransform(scrollYProgress, [0.62, 0.68], [20, 0]);
+  const card4Scale = useTransform(scrollYProgress, [0.62, 0.68], [0.9, 1]);
 
   const handleProgress = useCallback((v: number) => {
-    setConversationVisible(v < 0.34);
     setShowUser(v >= 0.02);
     setShowThinking(v >= 0.12 && v < 0.16);
     setShowReply(v >= 0.16);
-
-    setDashboardVisible(v >= 0.34 && v < 0.79);
-
-    // Scroll-driven card stagger — wider gaps for smoother reveal
-    setVisibleCards([v >= 0.46, v >= 0.52, v >= 0.58, v >= 0.64]);
   }, []);
 
   useMotionValueEvent(scrollYProgress, "change", handleProgress);
 
   return (
     <div ref={ref} className="h-[700vh] relative z-30" style={{ marginTop: "-100vh" }}>
-<div className="sticky top-0 h-screen overflow-hidden bg-white z-30">
-        {/* Conversation phase */}
-        {conversationVisible && (
-          <motion.div style={{ opacity: conversationOpacity }} className="absolute inset-0 z-10">
-            <ConversationBubble
-              userMessage="Okay wow, this is pretty cool. I also want to track my work, my startup, my workouts, and my finances."
-              showUser={showUser}
-              showThinking={showThinking}
-              showReply={showReply}
-              replyText="Got it, I'll add all of those now."
-            />
-          </motion.div>
-        )}
+      <div className="sticky top-0 h-screen overflow-hidden bg-white z-30">
+        {/* Conversation phase — always rendered */}
+        <motion.div
+          style={{ opacity: conversationOpacity, willChange: "opacity" }}
+          className="absolute inset-0 z-10 pointer-events-none"
+        >
+          <ConversationBubble
+            userMessage="Okay wow, this is pretty cool. I also want to track my work, my startup, my workouts, and my finances."
+            showUser={showUser}
+            showThinking={showThinking}
+            showReply={showReply}
+            replyText="Got it, I'll add all of those now."
+          />
+        </motion.div>
 
-        {/* Dashboard phase — all 6 cards */}
-        {dashboardVisible && (
-          <motion.div style={{ opacity: dashboardOpacity }} className="absolute inset-0">
-            <DashboardShell commandBarText="" showCursor={false}>
-              <PeriodCard />
-              <TaskCard />
-              {visibleCards[0] && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                  className="row-span-2"
-                >
-                  <WorkCard />
-                </motion.div>
-              )}
-              {visibleCards[1] && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                  className="row-span-2"
-                >
-                  <StartupCard />
-                </motion.div>
-              )}
-              {visibleCards[2] && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                  className="row-span-2"
-                >
-                  <WorkoutCard />
-                </motion.div>
-              )}
-              {visibleCards[3] && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                  className="row-span-2"
-                >
-                  <FinanceCard />
-                </motion.div>
-              )}
-            </DashboardShell>
-          </motion.div>
-        )}
+        {/* Dashboard phase — always rendered, staggered cards via motion values */}
+        <motion.div
+          style={{ opacity: dashboardOpacity, willChange: "opacity" }}
+          className="absolute inset-0"
+        >
+          <DashboardShell commandBarText="" showCursor={false}>
+            <PeriodCard />
+            <TaskCard />
+            <motion.div
+              style={{ opacity: card1Opacity, y: card1Y, scale: card1Scale, willChange: "transform, opacity" }}
+              className="row-span-2"
+            >
+              <WorkCard />
+            </motion.div>
+            <motion.div
+              style={{ opacity: card2Opacity, y: card2Y, scale: card2Scale, willChange: "transform, opacity" }}
+              className="row-span-2"
+            >
+              <StartupCard />
+            </motion.div>
+            <motion.div
+              style={{ opacity: card3Opacity, y: card3Y, scale: card3Scale, willChange: "transform, opacity" }}
+              className="row-span-2"
+            >
+              <WorkoutCard />
+            </motion.div>
+            <motion.div
+              style={{ opacity: card4Opacity, y: card4Y, scale: card4Scale, willChange: "transform, opacity" }}
+              className="row-span-2"
+            >
+              <FinanceCard />
+            </motion.div>
+          </DashboardShell>
+        </motion.div>
       </div>
     </div>
   );

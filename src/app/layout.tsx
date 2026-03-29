@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Playfair_Display, EB_Garamond, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import SmoothScroll from "@/components/SmoothScroll";
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -49,6 +50,7 @@ export default function RootLayout({
       <body
         className={`${playfair.variable} ${garamond.variable} ${jetbrains.variable} antialiased`}
       >
+        <SmoothScroll />
         {children}
       </body>
     </html>
