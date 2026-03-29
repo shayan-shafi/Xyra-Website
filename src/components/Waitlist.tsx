@@ -29,8 +29,6 @@ export default function Waitlist({ overlapMode = false }: { overlapMode?: boolea
   const [emailStatus, setEmailStatus] = useState<"idle" | "loading" | "error">("idle");
 
   // Survey step
-  const [surveyAppCount, setSurveyAppCount] = useState("");
-  const [surveyCurrentApps, setSurveyCurrentApps] = useState("");
   const [surveyMustHave, setSurveyMustHave] = useState("");
   const [surveyStatus, setSurveyStatus] = useState<"idle" | "loading" | "error">("idle");
 
@@ -68,8 +66,6 @@ export default function Waitlist({ overlapMode = false }: { overlapMode?: boolea
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
-          surveyAppCount,
-          surveyCurrentApps,
           surveyMustHave,
         }),
       });
