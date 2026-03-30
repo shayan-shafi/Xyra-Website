@@ -4,30 +4,13 @@ import { NextResponse } from "next/server";
 
 const POSITION_OFFSET = 250;
 
-function buildWelcomeEmail(name: string, position: number) {
-  const firstName = name.split(" ")[0];
-  return `Hey ${firstName},
-
-You're on the Xyra waitlist. You're #${position}.
-
-I'm Shayan, one of the three founders. I wanted to write this one myself, not hand it off to a template.
-
-Here's the honest version of what we're building:
-
-Xyra is a personal operating system that builds itself from your voice, or your fingers. Speak it, type it, either way it constructs your dashboards, your knowledge graph, your system. No setup. No templates. No Sunday-night rebuilding rituals.
-
-I built it because I spent four years trying to find it and couldn't. I'm guessing you know the feeling. You've had the perfect Notion setup. It lasted three weeks. You've been starting over ever since.
-
-That ends with Xyra.
-
-Over the next week, I'm going to send you a few emails. Not sales emails, real ones. About what we built, why it works differently, and what the first people who use it are experiencing.
-
-One thing before I go: you can move up the waitlist. Share your referral link with one person who'd genuinely want this, and you jump 50 spots. Three people = you move to the front.
-
-Talk soon.
-
-Shayan
-Co-founder, Xyra`;
+function generateRefCode(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let code = "";
+  for (let i = 0; i < 8; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
 }
 
 // POST — join waitlist with email
@@ -40,7 +23,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, email } = await request.json();
+    const { name, email, referredBy } = await request.json();
 
     if (!name || typeof name !== "string") {
       return NextResponse.json(
@@ -73,10 +56,18 @@ export async function POST(request: Request) {
       );
     }
 
+    // Generate unique referral code
+    const refCode = generateRefCode();
+
     // Insert new entry
     const { error } = await supabase
       .from("waitlist")
-      .insert({ name: trimmedName, email: normalizedEmail });
+      .insert({
+        name: trimmedName,
+        email: normalizedEmail,
+        ref_code: refCode,
+        referred_by: referredBy || null,
+      });
 
     if (error) {
       console.error("Supabase insert error:", error);
@@ -94,7 +85,23 @@ export async function POST(request: Request) {
       );
     }
 
-    // Calculate position: count total entries + offset
+    // If referred by someone, increment their referral count
+    if (referredBy) {
+      const { data: referrer } = await supabase
+        .from("waitlist")
+        .select("referral_count")
+        .eq("ref_code", referredBy)
+        .single();
+
+      if (referrer) {
+        await supabase
+          .from("waitlist")
+          .update({ referral_count: (referrer.referral_count || 0) + 1 })
+          .eq("ref_code", referredBy);
+      }
+    }
+
+    // Calculate position
     let position = POSITION_OFFSET;
     const { count } = await supabase
       .from("waitlist")
@@ -103,15 +110,23 @@ export async function POST(request: Request) {
       position = POSITION_OFFSET + count;
     }
 
-    // Send welcome email (fire and forget — don't block the response)
+    // Send welcome email via Resend template
     if (resend) {
+      const firstName = trimmedName.split(" ")[0];
       resend.emails
         .send({
           from: "Shayan from Xyra <shayan@xyra.dev>",
           to: normalizedEmail,
           subject: "You're in. Here's what happens next.",
-          text: buildWelcomeEmail(trimmedName, position),
-        })
+          template: {
+            id: "waitlist-signup-email-1",
+            variables: {
+              firstName,
+              position,
+              code: refCode,
+            },
+          },
+        } as Parameters<typeof resend.emails.send>[0])
         .catch((err) => console.error("Resend error:", err));
     }
 

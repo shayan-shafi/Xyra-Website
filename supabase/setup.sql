@@ -19,6 +19,9 @@ ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS name               TEXT;
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS survey_app_count    TEXT;
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS survey_current_apps TEXT;
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS survey_must_have    TEXT;
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS ref_code            TEXT UNIQUE;
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS referred_by         TEXT;
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS referral_count      INTEGER DEFAULT 0;
 
 -- Enable Row-Level Security
 ALTER TABLE waitlist ENABLE ROW LEVEL SECURITY;
