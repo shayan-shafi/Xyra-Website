@@ -26,7 +26,7 @@ export default function Waitlist({ overlapMode = false }: { overlapMode?: boolea
   // Signup step
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [emailStatus, setEmailStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [emailStatus, setEmailStatus] = useState<"idle" | "loading" | "error" | "exists">("idle");
 
   // Survey step
   const [surveyMustHave, setSurveyMustHave] = useState("");
@@ -45,9 +45,11 @@ export default function Waitlist({ overlapMode = false }: { overlapMode?: boolea
         body: JSON.stringify({ name: name.trim(), email }),
       });
 
-      if (res.ok) {
+      if (res.status === 201) {
         setEmailStatus("idle");
         setStep("survey");
+      } else if (res.status === 200) {
+        setEmailStatus("exists");
       } else {
         setEmailStatus("error");
       }
@@ -207,6 +209,11 @@ export default function Waitlist({ overlapMode = false }: { overlapMode?: boolea
                   <p className="font-[family-name:var(--font-eb-garamond)] text-base sm:text-lg text-white/50 leading-relaxed mt-5">
                     Sign up for the beta and get free access when we launch.
                   </p>
+                  {emailStatus === "exists" && (
+                    <p className="font-[family-name:var(--font-eb-garamond)] text-sm text-white/70 mt-3">
+                      You&apos;re already on the list! We&apos;ll be in touch soon.
+                    </p>
+                  )}
                   {emailStatus === "error" && (
                     <p className="font-[family-name:var(--font-eb-garamond)] text-sm text-red-400 mt-3">
                       Something went wrong. Please try again.

@@ -8,7 +8,7 @@ export default function ReferralPage() {
   const { code } = useParams<{ code: string }>();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "exists" | "error">("idle");
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -27,8 +27,10 @@ export default function ReferralPage() {
         }),
       });
 
-      if (res.ok) {
+      if (res.status === 201) {
         setStatus("success");
+      } else if (res.status === 200) {
+        setStatus("exists");
       } else {
         setStatus("error");
       }
@@ -52,13 +54,15 @@ export default function ReferralPage() {
           />
         </div>
 
-        {status === "success" ? (
+        {status === "success" || status === "exists" ? (
           <div className="text-center">
             <h1 className="font-[family-name:var(--font-playfair)] text-3xl sm:text-4xl font-medium text-black tracking-tight">
-              You&apos;re in.
+              {status === "exists" ? "You\u2019re already on the list!" : "You\u2019re in."}
             </h1>
             <p className="font-[family-name:var(--font-eb-garamond)] text-lg text-black/50 mt-4 leading-relaxed">
-              Check your email for your position and your own referral link.
+              {status === "exists"
+                ? "We\u2019ll be in touch soon."
+                : "Check your email for your position and your own referral link."}
             </p>
             <a
               href="/"
