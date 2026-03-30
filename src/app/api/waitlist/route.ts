@@ -119,7 +119,7 @@ export async function POST(request: Request) {
           to: normalizedEmail,
           subject: "You're in. Here's what happens next.",
           template: {
-            id: "waitlist-signup-email-1",
+            id: "065b2a5f-d73b-462c-8875-d3d4393e0317",
             variables: {
               firstName,
               position,
