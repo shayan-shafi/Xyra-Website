@@ -113,8 +113,8 @@ export async function POST(request: Request) {
     // Send welcome email via Resend template
     if (resend) {
       const firstName = trimmedName.split(" ")[0];
-      resend.emails
-        .send({
+      try {
+        const { data, error: sendError } = await resend.emails.send({
           from: "Shayan from Xyra <shayan@xyra.dev>",
           to: normalizedEmail,
           subject: "You're in. Here's what happens next.",
@@ -126,8 +126,15 @@ export async function POST(request: Request) {
               code: refCode,
             },
           },
-        } as Parameters<typeof resend.emails.send>[0])
-        .catch((err) => console.error("Resend error:", err));
+        } as Parameters<typeof resend.emails.send>[0]);
+        if (sendError) {
+          console.error("Resend send error:", sendError);
+        } else {
+          console.log("Resend send ok:", data?.id);
+        }
+      } catch (err) {
+        console.error("Resend threw:", err);
+      }
     }
 
     return NextResponse.json(
