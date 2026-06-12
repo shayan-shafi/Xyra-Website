@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Playfair_Display, EB_Garamond, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import SmoothScroll from "@/components/SmoothScroll";
+import AnalyticsProvider from "@/components/AnalyticsProvider";
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -52,6 +54,9 @@ export default function RootLayout({
       >
         <SmoothScroll />
         {children}
+        <Suspense fallback={null}>
+          <AnalyticsProvider />
+        </Suspense>
       </body>
     </html>
   );

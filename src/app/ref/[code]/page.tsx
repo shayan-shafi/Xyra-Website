@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
+import { getFirstTouch, getVisitorId, track } from "@/lib/analytics";
 
 export default function ReferralPage() {
   const { code } = useParams<{ code: string }>();
@@ -15,6 +16,7 @@ export default function ReferralPage() {
     if (!name || !email) return;
 
     setStatus("loading");
+    track("waitlist_email_submit", { cta_location: "ref_page", ref_code: code ?? null });
 
     try {
       const res = await fetch("/api/waitlist", {
@@ -24,13 +26,17 @@ export default function ReferralPage() {
           name: name.trim(),
           email,
           referredBy: code,
+          visitor_id: getVisitorId() || undefined,
+          first_touch: getFirstTouch(),
         }),
       });
 
       if (res.status === 201) {
         setStatus("success");
+        track("waitlist_email_success", { cta_location: "ref_page", ref_code: code ?? null });
       } else if (res.status === 200) {
         setStatus("exists");
+        track("waitlist_email_duplicate", { cta_location: "ref_page", ref_code: code ?? null });
       } else {
         setStatus("error");
       }

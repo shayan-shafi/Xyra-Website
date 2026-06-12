@@ -1,10 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import { openPrivacySettings } from "@/components/AnalyticsProvider";
+import { useSectionView } from "@/lib/useSectionView";
 
 export default function Footer() {
+  const footerRef = useSectionView<HTMLElement>("footer");
   return (
-    <footer className="border-t border-white/10 py-12 sm:py-16 bg-black">
+    <footer ref={footerRef} className="border-t border-white/10 py-12 sm:py-16 bg-black">
       <div className="mx-auto max-w-4xl px-6 sm:px-8 lg:px-12">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-8">
           {/* Logo */}
@@ -37,6 +40,12 @@ export default function Footer() {
           <p className="font-[family-name:var(--font-playfair)] text-sm italic text-white/25">
             &ldquo;Simplicity is the ultimate sophistication.&rdquo;
           </p>
+          <button
+            onClick={openPrivacySettings}
+            className="mt-4 font-[family-name:var(--font-jetbrains)] text-[11px] tracking-wide text-white/30 hover:text-white/60 transition-colors"
+          >
+            Privacy settings
+          </button>
         </div>
       </div>
     </footer>

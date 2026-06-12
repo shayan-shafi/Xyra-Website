@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { track } from "@/lib/analytics";
 
 export default function Navbar() {
   const [visible, setVisible] = useState(false);
@@ -53,6 +54,7 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-8">
             <a
               href="#waitlist"
+              onClick={() => track("cta_click", { cta_location: "navbar_desktop", button_label: "Join Beta" })}
               className="font-[family-name:var(--font-jetbrains)] text-sm px-5 py-2.5 rounded-full border border-white/30 text-white hover:bg-white hover:text-black backdrop-blur-sm transition-all duration-500 tracking-wide"
             >
               Join Beta
@@ -96,7 +98,10 @@ export default function Navbar() {
             <div className="px-6 py-4 flex flex-col gap-3">
               <a
                 href="#waitlist"
-                onClick={() => setMenuOpen(false)}
+                onClick={() => {
+                  track("cta_click", { cta_location: "navbar_mobile", button_label: "Join Beta" });
+                  setMenuOpen(false);
+                }}
                 className="font-[family-name:var(--font-jetbrains)] text-sm px-5 py-2.5 rounded-full border border-white/30 text-white hover:bg-white hover:text-black transition-colors tracking-wide text-center"
               >
                 Join Beta

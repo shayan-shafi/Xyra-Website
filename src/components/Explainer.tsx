@@ -3,6 +3,8 @@
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { useRef, useState } from "react";
 import Image from "next/image";
+import { track } from "@/lib/analytics";
+import { useSectionView } from "@/lib/useSectionView";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -61,6 +63,9 @@ function WorldCards() {
   const [active, setActive] = useState<WorldCard>(null);
 
   const toggle = (card: WorldCard) => {
+    if (card && active !== card) {
+      track("feature_card_click", { section_name: "world", card_name: card });
+    }
     setActive(active === card ? null : card);
   };
 
@@ -176,8 +181,11 @@ function WorldCards() {
 }
 
 export default function Explainer() {
+  const explainerRef = useSectionView<HTMLDivElement>("explainer");
+  const worldRef = useSectionView<HTMLElement>("world");
+
   return (
-    <div className="bg-white">
+    <div ref={explainerRef} className="bg-white">
       {/* ── Section 1: We Build ─────────────────────────────────── */}
       <section className="px-6 sm:px-12 lg:px-20 py-24 md:py-32 max-w-6xl mx-auto">
         <Section>
@@ -262,7 +270,7 @@ export default function Explainer() {
       </section>
 
       {/* ── Section 4: Your World ───────────────────────────────── */}
-      <section className="px-6 sm:px-12 lg:px-20 py-20 md:py-28 bg-black/[0.02]">
+      <section ref={worldRef} className="px-6 sm:px-12 lg:px-20 py-20 md:py-28 bg-black/[0.02]">
         <div className="max-w-6xl mx-auto">
           <Section>
             <div className="text-center mb-12 md:mb-16">

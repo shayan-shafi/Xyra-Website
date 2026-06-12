@@ -2,6 +2,7 @@
 
 import { motion, useInView } from "framer-motion";
 import { useRef, useState, useEffect, FormEvent } from "react";
+import { getFirstTouch, getVisitorId, track, trackOncePerSession } from "@/lib/analytics";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -20,6 +21,15 @@ export default function Waitlist({ overlapMode = false }: { overlapMode?: boolea
     return () => clearTimeout(timer);
   }, []);
 
+  const viewTrackedRef = useRef(false);
+  useEffect(() => {
+    if (isInView && !viewTrackedRef.current) {
+      viewTrackedRef.current = true;
+      track("waitlist_view");
+      trackOncePerSession("section:waitlist", "section_view", { section_name: "waitlist" });
+    }
+  }, [isInView]);
+
   // Step state
   const [step, setStep] = useState<Step>("email");
 
@@ -37,19 +47,27 @@ export default function Waitlist({ overlapMode = false }: { overlapMode?: boolea
     if (!name || !email) return;
 
     setEmailStatus("loading");
+    track("waitlist_email_submit");
 
     try {
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email }),
+        body: JSON.stringify({
+          name: name.trim(),
+          email,
+          visitor_id: getVisitorId() || undefined,
+          first_touch: getFirstTouch(),
+        }),
       });
 
       if (res.status === 201) {
         setEmailStatus("idle");
         setStep("survey");
+        track("waitlist_email_success");
       } else if (res.status === 200) {
         setEmailStatus("exists");
+        track("waitlist_email_duplicate");
       } else {
         setEmailStatus("error");
       }
@@ -61,6 +79,7 @@ export default function Waitlist({ overlapMode = false }: { overlapMode?: boolea
   const handleSurveySubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSurveyStatus("loading");
+    track("waitlist_survey_submit", { has_answer: surveyMustHave.trim().length > 0 });
 
     try {
       const res = await fetch("/api/waitlist", {
@@ -84,8 +103,15 @@ export default function Waitlist({ overlapMode = false }: { overlapMode?: boolea
   };
 
   const handleSkipSurvey = () => {
+    track("waitlist_survey_skip");
     setStep("done");
   };
+
+  useEffect(() => {
+    if (step === "done") {
+      track("waitlist_done_view");
+    }
+  }, [step]);
 
   const inputClass =
     "w-full px-5 py-3.5 rounded-2xl border border-white/15 bg-white/10 backdrop-blur-sm font-[family-name:var(--font-jetbrains)] text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/15 transition-all";

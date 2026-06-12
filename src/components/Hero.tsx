@@ -3,6 +3,8 @@
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
+import { track } from "@/lib/analytics";
+import { useSectionView } from "@/lib/useSectionView";
 
 const BrainCanvas = dynamic(() => import("./showcase/BrainCanvas"), {
   ssr: false,
@@ -11,11 +13,12 @@ const BrainCanvas = dynamic(() => import("./showcase/BrainCanvas"), {
 export default function Hero() {
   const [showVideo, setShowVideo] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const sectionRef = useSectionView<HTMLElement>("hero");
 
 
   return (
     <>
-      <section className="relative z-40 h-screen w-full bg-white overflow-hidden">
+      <section ref={sectionRef} className="relative z-40 h-screen w-full bg-white overflow-hidden">
         {/* Mobile: brain background + centered content */}
         {/* Desktop: split layout — left text, right brain */}
 
@@ -66,12 +69,16 @@ export default function Hero() {
           >
             <a
               href="#waitlist"
+              onClick={() => track("cta_click", { cta_location: "hero_mobile", button_label: "Join the Beta" })}
               className="px-7 py-3 bg-black text-white rounded-full font-[family-name:var(--font-jetbrains)] text-xs tracking-widest uppercase"
             >
               Join the Beta
             </a>
             <button
-              onClick={() => setShowVideo(true)}
+              onClick={() => {
+                track("cta_click", { cta_location: "hero_mobile", button_label: "Watch Demo" });
+                setShowVideo(true);
+              }}
               className="px-7 py-3 rounded-full border border-black/15 text-black/70 font-[family-name:var(--font-jetbrains)] text-xs tracking-widest uppercase flex items-center justify-center gap-2.5"
             >
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -81,6 +88,7 @@ export default function Hero() {
             </button>
             <a
               href="/demo"
+              onClick={() => track("cta_click", { cta_location: "hero_mobile", button_label: "Scroll Demo" })}
               className="px-7 py-3 rounded-full border border-black/15 text-black/70 font-[family-name:var(--font-jetbrains)] text-xs tracking-widest uppercase flex items-center justify-center gap-2.5"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -121,13 +129,17 @@ export default function Hero() {
           >
             <a
               href="#waitlist"
+              onClick={() => track("cta_click", { cta_location: "hero_desktop", button_label: "Join the Beta" })}
               className="px-7 py-3 bg-black text-white rounded-full font-[family-name:var(--font-jetbrains)] text-xs tracking-widest uppercase hover:bg-black/85 transition-all duration-300 hover:shadow-lg hover:shadow-black/10"
             >
               Join the Beta
             </a>
             <div className="flex flex-row items-center gap-3">
               <button
-                onClick={() => setShowVideo(true)}
+                onClick={() => {
+                  track("cta_click", { cta_location: "hero_desktop", button_label: "Watch Demo" });
+                  setShowVideo(true);
+                }}
                 className="px-5 py-2.5 rounded-full border border-black/15 text-black/70 font-[family-name:var(--font-jetbrains)] text-[10px] tracking-widest uppercase hover:bg-black/5 hover:border-black/25 transition-all duration-300 flex items-center gap-2"
               >
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
@@ -137,6 +149,7 @@ export default function Hero() {
               </button>
               <a
                 href="/demo"
+                onClick={() => track("cta_click", { cta_location: "hero_desktop", button_label: "Scroll Demo" })}
                 className="px-5 py-2.5 rounded-full border border-black/15 text-black/70 font-[family-name:var(--font-jetbrains)] text-[10px] tracking-widest uppercase hover:bg-black/5 hover:border-black/25 transition-all duration-300 flex items-center gap-2"
               >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
