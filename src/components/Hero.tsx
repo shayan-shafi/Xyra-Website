@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
+import RotatingWord from "./RotatingWord";
 
 const BrainCanvas = dynamic(() => import("./showcase/BrainCanvas"), {
   ssr: false,
@@ -22,10 +23,22 @@ export default function Hero() {
         {/* Mobile: brain background + centered content */}
         {/* Desktop: split layout — left text, right brain */}
 
-        {/* Brain canvas — desktop only, right side */}
-        <div className="absolute inset-0 left-[40%] z-0 hidden md:block">
-          <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none" />
-          <BrainCanvas hideTitle hideLabels heroMode />
+        {/* Braindump demo video — desktop only, right side */}
+        <div className="absolute inset-y-0 right-0 left-[52%] z-0 hidden md:flex items-center justify-center pr-12 lg:pr-16">
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            onEnded={(e) => {
+              const v = e.currentTarget;
+              v.currentTime = 0;
+              v.play();
+            }}
+            className="w-full max-h-[78vh] object-contain"
+          >
+            <source src="/assets/braindump-demo.mp4" type="video/mp4" />
+          </video>
         </div>
 
         {/* Mobile layout */}
@@ -41,24 +54,31 @@ export default function Hero() {
 
         {/* Mobile text — centered with same -mt-16 offset as before */}
         <div className="relative z-10 h-full flex flex-col items-center justify-center px-8 md:hidden pt-28">
+          <motion.img
+            src="/assets/xyra-logo-black.png"
+            alt="Xyra"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.25 }}
+            className="h-8 w-auto"
+          />
+
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="font-[family-name:var(--font-playfair)] text-6xl font-medium text-black tracking-tight"
+            className="font-[family-name:var(--font-playfair)] text-4xl font-medium text-black tracking-tight leading-[1.08] mt-4 text-center"
           >
-            Xyra
+            Braindump your <RotatingWord />.
           </motion.h1>
 
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.55 }}
-            className="font-[family-name:var(--font-eb-garamond)] text-lg text-black/50 mt-3 leading-relaxed text-center"
+            className="font-[family-name:var(--font-playfair)] text-2xl text-black/40 mt-4 leading-tight tracking-tight text-center"
           >
-            Your AI-native personal operating system.
-            <br />
-            <span className="text-black/35">You speak, Xyra builds.</span>
+            Frictionless.
           </motion.p>
 
           <motion.div
@@ -100,25 +120,34 @@ export default function Hero() {
         </div>
 
         {/* Desktop layout — left text, right brain */}
-        <div className="relative z-10 h-full hidden md:flex flex-col justify-center items-start px-12 lg:px-20 text-left w-[45%]">
+        <div className="relative z-10 h-full hidden md:flex flex-col justify-center items-start pl-16 lg:pl-28 xl:pl-36 pr-8 text-left w-[55%]">
+          <motion.img
+            src="/assets/xyra-logo-black.png"
+            alt="Xyra"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.25 }}
+            className="h-10 lg:h-12 w-auto"
+          />
+
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="font-[family-name:var(--font-playfair)] text-7xl lg:text-8xl xl:text-9xl font-medium text-black tracking-tight"
+            className="font-[family-name:var(--font-playfair)] text-4xl lg:text-5xl xl:text-6xl font-medium text-black tracking-tight leading-[1.08] mt-5 max-w-2xl"
           >
-            Xyra
+            <span className="whitespace-nowrap">
+              Braindump your <RotatingWord />.
+            </span>
           </motion.h1>
 
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.55 }}
-            className="font-[family-name:var(--font-eb-garamond)] text-xl lg:text-2xl text-black/50 mt-4 max-w-md leading-relaxed"
+            className="font-[family-name:var(--font-playfair)] text-3xl lg:text-4xl text-black/40 mt-5 ml-1 max-w-lg leading-tight tracking-tight"
           >
-            Your AI-native personal operating system.
-            <br />
-            <span className="text-black/35">You speak, Xyra builds.</span>
+            Frictionless.
           </motion.p>
 
           <motion.div

@@ -37,17 +37,20 @@ export default function Navbar() {
       }`}
     >
       <div className="mx-auto px-6 sm:px-8 lg:px-12">
-        <div className="flex h-20 sm:h-24 items-center justify-between">
+        <div className="flex h-16 sm:h-20 items-center justify-between">
           {/* Logo */}
-          <a href="/" className="flex items-center gap-3">
+          <a href="/" className="flex items-center gap-2.5">
             <Image
-              src="/assets/xyra-logo.png"
+              src="/assets/xyra-logo-square.png"
               alt="Xyra"
-              width={280}
-              height={90}
-              className="h-20 sm:h-24 w-auto brightness-0 invert"
+              width={32}
+              height={32}
+              className="h-7 w-7 brightness-0 invert"
               priority
             />
+            <span className="font-[family-name:var(--font-playfair)] text-xl text-white">
+              Xyra
+            </span>
           </a>
 
           {/* Desktop Navigation */}
