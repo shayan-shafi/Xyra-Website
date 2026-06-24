@@ -1,5 +1,31 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+// Supabase/PostgREST caps every single response at the project's max-rows
+// setting (commonly 1000) no matter what .limit() requests — once a table
+// crosses that many rows, a plain .limit(100000) silently truncates instead
+// of erroring. Paginate via .range() so growing tables don't quietly drop
+// data (this bit us once analytics_events passed 1000 rows: queries kept
+// "succeeding" but silently returned only the oldest page).
+const SUPABASE_PAGE_SIZE = 1000;
+
+async function fetchAllRows<T>(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  label: string
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (error) {
+      console.error(`${label} fetch:`, error.message);
+      break;
+    }
+    const rows = data ?? [];
+    all.push(...rows);
+    if (rows.length < SUPABASE_PAGE_SIZE) break;
+  }
+  return all;
+}
+
 // ── Row types ────────────────────────────────────────────────────────────────
 
 type EventRow = {
@@ -110,6 +136,17 @@ export type DigestMarketingRow = {
   conversionRate: number;
 };
 
+// Rollup of DigestMarketingRow by normalized source (e.g. "instagram"),
+// deduped so a visitor with two campaign touches under one source only
+// counts once. Shown above the campaign breakdown so "Instagram overall"
+// is visible without manually summing fragmented campaign rows.
+export type DigestSourceTotal = {
+  source: string;
+  visitors: number;
+  signups: number;
+  conversionRate: number;
+};
+
 export type DigestData = {
   period: { start: Date; end: Date; days: number };
   // ISO string from ANALYTICS_TRACKING_START_DATE, or null.
@@ -117,6 +154,7 @@ export type DigestData = {
   summary: DigestSummary;
   funnel: DigestFunnelStep[];
   sources: DigestSource[];
+  topSources: DigestSourceTotal[];
   topCampaigns: DigestMarketingRow[];
   ctas: DigestCta[];
   sections: DigestSection[];
@@ -159,13 +197,19 @@ const SOURCE_ALIASES: Record<string, string> = {
   instagram: "instagram",
   ig: "instagram",
   "instagram.com": "instagram",
+  "www.instagram.com": "instagram",
   "l.instagram.com": "instagram",
+  "com.instagram.android": "instagram",
   linkedin: "linkedin",
   "linkedin.com": "linkedin",
+  "www.linkedin.com": "linkedin",
   "lnkd.in": "linkedin",
+  "com.linkedin.android": "linkedin",
   youtube: "youtube",
   "youtu.be": "youtube",
   "youtube.com": "youtube",
+  "www.youtube.com": "youtube",
+  "com.google.android.youtube": "youtube",
   "chatgpt.com": "chatgpt",
   chatgpt: "chatgpt",
 };
@@ -230,26 +274,28 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
   // (e.g. a visitor who first came via instagram weeks ago, then loaded the
   // page directly within the digest window, would wrongly show as "direct").
   // Waitlist uses only the range start so we can show the legacy count too.
-  const [{ data: evRaw, error: evErr }, { data: wlRaw, error: wlErr }] = await Promise.all([
-    supabaseAdmin
-      .from("analytics_events")
-      .select("visitor_id,session_id,event_name,created_at,path,referrer,utm_source,utm_medium,utm_campaign,utm_content,metadata")
-      .gte("created_at", trackingStart ?? rangeStartIso)
-      .order("created_at", { ascending: true })
-      .limit(100000),
-    supabaseAdmin
-      .from("waitlist")
-      .select("visitor_id,first_utm_source,first_utm_medium,first_utm_campaign,first_utm_content,first_referrer,first_ref_code,survey_must_have,created_at")
-      .gte("created_at", rangeStartIso)
-      .order("created_at", { ascending: true })
-      .limit(10000),
+  const [events, waitlist] = await Promise.all([
+    fetchAllRows<EventRow>(
+      (from, to) =>
+        supabaseAdmin!
+          .from("analytics_events")
+          .select("visitor_id,session_id,event_name,created_at,path,referrer,utm_source,utm_medium,utm_campaign,utm_content,metadata")
+          .gte("created_at", trackingStart ?? rangeStartIso)
+          .order("created_at", { ascending: true })
+          .range(from, to),
+      "digest events"
+    ),
+    fetchAllRows<WaitlistRow>(
+      (from, to) =>
+        supabaseAdmin!
+          .from("waitlist")
+          .select("visitor_id,first_utm_source,first_utm_medium,first_utm_campaign,first_utm_content,first_referrer,first_ref_code,survey_must_have,created_at")
+          .gte("created_at", rangeStartIso)
+          .order("created_at", { ascending: true })
+          .range(from, to),
+      "digest waitlist"
+    ),
   ]);
-
-  if (evErr) console.error("digest events fetch:", evErr.message);
-  if (wlErr) console.error("digest waitlist fetch:", wlErr.message);
-
-  const events = (evRaw ?? []) as EventRow[];
-  const waitlist = (wlRaw ?? []) as WaitlistRow[];
 
   // Events that actually fall inside the digest window. Used for everything
   // EXCEPT source attribution (which needs the full `events` history above).
@@ -467,7 +513,31 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
     (marketingMap[key] ??= { ...m, visitors: new Set(), signups: 0 }).signups += 1;
   }
 
-  const topCampaigns: DigestMarketingRow[] = Object.values(marketingMap)
+  const cleanMarketingBuckets = Object.values(marketingMap).filter(
+    b => !isTestArtifact(b.source, b.medium, b.campaign, b.content)
+  );
+
+  // Roll campaign-tuple buckets up to their normalized source, deduping
+  // visitors across tuples — same approach as the dashboard's source totals,
+  // so "Instagram overall" reads the same in the email as on the dashboard.
+  const sourceTotalMap: Record<string, { visitors: Set<string>; signups: number }> = {};
+  for (const b of cleanMarketingBuckets) {
+    const t = (sourceTotalMap[b.source] ??= { visitors: new Set(), signups: 0 });
+    for (const v of b.visitors) t.visitors.add(v);
+    t.signups += b.signups;
+  }
+  const topSources: DigestSourceTotal[] = Object.entries(sourceTotalMap)
+    .map(([source, t]) => ({ source, visitors: t.visitors.size, signups: t.signups, conversionRate: pct(t.signups, t.visitors.size) }))
+    .sort((a, b) => b.signups - a.signups || b.visitors - a.visitors);
+
+  const sourceRank: Record<string, number> = {};
+  topSources.forEach((s, i) => (sourceRank[s.source] = i));
+
+  // Rows with 0 visitors are signups whose converting session never matched
+  // a tracked visit (already counted in topSources above) — excluded from
+  // the breakdown so it never implies a campaign converted with 0 visitors.
+  const topCampaigns: DigestMarketingRow[] = cleanMarketingBuckets
+    .filter(b => b.visitors.size > 0)
     .map(b => ({
       source: b.source,
       medium: b.medium,
@@ -478,8 +548,7 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
       signups: b.signups,
       conversionRate: pct(b.signups, b.visitors.size),
     }))
-    .filter(r => !isTestArtifact(r.source, r.medium, r.campaign, r.content))
-    .sort((a, b) => b.signups - a.signups || b.visitors - a.visitors)
+    .sort((a, b) => sourceRank[a.source] - sourceRank[b.source] || b.signups - a.signups || b.visitors - a.visitors)
     .slice(0, 8);
 
   // ── CTAs ──────────────────────────────────────────────────────
@@ -596,6 +665,7 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
     summary,
     funnel,
     sources,
+    topSources,
     topCampaigns,
     ctas,
     sections,

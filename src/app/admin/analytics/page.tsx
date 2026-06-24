@@ -14,7 +14,9 @@ import {
   type ScrollRow,
   type CardRow,
   type ReferralRow,
+  type MarketingSourceTotal,
   type MarketingRow,
+  type UnmatchedSignupRow,
   type CampaignRow,
   type Insight,
   type ActionCard,
@@ -301,6 +303,95 @@ function ReferralTable({ rows }: { rows: ReferralRow[] }) {
 
 // ── Marketing Performance ───────────────────────────────────────────────────────
 
+function SourceTotalsTable({ rows }: { rows: MarketingSourceTotal[] }) {
+  if (rows.length === 0) return <Empty />;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[480px]">
+        <thead>
+          <tr>
+            <Th>Source</Th>
+            <Th right>Visitors</Th>
+            <Th right>Sessions</Th>
+            <Th right>Signups</Th>
+            <Th right>Conv.</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const isDirect = r.source === "direct";
+            return (
+              <tr key={i}>
+                <Td>
+                  <span className={isDirect ? "text-gray-400 italic" : "font-semibold text-gray-800 capitalize"}>
+                    {isDirect ? "Direct / unknown" : r.source}
+                  </span>
+                </Td>
+                <Td right>{r.visitors.toLocaleString()}</Td>
+                <Td right>{r.sessions.toLocaleString()}</Td>
+                <Td right>
+                  {r.signups.toLocaleString()}
+                  {r.approxSignups > 0 && (
+                    <span
+                      className="text-amber-500 ml-0.5"
+                      title={`${r.approxSignups} of these had no matching tracked session — see Unmatched / Approximate Signups below`}
+                    >
+                      *
+                    </span>
+                  )}
+                </Td>
+                <Td right><ConvBadge rate={r.conversionRate} /></Td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function UnmatchedSignupsTable({ rows }: { rows: UnmatchedSignupRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="mt-4 bg-amber-50 border border-amber-100 rounded-lg p-4">
+      <div className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">
+        Unmatched / Approximate Signups
+      </div>
+      <p className="text-xs text-amber-700/80 mb-3 leading-snug">
+        These {rows.reduce((s, r) => s + r.signups, 0)} signup(s) are already counted in the
+        source totals above, but their converting session (or fallback first-touch tuple) never
+        matched a tracked visit in this window — usually an ad blocker, private browsing, or a
+        first touch outside the selected date range, not a campaign that converted with 0
+        visitors.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[600px]">
+          <thead>
+            <tr>
+              <Th>Source</Th>
+              <Th>Medium</Th>
+              <Th>Campaign</Th>
+              <Th>Content</Th>
+              <Th right>Signups</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i}>
+                <Td><span className="font-medium text-gray-700 capitalize">{r.source}</span></Td>
+                <Td>{dash(r.medium)}</Td>
+                <Td>{dash(r.campaign)}</Td>
+                <Td>{dash(r.content)}</Td>
+                <Td right>{r.signups.toLocaleString()}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function MarketingTable({ rows }: { rows: MarketingRow[] }) {
   if (rows.length === 0) return <Empty />;
   return (
@@ -421,7 +512,24 @@ const DATE_RANGES: { label: string; value: DateRange }[] = [
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
-  const { summary, funnel, trafficSources, ctaPerformance, sectionEngagement, scrollDepth, featureCards, survey, referrals, marketing, campaigns, insights, actions, trackingStartDate } = data;
+  const {
+    summary,
+    funnel,
+    trafficSources,
+    ctaPerformance,
+    sectionEngagement,
+    scrollDepth,
+    featureCards,
+    survey,
+    referrals,
+    marketingSourceTotals,
+    marketing,
+    unmatchedSignups,
+    campaigns,
+    insights,
+    actions,
+    trackingStartDate,
+  } = data;
 
   const showTrackingNote = summary.legacySignups > 0 || trackingStartDate !== null;
   const trackingDateLabel = trackingStartDate
@@ -605,14 +713,28 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
         {/* Marketing Performance — the decision-friendly campaign table */}
         <Card className="mb-6">
           <H2>Marketing Performance</H2>
-          <p className="text-xs text-gray-400 mb-2 leading-snug">
-            One row per marketing identity (source + medium + campaign + content + ref code) —
-            answers &quot;which post, ad, link, or referral drove this&quot;. Unlike Traffic
-            Sources, the same visitor can appear in multiple rows if they arrived through more
-            than one link or session in this window; that&apos;s expected. Signups are credited
+          <p className="text-xs text-gray-400 mb-4 leading-snug">
+            Session/campaign-level attribution — the same visitor can appear under multiple rows
+            or sources if they arrived through more than one link or session in this window, so
+            totals here won&apos;t always match Traffic Sources above (which counts each visitor
+            once, under their true first-ever channel, across all history). Signups are credited
             to the link/session that actually converted, not the visitor&apos;s original
-            first-touch. A <span className="text-amber-500">*</span> means some signups in that
-            row had no matching conversion event and fell back to first-touch instead.
+            first-touch.
+          </p>
+
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Source Totals
+          </div>
+          <SourceTotalsTable rows={marketingSourceTotals} />
+
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 mt-6">
+            Campaign / Content Breakdown
+          </div>
+          <p className="text-xs text-gray-400 mb-2 leading-snug">
+            One row per marketing identity (source + medium + campaign + content + ref code),
+            grouped by source above. A <span className="text-amber-500">*</span> means some
+            signups in that row had no matching conversion event and fell back to first-touch
+            instead.
           </p>
           <p className="text-xs text-gray-400 mb-4 leading-snug italic">
             Exact post-level attribution only works when that post/ad/link used a unique UTM or
@@ -624,6 +746,8 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
             separate them.
           </p>
           <MarketingTable rows={marketing} />
+
+          <UnmatchedSignupsTable rows={unmatchedSignups} />
         </Card>
 
         {/* Raw Session Details — debug view, collapsed by default */}

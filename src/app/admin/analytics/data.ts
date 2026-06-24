@@ -1,5 +1,31 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+// Supabase/PostgREST caps every single response at the project's max-rows
+// setting (commonly 1000) no matter what .limit() requests — once a table
+// crosses that many rows, a plain .limit(100000) silently truncates instead
+// of erroring. Paginate via .range() so growing tables don't quietly drop
+// data (this bit us once analytics_events passed 1000 rows: queries kept
+// "succeeding" but silently returned only the oldest page).
+const SUPABASE_PAGE_SIZE = 1000;
+
+async function fetchAllRows<T>(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  label: string
+): Promise<T[]> {
+  const all: T[] = [];
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await buildQuery(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (error) {
+      console.error(`${label} fetch:`, error.message);
+      break;
+    }
+    const rows = data ?? [];
+    all.push(...rows);
+    if (rows.length < SUPABASE_PAGE_SIZE) break;
+  }
+  return all;
+}
+
 // ── Row types ────────────────────────────────────────────────────────────────
 
 type EventRow = {
@@ -144,6 +170,36 @@ export type MarketingRow = {
   conversionRate: number;
 };
 
+// One row per normalized source (e.g. "instagram") — the rollup of every
+// MarketingRow that shares that source, deduped so a visitor/session with
+// two campaign touches under the same source isn't double-counted. This is
+// what answers "how much overall came from Instagram", with MarketingRow
+// providing the campaign/content breakdown underneath it.
+export type MarketingSourceTotal = {
+  source: string;
+  visitors: number;
+  sessions: number;
+  signups: number;
+  approxSignups: number;
+  conversionRate: number;
+};
+
+// A signup attributed to a source/campaign tuple with zero tracked
+// visitors/sessions in this window — the visitor's converting session (or
+// their persisted first-touch tuple, used as a fallback) never matched any
+// tracked analytics_events session. Usually means their actual visit wasn't
+// tracked at all (ad blocker, private browsing, or a first touch outside the
+// selected date range), not a campaign that converted at 0 visitors. Kept
+// separate from MarketingRow so the main table never implies that.
+export type UnmatchedSignupRow = {
+  source: string;
+  medium: string | null;
+  campaign: string | null;
+  content: string | null;
+  refCode: string | null;
+  signups: number;
+};
+
 export type Insight = {
   type: "warning" | "info" | "success";
   message: string;
@@ -170,7 +226,9 @@ export type DashboardData = {
     skipRate: number;
   };
   referrals: ReferralRow[];
+  marketingSourceTotals: MarketingSourceTotal[];
   marketing: MarketingRow[];
+  unmatchedSignups: UnmatchedSignupRow[];
   campaigns: CampaignRow[];
   insights: Insight[];
   actions: ActionCard[];
@@ -214,13 +272,21 @@ const SOURCE_ALIASES: Record<string, string> = {
   instagram: "instagram",
   ig: "instagram",
   "instagram.com": "instagram",
+  "www.instagram.com": "instagram",
   "l.instagram.com": "instagram",
+  // Android in-app browsers report document.referrer as the app's package
+  // name (e.g. "android-app://com.instagram.android/"), not a normal URL.
+  "com.instagram.android": "instagram",
   linkedin: "linkedin",
   "linkedin.com": "linkedin",
+  "www.linkedin.com": "linkedin",
   "lnkd.in": "linkedin",
+  "com.linkedin.android": "linkedin",
   youtube: "youtube",
   "youtu.be": "youtube",
   "youtube.com": "youtube",
+  "www.youtube.com": "youtube",
+  "com.google.android.youtube": "youtube",
   "chatgpt.com": "chatgpt",
   chatgpt: "chatgpt",
 };
@@ -285,31 +351,31 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
   // and the same visitor could be attributed to a different source depending on
   // which date range was picked (e.g. "direct" in 7d but "instagram" in 30d).
   // Everything else is windowed in JS via `windowedEvents` below.
-  let evQ = supabaseAdmin
-    .from("analytics_events")
-    .select("visitor_id,session_id,event_name,created_at,path,referrer,utm_source,utm_medium,utm_campaign,utm_content,metadata")
-    .order("created_at", { ascending: true })
-    .limit(100000);
-  if (trackingStart) evQ = evQ.gte("created_at", trackingStart);
+  const eventsPromise = fetchAllRows<EventRow>((from, to) => {
+    let q = supabaseAdmin!
+      .from("analytics_events")
+      .select("visitor_id,session_id,event_name,created_at,path,referrer,utm_source,utm_medium,utm_campaign,utm_content,metadata")
+      .order("created_at", { ascending: true })
+      .range(from, to);
+    if (trackingStart) q = q.gte("created_at", trackingStart);
+    return q;
+  }, "analytics_events");
 
   // Waitlist uses only the range filter. We fetch all rows (including pre-tracking
   // legacy entries) and split them in JS so we can show both counts.
   const wlStart = rangeStart;
 
-  let wlQ = supabaseAdmin
-    .from("waitlist")
-    .select("visitor_id,first_utm_source,first_utm_medium,first_utm_campaign,first_utm_content,first_referrer,first_landing_page,first_ref_code,survey_must_have,created_at")
-    .order("created_at", { ascending: true })
-    .limit(10000);
-  if (wlStart) wlQ = wlQ.gte("created_at", wlStart);
+  const waitlistPromise = fetchAllRows<WaitlistRow>((from, to) => {
+    let q = supabaseAdmin!
+      .from("waitlist")
+      .select("visitor_id,first_utm_source,first_utm_medium,first_utm_campaign,first_utm_content,first_referrer,first_landing_page,first_ref_code,survey_must_have,created_at")
+      .order("created_at", { ascending: true })
+      .range(from, to);
+    if (wlStart) q = q.gte("created_at", wlStart);
+    return q;
+  }, "waitlist");
 
-  const [{ data: evRaw, error: evErr }, { data: wlRaw, error: wlErr }] = await Promise.all([evQ, wlQ]);
-
-  if (evErr) console.error("analytics_events fetch:", evErr.message);
-  if (wlErr) console.error("waitlist fetch:", wlErr.message);
-
-  const events = (evRaw || []) as EventRow[];
-  const waitlist = (wlRaw || []) as WaitlistRow[];
+  const [events, waitlist] = await Promise.all([eventsPromise, waitlistPromise]);
 
   // Events that actually fall inside the selected window. Used for everything
   // EXCEPT source attribution (which needs the full `events` history above).
@@ -642,21 +708,64 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     if (isApprox) mBucket.approxSignups += 1;
   }
 
-  const marketing: MarketingRow[] = Object.values(marketingMap)
-    .map(b => ({
-      source: b.source,
-      medium: b.medium,
-      campaign: b.campaign,
-      content: b.content,
-      refCode: b.refCode,
-      visitors: b.visitors.size,
-      sessions: b.sessions.size,
-      signups: b.signups,
-      approxSignups: b.approxSignups,
-      conversionRate: pct(b.signups, b.visitors.size),
+  const cleanMarketingBuckets = Object.values(marketingMap).filter(
+    b => !isTestArtifact(b.source, b.medium, b.campaign, b.content)
+  );
+
+  // Roll every campaign-tuple bucket up to its normalized source, deduping
+  // visitors/sessions across tuples (e.g. a visitor with both a link_in_bio
+  // and a paid_social touch under "instagram" should only count once).
+  const sourceTotalMap: Record<string, { visitors: Set<string>; sessions: Set<string>; signups: number; approxSignups: number }> = {};
+  for (const b of cleanMarketingBuckets) {
+    const t = (sourceTotalMap[b.source] ??= { visitors: new Set(), sessions: new Set(), signups: 0, approxSignups: 0 });
+    for (const v of b.visitors) t.visitors.add(v);
+    for (const s of b.sessions) t.sessions.add(s);
+    t.signups += b.signups;
+    t.approxSignups += b.approxSignups;
+  }
+  const marketingSourceTotals: MarketingSourceTotal[] = Object.entries(sourceTotalMap)
+    .map(([source, t]) => ({
+      source,
+      visitors: t.visitors.size,
+      sessions: t.sessions.size,
+      signups: t.signups,
+      approxSignups: t.approxSignups,
+      conversionRate: pct(t.signups, t.visitors.size),
     }))
-    .filter(r => !isTestArtifact(r.source, r.medium, r.campaign, r.content))
     .sort((a, b) => b.signups - a.signups || b.visitors - a.visitors);
+
+  // Cluster the campaign-tuple breakdown by source (in source-total order),
+  // so the table reads as "source, then its campaigns" without needing
+  // nested/indented rows.
+  const sourceRank: Record<string, number> = {};
+  marketingSourceTotals.forEach((s, i) => (sourceRank[s.source] = i));
+
+  const allMarketingRows: MarketingRow[] = cleanMarketingBuckets.map(b => ({
+    source: b.source,
+    medium: b.medium,
+    campaign: b.campaign,
+    content: b.content,
+    refCode: b.refCode,
+    visitors: b.visitors.size,
+    sessions: b.sessions.size,
+    signups: b.signups,
+    approxSignups: b.approxSignups,
+    conversionRate: pct(b.signups, b.visitors.size),
+  }));
+
+  // Rows with zero tracked visitors/sessions are signups whose converting
+  // session (or fallback first-touch tuple) never matched a tracked
+  // analytics_events session — almost always missing tracking data, not a
+  // campaign that converted at 0 visitors. Surfaced separately so the main
+  // table never implies that.
+  const marketing: MarketingRow[] = allMarketingRows
+    .filter(r => r.visitors > 0 || r.sessions > 0)
+    .sort((a, b) => sourceRank[a.source] - sourceRank[b.source] || b.signups - a.signups || b.visitors - a.visitors);
+
+  const unmatchedSignups: UnmatchedSignupRow[] = allMarketingRows
+    .filter(r => r.visitors === 0 && r.sessions === 0 && r.signups > 0)
+    .map(r => ({ source: r.source, medium: r.medium, campaign: r.campaign, content: r.content, refCode: r.refCode, signups: r.signups }))
+    .sort((a, b) => b.signups - a.signups);
 
   const campaigns: CampaignRow[] = Object.values(campaignMap)
     .map(b => ({
@@ -762,7 +871,9 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     featureCards,
     survey,
     referrals,
+    marketingSourceTotals,
     marketing,
+    unmatchedSignups,
     campaigns,
     insights,
     actions,
