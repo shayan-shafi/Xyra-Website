@@ -158,3 +158,21 @@ CREATE INDEX IF NOT EXISTS idx_digest_runs_sent ON analytics_digest_runs (sent_a
 ALTER TABLE analytics_digest_runs ENABLE ROW LEVEL SECURITY;
 -- No RLS policies: anon role has no access.
 -- The service_role key bypasses RLS and is the only accessor.
+
+
+-- 6. Daily Signup Digest Runs — tracks which Chicago calendar dates have
+--    already had their daily signup summary email sent, so the cron job
+--    never double-sends for the same day even if it's triggered twice.
+--    Only the service_role key (supabaseAdmin) can read or write this table.
+CREATE TABLE IF NOT EXISTS daily_signup_digest_runs (
+  id           BIGSERIAL PRIMARY KEY,
+  sent_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  window_date  DATE NOT NULL,
+  recipients   TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_signup_digest_runs_date ON daily_signup_digest_runs (window_date);
+
+ALTER TABLE daily_signup_digest_runs ENABLE ROW LEVEL SECURITY;
+-- No RLS policies: anon role has no access.
+-- The service_role key bypasses RLS and is the only accessor.
