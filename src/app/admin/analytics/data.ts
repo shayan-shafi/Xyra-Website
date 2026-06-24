@@ -200,6 +200,33 @@ export type UnmatchedSignupRow = {
   signups: number;
 };
 
+// Full debug context for one MarketingRow — for diagnosing confusing rows
+// (e.g. why two Instagram link-in-bio variants exist) without cluttering the
+// main breakdown table. Internal/admin-only; never shown by default.
+export type MarketingRowDebug = {
+  source: string;
+  medium: string | null;
+  campaign: string | null;
+  content: string | null;
+  refCode: string | null;
+  visitors: number;
+  sessions: number;
+  signups: number;
+  approxSignups: number;
+  // Date range of tracked traffic (session entry touches) for this exact tuple.
+  firstSeen: string | null;
+  lastSeen: string | null;
+  // Date range of signups attributed to this tuple — answers "when did these
+  // signups happen" directly, e.g. for a specific source/campaign.
+  firstSignupAt: string | null;
+  lastSignupAt: string | null;
+  // Distinct raw utm_source values that normalized into this row's source
+  // (e.g. both "ig" and "instagram"), so historical naming drift is visible.
+  rawSources: string[];
+  sampleLandingPath: string | null;
+  sampleReferrerDomain: string | null;
+};
+
 export type Insight = {
   type: "warning" | "info" | "success";
   message: string;
@@ -229,6 +256,7 @@ export type DashboardData = {
   marketingSourceTotals: MarketingSourceTotal[];
   marketing: MarketingRow[];
   unmatchedSignups: UnmatchedSignupRow[];
+  marketingDebug: MarketingRowDebug[];
   campaigns: CampaignRow[];
   insights: Insight[];
   actions: ActionCard[];
@@ -595,7 +623,43 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
   // medium/campaign/content/ref_code, deliberately excluding referrer domain
   // and landing path (those are debug-only signals, not campaign identity).
   type MarketingTouch = { source: string; medium: string | null; campaign: string | null; content: string | null; refCode: string | null };
-  type MarketingBucket = MarketingTouch & { visitors: Set<string>; sessions: Set<string>; signups: number; approxSignups: number };
+  // Debug-only context carried alongside each bucket so confusing rows (e.g.
+  // multiple Instagram link-in-bio variants) can be traced back to their raw
+  // origin without cluttering the main table. Never shown as a clean signal.
+  type MarketingDebug = {
+    firstSeen: string | null;
+    lastSeen: string | null;
+    firstSignupAt: string | null;
+    lastSignupAt: string | null;
+    rawSources: Set<string>;
+    sampleLandingPath: string | null;
+    sampleReferrerDomain: string | null;
+  };
+  type MarketingBucket = MarketingTouch & MarketingDebug & { visitors: Set<string>; sessions: Set<string>; signups: number; approxSignups: number };
+
+  function newMarketingBucket(m: MarketingTouch): MarketingBucket {
+    return {
+      ...m,
+      visitors: new Set(),
+      sessions: new Set(),
+      signups: 0,
+      approxSignups: 0,
+      firstSeen: null,
+      lastSeen: null,
+      firstSignupAt: null,
+      lastSignupAt: null,
+      rawSources: new Set(),
+      sampleLandingPath: null,
+      sampleReferrerDomain: null,
+    };
+  }
+
+  function minStr(a: string | null, b: string): string {
+    return a === null || b < a ? b : a;
+  }
+  function maxStr(a: string | null, b: string): string {
+    return a === null || b > a ? b : a;
+  }
 
   function toMarketingTouch(t: CampaignTouch): MarketingTouch {
     return {
@@ -619,7 +683,7 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
 
   // Entry touch per session = the session's earliest event (windowedEvents is
   // already ordered ascending by created_at, so "first seen" = earliest).
-  const sessionEntry: Record<string, CampaignTouch & { visitor_id: string }> = {};
+  const sessionEntry: Record<string, CampaignTouch & { visitor_id: string; created_at: string }> = {};
   for (const e of windowedEvents) {
     if (!sessionEntry[e.session_id]) {
       sessionEntry[e.session_id] = {
@@ -631,6 +695,7 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
         referrer_domain: referrerDomain(e.referrer),
         landing_path: e.path,
         visitor_id: e.visitor_id,
+        created_at: e.created_at,
       };
     }
   }
@@ -652,7 +717,13 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
 
     const m = toMarketingTouch(t);
     const mKey = marketingKey(m);
-    (marketingMap[mKey] ??= { ...m, visitors: new Set(), sessions: new Set(), signups: 0, approxSignups: 0 }).visitors.add(t.visitor_id);
+    const mBucket = (marketingMap[mKey] ??= newMarketingBucket(m));
+    mBucket.visitors.add(t.visitor_id);
+    mBucket.firstSeen = minStr(mBucket.firstSeen, t.created_at);
+    mBucket.lastSeen = maxStr(mBucket.lastSeen, t.created_at);
+    mBucket.rawSources.add(t.utm_source ?? "(none)");
+    if (!mBucket.sampleLandingPath && t.landing_path) mBucket.sampleLandingPath = t.landing_path;
+    if (!mBucket.sampleReferrerDomain && t.referrer_domain) mBucket.sampleReferrerDomain = t.referrer_domain;
   }
   for (const [sid, t] of Object.entries(sessionEntry)) {
     campaignMap[campaignKey(t)].sessions.add(sid);
@@ -703,9 +774,14 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
 
     const m = toMarketingTouch(t);
     const mKey = marketingKey(m);
-    const mBucket = (marketingMap[mKey] ??= { ...m, visitors: new Set(), sessions: new Set(), signups: 0, approxSignups: 0 });
+    const mBucket = (marketingMap[mKey] ??= newMarketingBucket(m));
     mBucket.signups += 1;
     if (isApprox) mBucket.approxSignups += 1;
+    mBucket.firstSignupAt = minStr(mBucket.firstSignupAt, w.created_at);
+    mBucket.lastSignupAt = maxStr(mBucket.lastSignupAt, w.created_at);
+    mBucket.rawSources.add(t.utm_source ?? "(none)");
+    if (!mBucket.sampleLandingPath && t.landing_path) mBucket.sampleLandingPath = t.landing_path;
+    if (!mBucket.sampleReferrerDomain && t.referrer_domain) mBucket.sampleReferrerDomain = t.referrer_domain;
   }
 
   const cleanMarketingBuckets = Object.values(marketingMap).filter(
@@ -766,6 +842,31 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     .filter(r => r.visitors === 0 && r.sessions === 0 && r.signups > 0)
     .map(r => ({ source: r.source, medium: r.medium, campaign: r.campaign, content: r.content, refCode: r.refCode, signups: r.signups }))
     .sort((a, b) => b.signups - a.signups);
+
+  // Full debug context per marketing row — traffic date range, signup date
+  // range, and sample raw values — so a confusing row (e.g. two different
+  // Instagram link-in-bio variants) can be traced back to its origin without
+  // cluttering the main breakdown table above. Includes 0-visitor rows too.
+  const marketingDebug: MarketingRowDebug[] = cleanMarketingBuckets
+    .map(b => ({
+      source: b.source,
+      medium: b.medium,
+      campaign: b.campaign,
+      content: b.content,
+      refCode: b.refCode,
+      visitors: b.visitors.size,
+      sessions: b.sessions.size,
+      signups: b.signups,
+      approxSignups: b.approxSignups,
+      firstSeen: b.firstSeen,
+      lastSeen: b.lastSeen,
+      firstSignupAt: b.firstSignupAt,
+      lastSignupAt: b.lastSignupAt,
+      rawSources: Array.from(b.rawSources).sort(),
+      sampleLandingPath: b.sampleLandingPath,
+      sampleReferrerDomain: b.sampleReferrerDomain,
+    }))
+    .sort((a, b) => sourceRank[a.source] - sourceRank[b.source] || b.signups - a.signups || b.visitors - a.visitors);
 
   const campaigns: CampaignRow[] = Object.values(campaignMap)
     .map(b => ({
@@ -874,6 +975,7 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     marketingSourceTotals,
     marketing,
     unmatchedSignups,
+    marketingDebug,
     campaigns,
     insights,
     actions,

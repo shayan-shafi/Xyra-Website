@@ -17,6 +17,7 @@ import {
   type MarketingSourceTotal,
   type MarketingRow,
   type UnmatchedSignupRow,
+  type MarketingRowDebug,
   type CampaignRow,
   type Insight,
   type ActionCard,
@@ -109,6 +110,11 @@ function Empty() {
 
 function dash(val: string | null): string {
   return val && val.length > 0 ? val : "—";
+}
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 // ── Funnel section ────────────────────────────────────────────────────────────
@@ -392,6 +398,57 @@ function UnmatchedSignupsTable({ rows }: { rows: UnmatchedSignupRow[] }) {
   );
 }
 
+function MarketingDebugTable({ rows }: { rows: MarketingRowDebug[] }) {
+  if (rows.length === 0) return <Empty />;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1100px]">
+        <thead>
+          <tr>
+            <Th>Source</Th>
+            <Th>Medium</Th>
+            <Th>Campaign</Th>
+            <Th>Content</Th>
+            <Th>Ref Code</Th>
+            <Th right>Visitors</Th>
+            <Th right>Signups</Th>
+            <Th>First seen</Th>
+            <Th>Last seen</Th>
+            <Th>First signup</Th>
+            <Th>Last signup</Th>
+            <Th>Raw utm_source</Th>
+            <Th>Sample landing path</Th>
+            <Th>Sample referrer</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <Td><span className="font-medium text-gray-700 capitalize">{r.source}</span></Td>
+              <Td>{dash(r.medium)}</Td>
+              <Td>{dash(r.campaign)}</Td>
+              <Td><span className="break-words">{dash(r.content)}</span></Td>
+              <Td mono>{dash(r.refCode)}</Td>
+              <Td right>{r.visitors.toLocaleString()}</Td>
+              <Td right>
+                {r.signups.toLocaleString()}
+                {r.approxSignups > 0 && <span className="text-amber-500 ml-0.5">*</span>}
+              </Td>
+              <Td><span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(r.firstSeen)}</span></Td>
+              <Td><span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(r.lastSeen)}</span></Td>
+              <Td><span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(r.firstSignupAt)}</span></Td>
+              <Td><span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(r.lastSignupAt)}</span></Td>
+              <Td><span className="text-xs text-gray-400">{r.rawSources.join(", ") || "—"}</span></Td>
+              <Td><span className="text-xs text-gray-400 break-words">{dash(r.sampleLandingPath)}</span></Td>
+              <Td><span className="text-xs text-gray-400">{dash(r.sampleReferrerDomain)}</span></Td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function MarketingTable({ rows }: { rows: MarketingRow[] }) {
   if (rows.length === 0) return <Empty />;
   return (
@@ -525,6 +582,7 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
     marketingSourceTotals,
     marketing,
     unmatchedSignups,
+    marketingDebug,
     campaigns,
     insights,
     actions,
@@ -726,6 +784,12 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
             Source Totals
           </div>
           <SourceTotalsTable rows={marketingSourceTotals} />
+          <p className="text-xs text-gray-400 mt-2 mb-2 leading-snug italic">
+            &quot;Direct / unknown&quot; is a fallback bucket, not a clean digital channel — it can
+            include offline founder-driven signups (in-person demos, presentations, texted links),
+            untagged shared links, or visitors who typed the URL directly. Don&apos;t read it as a
+            single attributable source.
+          </p>
 
           <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 mt-6">
             Campaign / Content Breakdown
@@ -749,6 +813,33 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
 
           <UnmatchedSignupsTable rows={unmatchedSignups} />
         </Card>
+
+        {/* Campaign Row Details — per-row debug context, collapsed by default */}
+        <details className="mb-6 bg-white rounded-xl border border-gray-200 p-6 group">
+          <summary className="text-sm font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none list-none group-open:mb-4">
+            Campaign Row Details (debug)
+          </summary>
+          <p className="text-xs text-gray-400 mb-4 leading-snug">
+            Trace a confusing row above back to its raw origin: when this exact source/medium/
+            campaign/content combination was first and last seen, when signups attributed to it
+            happened, which raw <span className="font-mono">utm_source</span> values normalized
+            into it (e.g. both &quot;ig&quot; and &quot;instagram&quot;), and a sample landing
+            path/referrer. Internal/admin-only — not for sharing externally.
+          </p>
+          <MarketingDebugTable rows={marketingDebug} />
+          <p className="text-xs text-gray-400 mt-4 leading-snug">
+            <span className="font-medium text-gray-500">For clean attribution going forward</span>,
+            use consistent UTM naming per post/ad/link: <span className="font-mono">utm_source=instagram</span>,{" "}
+            <span className="font-mono">utm_medium=link_in_bio</span> /{" "}
+            <span className="font-mono">organic_social</span> /{" "}
+            <span className="font-mono">paid_social</span> / <span className="font-mono">dm</span>,{" "}
+            <span className="font-mono">utm_campaign=&lt;campaign_name&gt;</span>, and{" "}
+            <span className="font-mono">utm_content=&lt;specific_post_or_ad_name&gt;</span>.
+            Rows with inconsistent historical naming or raw ad-platform IDs in{" "}
+            <span className="font-mono">utm_content</span> (e.g. a long numeric value) are most
+            likely old links or Meta-generated dynamic ad parameters, not deliberate tags.
+          </p>
+        </details>
 
         {/* Raw Session Details — debug view, collapsed by default */}
         <details className="mb-6 bg-white rounded-xl border border-gray-200 p-6 group">
