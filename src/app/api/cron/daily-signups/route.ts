@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resend } from "@/lib/resend";
 import { fetchDailySignupsData } from "@/lib/dailySignupsDigest";
-import { buildDailySignupsSubject, buildDailySignupsText } from "@/lib/dailySignupsEmail";
+import { buildDailySignupsSubject, buildDailySignupsText, buildDailySignupsHtml } from "@/lib/dailySignupsEmail";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -50,6 +50,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const dryRun = url.searchParams.get("dryRun") === "1";
   const force = url.searchParams.get("force") === "1";
+  const previewSend = url.searchParams.get("previewSend") === "1";
 
   const data = await fetchDailySignupsData();
   if (!data) {
@@ -60,7 +61,63 @@ export async function GET(request: Request) {
   }
 
   if (dryRun) {
-    return NextResponse.json({ dryRun: true, data });
+    // Render the actual subject/text/html so the design can be previewed
+    // without sending anything — no email send, no DB write below this point.
+    return NextResponse.json({
+      dryRun: true,
+      data,
+      preview: {
+        subject: buildDailySignupsSubject(data),
+        text: buildDailySignupsText(data),
+        html: buildDailySignupsHtml(data),
+      },
+    });
+  }
+
+  // ── Preview send: sends the real HTML/text to the real recipients (so you
+  // can check actual Gmail rendering), but is entirely separate from the real
+  // digest path below — it never reads or writes daily_signup_digest_runs, so
+  // it can't trip the unique window_date constraint or interfere with
+  // duplicate-send protection. Subject is prefixed so recipients can tell
+  // it apart from the real daily digest. ──────────────────────────────────
+  if (previewSend) {
+    const recipientsRaw = process.env.DAILY_SIGNUPS_RECIPIENTS || process.env.ANALYTICS_REPORT_RECIPIENTS || "";
+    const recipients = recipientsRaw
+      .split(",")
+      .map(e => e.trim())
+      .filter(e => e.includes("@"));
+
+    if (recipients.length === 0) {
+      return NextResponse.json(
+        { error: "No recipients configured. Set DAILY_SIGNUPS_RECIPIENTS or ANALYTICS_REPORT_RECIPIENTS." },
+        { status: 500 }
+      );
+    }
+
+    if (!resend) {
+      return NextResponse.json({ error: "RESEND_API_KEY is not configured." }, { status: 500 });
+    }
+
+    const fromEmail = process.env.ANALYTICS_REPORT_FROM_EMAIL ?? "shayan@xyra.dev";
+    const subject = `[Preview] ${buildDailySignupsSubject(data)}`;
+    const text = buildDailySignupsText(data);
+    const html = buildDailySignupsHtml(data);
+
+    const { error: sendError } = await resend.emails.send({
+      from: `Xyra Daily Signups <${fromEmail}>`,
+      to: recipients,
+      subject,
+      html,
+      text,
+    });
+
+    if (sendError) {
+      const detail = serializeError(sendError);
+      console.error("Daily signups preview send error:", JSON.stringify(detail));
+      return NextResponse.json({ error: "Preview email send failed.", detail }, { status: 500 });
+    }
+
+    return NextResponse.json({ previewSent: true, recipients, subject });
   }
 
   // ── Duplicate-send guard: one send per Chicago calendar date, not a rolling
@@ -103,11 +160,13 @@ export async function GET(request: Request) {
   const fromEmail = process.env.ANALYTICS_REPORT_FROM_EMAIL ?? "shayan@xyra.dev";
   const subject = buildDailySignupsSubject(data);
   const text = buildDailySignupsText(data);
+  const html = buildDailySignupsHtml(data);
 
   const { error: sendError } = await resend.emails.send({
     from: `Xyra Daily Signups <${fromEmail}>`,
     to: recipients,
     subject,
+    html,
     text,
   });
 
