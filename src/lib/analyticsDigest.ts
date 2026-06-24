@@ -56,6 +56,7 @@ export type DigestSource = {
   source: string;
   medium: string | null;
   campaign: string | null;
+  rawSources: string[];
   visitors: number;
   signups: number;
   conversionRate: number;
@@ -132,10 +133,27 @@ function getTrackingStartDate(): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-function laterOf(a: string | null, b: string | null): string | null {
-  if (!a) return b;
-  if (!b) return a;
-  return a > b ? a : b;
+// Known variants that should roll up under one display source. The raw value
+// is preserved separately (DigestSource.rawSources) for debugging.
+const SOURCE_ALIASES: Record<string, string> = {
+  instagram: "instagram",
+  ig: "instagram",
+  "l.instagram.com": "instagram",
+  linkedin: "linkedin",
+  "linkedin.com": "linkedin",
+  "lnkd.in": "linkedin",
+  youtube: "youtube",
+  "youtu.be": "youtube",
+  "youtube.com": "youtube",
+  "chatgpt.com": "chatgpt",
+  chatgpt: "chatgpt",
+};
+
+function normalizeSource(raw: string | null): string {
+  if (!raw) return "direct";
+  const v = raw.toLowerCase().trim();
+  if (!v) return "direct";
+  return SOURCE_ALIASES[v] ?? v;
 }
 
 // ── Main fetch ────────────────────────────────────────────────────────────────
@@ -150,16 +168,18 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
 
   const trackingStart = getTrackingStartDate();
 
-  // Events use the later of (range start, tracking start) so they stay aligned
-  // with what we can measure on the waitlist side.
-  const eventsStart = laterOf(rangeStartIso, trackingStart);
-
+  // Events are fetched from the tracking start, NOT the digest window start.
+  // Source attribution below needs each visitor's true first-ever touch — if we
+  // only fetched events inside the digest window, a returning visitor's
+  // earliest event inside that window would be mistaken for their first touch
+  // (e.g. a visitor who first came via instagram weeks ago, then loaded the
+  // page directly within the digest window, would wrongly show as "direct").
   // Waitlist uses only the range start so we can show the legacy count too.
   const [{ data: evRaw, error: evErr }, { data: wlRaw, error: wlErr }] = await Promise.all([
     supabaseAdmin
       .from("analytics_events")
       .select("visitor_id,session_id,event_name,created_at,utm_source,utm_medium,utm_campaign,utm_content,metadata")
-      .gte("created_at", eventsStart ?? rangeStartIso)
+      .gte("created_at", trackingStart ?? rangeStartIso)
       .order("created_at", { ascending: true })
       .limit(100000),
     supabaseAdmin
@@ -176,6 +196,10 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
   const events = (evRaw ?? []) as EventRow[];
   const waitlist = (wlRaw ?? []) as WaitlistRow[];
 
+  // Events that actually fall inside the digest window. Used for everything
+  // EXCEPT source attribution (which needs the full `events` history above).
+  const windowedEvents = events.filter(e => e.created_at >= rangeStartIso);
+
   // ── Split waitlist: tracked vs legacy ────────────────────────
   // Tracked: has visitor_id AND after tracking start (if set).
   // Legacy: no visitor_id, or created before tracking was deployed.
@@ -187,12 +211,12 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
   const legacySignups = totalSignups - trackedSignups;
 
   // ── Event sets ────────────────────────────────────────────────
-  const allVisitors = new Set(events.map(e => e.visitor_id));
-  const allSessions = new Set(events.map(e => e.session_id));
+  const allVisitors = new Set(windowedEvents.map(e => e.visitor_id));
+  const allSessions = new Set(windowedEvents.map(e => e.session_id));
 
   const evVisitors: Record<string, Set<string>> = {};
   const evSessions: Record<string, Set<string>> = {};
-  for (const e of events) {
+  for (const e of windowedEvents) {
     (evVisitors[e.event_name] ??= new Set()).add(e.visitor_id);
     (evSessions[e.event_name] ??= new Set()).add(e.session_id);
   }
@@ -233,12 +257,15 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
     pctOfPrev: i === 0 ? 100 : pct(count, funnelRaw[i - 1]),
   }));
 
-  // ── Traffic Sources (tracked waitlist only) ───────────────────
+  // ── Traffic Sources ────────────────────────────────────────────
+  // Attribution uses each visitor's true first-ever touch (from the full,
+  // unwindowed `events` history) so a visitor's source doesn't flip depending
+  // on which events happen to fall inside this digest's window.
   const visitorFirstUtm: Record<string, { utm_source: string; utm_medium: string | null; utm_campaign: string | null }> = {};
   for (const e of events) {
     if (!visitorFirstUtm[e.visitor_id]) {
       visitorFirstUtm[e.visitor_id] = {
-        utm_source: e.utm_source || "direct",
+        utm_source: normalizeSource(e.utm_source),
         utm_medium: e.utm_medium,
         utm_campaign: e.utm_campaign,
       };
@@ -247,16 +274,29 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
 
   type SourceBucket = { visitors: Set<string>; medium: string | null; campaign: string | null; signups: number };
   const sourceMap: Record<string, SourceBucket> = {};
-  for (const [vid, utm] of Object.entries(visitorFirstUtm)) {
-    const key = utm.utm_source;
-    if (!sourceMap[key]) sourceMap[key] = { visitors: new Set(), medium: utm.utm_medium, campaign: utm.utm_campaign, signups: 0 };
+  for (const vid of allVisitors) {
+    const utm = visitorFirstUtm[vid];
+    const key = utm?.utm_source ?? "direct";
+    if (!sourceMap[key]) sourceMap[key] = { visitors: new Set(), medium: utm?.utm_medium ?? null, campaign: utm?.utm_campaign ?? null, signups: 0 };
     sourceMap[key].visitors.add(vid);
   }
   // Only counted tracked waitlist entries in source conversion.
   for (const w of trackedWaitlist) {
-    const src = w.first_utm_source || "direct";
+    const src = normalizeSource(w.first_utm_source);
     if (!sourceMap[src]) sourceMap[src] = { visitors: new Set(), medium: w.first_utm_medium, campaign: w.first_utm_campaign, signups: 0 };
     sourceMap[src].signups += 1;
+  }
+
+  // Raw label tracking lives in a side-table so it can't introduce phantom
+  // zero-visitor/zero-signup rows for sources only seen outside this window.
+  const sourceRaw: Record<string, Set<string>> = {};
+  for (const e of events) {
+    const key = normalizeSource(e.utm_source);
+    (sourceRaw[key] ??= new Set()).add(e.utm_source?.toLowerCase().trim() || "direct");
+  }
+  for (const w of trackedWaitlist) {
+    const key = normalizeSource(w.first_utm_source);
+    (sourceRaw[key] ??= new Set()).add(w.first_utm_source?.toLowerCase().trim() || "direct");
   }
 
   const sources: DigestSource[] = Object.entries(sourceMap)
@@ -264,6 +304,7 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
       source,
       medium: b.medium,
       campaign: b.campaign,
+      rawSources: Array.from(sourceRaw[source] ?? []).sort(),
       visitors: b.visitors.size,
       signups: b.signups,
       conversionRate: pct(b.signups, b.visitors.size),
@@ -273,7 +314,7 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
 
   // ── CTAs ──────────────────────────────────────────────────────
   const ctaMap: Record<string, { clicks: number; clickers: Set<string> }> = {};
-  for (const e of events.filter(e => e.event_name === "cta_click")) {
+  for (const e of windowedEvents.filter(e => e.event_name === "cta_click")) {
     const key = `${str(e.metadata?.cta_location) || "unknown"}__${str(e.metadata?.button_label) || "unknown"}`;
     const entry = (ctaMap[key] ??= { clicks: 0, clickers: new Set() });
     entry.clicks++;
@@ -288,7 +329,7 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
 
   // ── Section Engagement ────────────────────────────────────────
   const sectionMap: Record<string, Set<string>> = {};
-  for (const e of events.filter(e => e.event_name === "section_view")) {
+  for (const e of windowedEvents.filter(e => e.event_name === "section_view")) {
     (sectionMap[str(e.metadata?.section_name) || "unknown"] ??= new Set()).add(e.session_id);
   }
   const sections: DigestSection[] = ["hero", "explainer", "world", "waitlist", "footer"].map(s => ({
@@ -299,7 +340,7 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
 
   // ── Scroll Depth ──────────────────────────────────────────────
   const scrollMap: Record<number, Set<string>> = {};
-  for (const e of events.filter(e => e.event_name === "scroll_depth")) {
+  for (const e of windowedEvents.filter(e => e.event_name === "scroll_depth")) {
     const t = typeof e.metadata?.threshold === "number" ? e.metadata.threshold : 0;
     (scrollMap[t] ??= new Set()).add(e.session_id);
   }
@@ -311,7 +352,7 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
 
   // ── Feature Cards ─────────────────────────────────────────────
   const cardMap: Record<string, { clicks: number; clickers: Set<string> }> = {};
-  for (const e of events.filter(e => e.event_name === "feature_card_click")) {
+  for (const e of windowedEvents.filter(e => e.event_name === "feature_card_click")) {
     const name = str(e.metadata?.card_name) || "unknown";
     const entry = (cardMap[name] ??= { clicks: 0, clickers: new Set() });
     entry.clicks++;

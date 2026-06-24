@@ -14,6 +14,7 @@ import {
   type ScrollRow,
   type CardRow,
   type ReferralRow,
+  type CampaignRow,
   type Insight,
   type ActionCard,
 } from "./data";
@@ -103,6 +104,10 @@ function Empty() {
   return <p className="text-sm text-gray-400 italic">No data for this period yet.</p>;
 }
 
+function dash(val: string | null): string {
+  return val && val.length > 0 ? val : "—";
+}
+
 // ── Funnel section ────────────────────────────────────────────────────────────
 
 function FunnelSection({ funnel }: { funnel: FunnelStep[] }) {
@@ -147,14 +152,22 @@ function TrafficTable({ sources }: { sources: TrafficSource[] }) {
         </tr>
       </thead>
       <tbody>
-        {sources.map(s => (
-          <tr key={s.source}>
-            <Td><span className="font-medium text-gray-800">{s.source}</span></Td>
-            <Td right>{s.visitors.toLocaleString()}</Td>
-            <Td right>{s.signups.toLocaleString()}</Td>
-            <Td right><ConvBadge rate={s.conversionRate} /></Td>
-          </tr>
-        ))}
+        {sources.map(s => {
+          const otherRaw = s.rawSources.filter(r => r !== s.source);
+          return (
+            <tr key={s.source}>
+              <Td>
+                <span className="font-medium text-gray-800">{s.source}</span>
+                {otherRaw.length > 0 && (
+                  <div className="text-[10px] text-gray-400 mt-0.5">{otherRaw.join(", ")}</div>
+                )}
+              </Td>
+              <Td right>{s.visitors.toLocaleString()}</Td>
+              <Td right>{s.signups.toLocaleString()}</Td>
+              <Td right><ConvBadge rate={s.conversionRate} /></Td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
@@ -265,6 +278,7 @@ function ReferralTable({ rows }: { rows: ReferralRow[] }) {
         <tr>
           <Th>Ref Code</Th>
           <Th right>Visitors</Th>
+          <Th right>Sessions</Th>
           <Th right>Signups</Th>
           <Th right>Conv.</Th>
         </tr>
@@ -274,12 +288,67 @@ function ReferralTable({ rows }: { rows: ReferralRow[] }) {
           <tr key={r.refCode}>
             <Td mono>{r.refCode}</Td>
             <Td right>{r.visitors}</Td>
+            <Td right>{r.sessions}</Td>
             <Td right>{r.signups}</Td>
             <Td right><ConvBadge rate={r.conversionRate} /></Td>
           </tr>
         ))}
       </tbody>
     </table>
+  );
+}
+
+// ── Campaign / Session Attribution ─────────────────────────────────────────────
+
+function CampaignTable({ rows }: { rows: CampaignRow[] }) {
+  if (rows.length === 0) return <Empty />;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[920px]">
+        <thead>
+          <tr>
+            <Th>Source</Th>
+            <Th>Medium</Th>
+            <Th>Campaign</Th>
+            <Th>Content</Th>
+            <Th>Ref Code</Th>
+            <Th>Landing Path</Th>
+            <Th>Referrer</Th>
+            <Th right>Visitors</Th>
+            <Th right>Sessions</Th>
+            <Th right>Signups</Th>
+            <Th right>Conv.</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <Td><span className="font-medium text-gray-800">{dash(r.utmSource)}</span></Td>
+              <Td>{dash(r.utmMedium)}</Td>
+              <Td>{dash(r.utmCampaign)}</Td>
+              <Td>{dash(r.utmContent)}</Td>
+              <Td mono>{dash(r.refCode)}</Td>
+              <Td><span className="text-xs text-gray-400">{dash(r.landingPath)}</span></Td>
+              <Td><span className="text-xs text-gray-400">{dash(r.referrerDomain)}</span></Td>
+              <Td right>{r.visitors.toLocaleString()}</Td>
+              <Td right>{r.sessions.toLocaleString()}</Td>
+              <Td right>
+                {r.signups.toLocaleString()}
+                {r.approxSignups > 0 && (
+                  <span
+                    className="text-amber-500 ml-0.5"
+                    title={`${r.approxSignups} of these had no matching conversion event and used first-touch as a fallback`}
+                  >
+                    *
+                  </span>
+                )}
+              </Td>
+              <Td right><ConvBadge rate={r.conversionRate} /></Td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -294,7 +363,7 @@ const DATE_RANGES: { label: string; value: DateRange }[] = [
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
-  const { summary, funnel, trafficSources, ctaPerformance, sectionEngagement, scrollDepth, featureCards, survey, referrals, insights, actions, trackingStartDate } = data;
+  const { summary, funnel, trafficSources, ctaPerformance, sectionEngagement, scrollDepth, featureCards, survey, referrals, campaigns, insights, actions, trackingStartDate } = data;
 
   const showTrackingNote = summary.legacySignups > 0 || trackingStartDate !== null;
   const trackingDateLabel = trackingStartDate
@@ -347,8 +416,8 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
 
         {/* Summary row 1: core KPIs */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
-          <StatCard label="Visitors" value={summary.uniqueVisitors.toLocaleString()} />
-          <StatCard label="Sessions" value={summary.totalSessions.toLocaleString()} />
+          <StatCard label="Visitors" value={summary.uniqueVisitors.toLocaleString()} sub="unique people" />
+          <StatCard label="Sessions" value={summary.totalSessions.toLocaleString()} sub="visits, incl. repeats" />
           <StatCard
             label="Tracked signups"
             value={summary.successfulSignups.toLocaleString()}
@@ -469,6 +538,23 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
             <ReferralTable rows={referrals} />
           </Card>
         )}
+
+        {/* Campaign / Session Attribution */}
+        <Card className="mb-6">
+          <H2>Campaign / Session Attribution</H2>
+          <p className="text-xs text-gray-400 mb-4 leading-snug">
+            One row per distinct link (source + medium + campaign + content + ref code +
+            referrer + landing path) — not rolled up by channel. The same visitor can appear
+            in multiple rows if they arrived through more than one link or session in this
+            window; that&apos;s expected and different from the deduped acquisition view in
+            Traffic Sources above. Signups are credited to the link/session that actually
+            converted (via their signup event), not their original first-touch source.
+            A <span className="text-amber-500">*</span> next to a signup count means some of
+            those signups had no matching conversion event and fell back to first-touch
+            instead, so they&apos;re approximate.
+          </p>
+          <CampaignTable rows={campaigns} />
+        </Card>
 
         <p className="text-center text-xs text-gray-300 py-4">
           First-party analytics · No ad tracking · Xyra internal tool

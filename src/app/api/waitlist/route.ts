@@ -97,6 +97,15 @@ export async function POST(request: Request) {
       typeof visitor_id === "string" && UUID_RE.test(visitor_id) ? visitor_id : null;
     const firstTouch = pickFirstTouch(first_touch);
 
+    // The persisted first-touch ref code (captured once, on the visitor's
+    // actual first /ref/[code] visit) is the source of truth — it survives
+    // even when the signup happens later on the homepage rather than on the
+    // /ref/[code] page itself. The explicit `referredBy` param (only sent by
+    // the /ref/[code] page form) is just a fallback for when first-touch
+    // capture failed (e.g. localStorage disabled).
+    const effectiveReferredBy =
+      firstTouch?.first_ref_code || (typeof referredBy === "string" ? referredBy.trim() : "") || null;
+
     // Insert new entry
     const { error } = await supabase
       .from("waitlist")
@@ -104,7 +113,7 @@ export async function POST(request: Request) {
         name: trimmedName,
         email: normalizedEmail,
         ref_code: refCode,
-        referred_by: referredBy || null,
+        referred_by: effectiveReferredBy,
         visitor_id: safeVisitorId,
         ...(firstTouch ?? {}),
       });
@@ -126,18 +135,18 @@ export async function POST(request: Request) {
     }
 
     // If referred by someone, increment their referral count
-    if (referredBy) {
+    if (effectiveReferredBy) {
       const { data: referrer } = await supabase
         .from("waitlist")
         .select("referral_count")
-        .eq("ref_code", referredBy)
+        .eq("ref_code", effectiveReferredBy)
         .single();
 
       if (referrer) {
         await supabase
           .from("waitlist")
           .update({ referral_count: (referrer.referral_count || 0) + 1 })
-          .eq("ref_code", referredBy);
+          .eq("ref_code", effectiveReferredBy);
       }
     }
 
