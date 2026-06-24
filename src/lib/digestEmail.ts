@@ -57,7 +57,7 @@ function tagStyle(tag: DigestAction["tag"]): string {
 // ── Builder ───────────────────────────────────────────────────────────────────
 
 export function buildDigestHtml(data: DigestData): string {
-  const { period, trackingStartDate, summary, funnel, sources, ctas, sections, scrollDepth, featureCards, survey, actions } = data;
+  const { period, trackingStartDate, summary, funnel, sources, topCampaigns, ctas, sections, scrollDepth, featureCards, survey, actions } = data;
 
   const periodStr = `${fmtDate(period.start)} – ${fmtDate(period.end)}`;
 
@@ -139,6 +139,35 @@ export function buildDigestHtml(data: DigestData): string {
           <td style="font-size:13px;font-weight:600;color:${s.conversionRate > 15 ? "#16a34a" : s.conversionRate > 5 ? "#d97706" : "#374151"};text-align:right;padding:7px 0 7px 8px;">${s.conversionRate}%</td>
         </tr>`).join("")}
       </table>`;
+
+  // Top Campaigns / Marketing Performance table — grouped by marketing
+  // identity (source + medium + campaign + content + ref code), not by
+  // referrer/landing path, and capped to the top rows by signups so the
+  // email stays a summary rather than a raw data dump.
+  const campaignLabel = (c: { source: string; medium: string | null; campaign: string | null; content: string | null }) =>
+    c.medium || c.campaign || c.content
+      ? [c.source, c.medium, c.campaign, c.content].filter(Boolean).join(" / ")
+      : c.source;
+  const topCampaignsBody = topCampaigns.length === 0
+    ? `<p style="margin:8px 0;font-size:13px;color:#9ca3af;font-style:italic;">No campaign data for this period.</p>`
+    : `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;padding:0 0 6px;">Campaign</td>
+          <td style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;padding:0 0 6px;text-align:right;">Visitors</td>
+          <td style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;padding:0 0 6px;text-align:right;">Signups</td>
+          <td style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;padding:0 0 6px;text-align:right;">Conv.</td>
+        </tr>
+        ${topCampaigns.map(c => `
+        <tr style="border-bottom:1px solid #f9fafb;">
+          <td style="font-size:13px;font-weight:500;color:#111827;padding:7px 8px 7px 0;word-break:break-word;">${esc(campaignLabel(c))}${c.refCode ? `<div style="font-size:11px;color:#9ca3af;margin-top:1px;">ref: ${esc(c.refCode)}</div>` : ""}</td>
+          <td style="font-size:13px;color:#374151;text-align:right;padding:7px 0 7px 8px;white-space:nowrap;">${c.visitors.toLocaleString()}</td>
+          <td style="font-size:13px;color:#374151;text-align:right;padding:7px 0 7px 8px;white-space:nowrap;">${c.signups.toLocaleString()}</td>
+          <td style="font-size:13px;font-weight:600;color:${c.conversionRate > 15 ? "#16a34a" : c.conversionRate > 5 ? "#d97706" : "#374151"};text-align:right;padding:7px 0 7px 8px;white-space:nowrap;">${c.conversionRate}%</td>
+        </tr>`).join("")}
+      </table>
+      <p style="margin:10px 0 0;font-size:11px;color:#9ca3af;line-height:1.5;">
+        Exact post-level attribution only works when that post/ad/link used a unique UTM or referral code — posts sharing the same link collapse into one row above.
+      </p>`;
 
   // CTA table
   const ctaBody = ctas.length === 0
@@ -290,6 +319,9 @@ export function buildDigestHtml(data: DigestData): string {
 
                 <!-- Sources -->
                 ${section("Traffic Sources", sourcesBody)}
+
+                <!-- Top Campaigns -->
+                ${section("Top Campaigns", topCampaignsBody)}
 
                 <!-- CTAs -->
                 ${section("CTA Performance", ctaBody)}

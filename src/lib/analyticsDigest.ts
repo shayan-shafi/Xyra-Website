@@ -7,6 +7,8 @@ type EventRow = {
   session_id: string;
   event_name: string;
   created_at: string;
+  path: string | null;
+  referrer: string | null;
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
@@ -20,6 +22,7 @@ type WaitlistRow = {
   first_utm_medium: string | null;
   first_utm_campaign: string | null;
   first_utm_content: string | null;
+  first_referrer: string | null;
   first_ref_code: string | null;
   survey_must_have: string | null;
   created_at: string;
@@ -92,6 +95,21 @@ export type DigestAction = {
   message: string;
 };
 
+// One row per marketing identity (normalized source + medium + campaign +
+// content + ref code) — "which post/ad/link drove this", same clean grouping
+// as the dashboard's Marketing Performance table. Limited to the top rows by
+// signups so the email stays a summary, not a data dump.
+export type DigestMarketingRow = {
+  source: string;
+  medium: string | null;
+  campaign: string | null;
+  content: string | null;
+  refCode: string | null;
+  visitors: number;
+  signups: number;
+  conversionRate: number;
+};
+
 export type DigestData = {
   period: { start: Date; end: Date; days: number };
   // ISO string from ANALYTICS_TRACKING_START_DATE, or null.
@@ -99,6 +117,7 @@ export type DigestData = {
   summary: DigestSummary;
   funnel: DigestFunnelStep[];
   sources: DigestSource[];
+  topCampaigns: DigestMarketingRow[];
   ctas: DigestCta[];
   sections: DigestSection[];
   scrollDepth: DigestScroll[];
@@ -134,10 +153,12 @@ function getTrackingStartDate(): string | null {
 }
 
 // Known variants that should roll up under one display source. The raw value
-// is preserved separately (DigestSource.rawSources) for debugging.
+// is preserved separately (DigestSource.rawSources) for debugging. These
+// double as referrer-hostname aliases (see normalizeSource's fallback below).
 const SOURCE_ALIASES: Record<string, string> = {
   instagram: "instagram",
   ig: "instagram",
+  "instagram.com": "instagram",
   "l.instagram.com": "instagram",
   linkedin: "linkedin",
   "linkedin.com": "linkedin",
@@ -149,11 +170,45 @@ const SOURCE_ALIASES: Record<string, string> = {
   chatgpt: "chatgpt",
 };
 
-function normalizeSource(raw: string | null): string {
-  if (!raw) return "direct";
-  const v = raw.toLowerCase().trim();
-  if (!v) return "direct";
-  return SOURCE_ALIASES[v] ?? v;
+// Resolves a display source from utm_source, falling back to the referrer's
+// hostname when there's no UTM tag at all. "localhost" (dev-only artifact)
+// is never treated as a real source.
+function normalizeSource(utmSource: string | null, referrerHost: string | null = null): string {
+  const raw = utmSource?.toLowerCase().trim();
+  if (raw) return SOURCE_ALIASES[raw] ?? raw;
+
+  const host = referrerHost?.toLowerCase().trim();
+  if (!host || host === "localhost") return "direct";
+  const stripped = host.replace(/^(l|m|www)\./, "");
+  return SOURCE_ALIASES[host] ?? SOURCE_ALIASES[stripped] ?? "direct";
+}
+
+// Internal dev/QA artifacts (manual curl tests, local validation runs) that
+// sometimes land in production analytics_events/waitlist rows. Real rows —
+// never deleted/mutated — but noise in a decision-facing digest, so they're
+// filtered out of topCampaigns here only.
+const TEST_ARTIFACT_SOURCES = new Set(["test", "test_source", "localhost"]);
+const TEST_ARTIFACT_TEXT = /local_analytics_test|analytics_validation|analytics_test|local_test/i;
+
+function isTestArtifact(
+  source: string,
+  medium: string | null,
+  campaign: string | null,
+  content: string | null
+): boolean {
+  if (TEST_ARTIFACT_SOURCES.has(source)) return true;
+  return TEST_ARTIFACT_TEXT.test(medium ?? "") || TEST_ARTIFACT_TEXT.test(campaign ?? "") || TEST_ARTIFACT_TEXT.test(content ?? "");
+}
+
+// Extracts just the hostname from a referrer URL. Returns null for
+// empty/invalid referrers (including same-origin/relative values).
+function referrerDomain(referrer: string | null): string | null {
+  if (!referrer) return null;
+  try {
+    return new URL(referrer).hostname || null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Main fetch ────────────────────────────────────────────────────────────────
@@ -178,13 +233,13 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
   const [{ data: evRaw, error: evErr }, { data: wlRaw, error: wlErr }] = await Promise.all([
     supabaseAdmin
       .from("analytics_events")
-      .select("visitor_id,session_id,event_name,created_at,utm_source,utm_medium,utm_campaign,utm_content,metadata")
+      .select("visitor_id,session_id,event_name,created_at,path,referrer,utm_source,utm_medium,utm_campaign,utm_content,metadata")
       .gte("created_at", trackingStart ?? rangeStartIso)
       .order("created_at", { ascending: true })
       .limit(100000),
     supabaseAdmin
       .from("waitlist")
-      .select("visitor_id,first_utm_source,first_utm_medium,first_utm_campaign,first_utm_content,first_ref_code,survey_must_have,created_at")
+      .select("visitor_id,first_utm_source,first_utm_medium,first_utm_campaign,first_utm_content,first_referrer,first_ref_code,survey_must_have,created_at")
       .gte("created_at", rangeStartIso)
       .order("created_at", { ascending: true })
       .limit(10000),
@@ -265,7 +320,7 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
   for (const e of events) {
     if (!visitorFirstUtm[e.visitor_id]) {
       visitorFirstUtm[e.visitor_id] = {
-        utm_source: normalizeSource(e.utm_source),
+        utm_source: normalizeSource(e.utm_source, referrerDomain(e.referrer)),
         utm_medium: e.utm_medium,
         utm_campaign: e.utm_campaign,
       };
@@ -282,7 +337,7 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
   }
   // Only counted tracked waitlist entries in source conversion.
   for (const w of trackedWaitlist) {
-    const src = normalizeSource(w.first_utm_source);
+    const src = normalizeSource(w.first_utm_source, referrerDomain(w.first_referrer));
     if (!sourceMap[src]) sourceMap[src] = { visitors: new Set(), medium: w.first_utm_medium, campaign: w.first_utm_campaign, signups: 0 };
     sourceMap[src].signups += 1;
   }
@@ -291,12 +346,14 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
   // zero-visitor/zero-signup rows for sources only seen outside this window.
   const sourceRaw: Record<string, Set<string>> = {};
   for (const e of events) {
-    const key = normalizeSource(e.utm_source);
-    (sourceRaw[key] ??= new Set()).add(e.utm_source?.toLowerCase().trim() || "direct");
+    const key = normalizeSource(e.utm_source, referrerDomain(e.referrer));
+    const rawLabel = e.utm_source?.toLowerCase().trim() || (referrerDomain(e.referrer) ? `referrer:${referrerDomain(e.referrer)}` : "direct");
+    (sourceRaw[key] ??= new Set()).add(rawLabel);
   }
   for (const w of trackedWaitlist) {
-    const key = normalizeSource(w.first_utm_source);
-    (sourceRaw[key] ??= new Set()).add(w.first_utm_source?.toLowerCase().trim() || "direct");
+    const key = normalizeSource(w.first_utm_source, referrerDomain(w.first_referrer));
+    const rawLabel = w.first_utm_source?.toLowerCase().trim() || (referrerDomain(w.first_referrer) ? `referrer:${referrerDomain(w.first_referrer)}` : "direct");
+    (sourceRaw[key] ??= new Set()).add(rawLabel);
   }
 
   const sources: DigestSource[] = Object.entries(sourceMap)
@@ -310,6 +367,119 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
       conversionRate: pct(b.signups, b.visitors.size),
     }))
     .sort((a, b) => b.signups - a.signups || b.conversionRate - a.conversionRate)
+    .slice(0, 8);
+
+  // ── Top Campaigns / Marketing Performance ──────────────────────
+  // Same clean grouping as the dashboard's Marketing Performance table:
+  // one row per marketing identity (normalized source + medium + campaign +
+  // content + ref code), not split by referrer domain or landing path, and
+  // pure direct/unknown traffic collapsed into a single row. This answers
+  // "which post/ad/link drove signups", which the broad Sources table above
+  // can't — it only shows one representative medium/campaign per source.
+  type MarketingTouch = { source: string; medium: string | null; campaign: string | null; content: string | null; refCode: string | null };
+  type MarketingBucket = MarketingTouch & { visitors: Set<string>; signups: number };
+
+  function marketingKey(m: MarketingTouch): string {
+    const isPureDirect = m.source === "direct" && !m.medium && !m.campaign && !m.content && !m.refCode;
+    if (isPureDirect) return "direct";
+    return [m.source, m.medium, m.campaign, m.content, m.refCode].map(v => v ?? "").join("");
+  }
+
+  // Entry touch per session = the session's earliest windowed event.
+  type SessionTouch = {
+    utm_source: string | null;
+    utm_medium: string | null;
+    utm_campaign: string | null;
+    utm_content: string | null;
+    referrer_domain: string | null;
+    ref_code: string | null;
+    visitor_id: string;
+  };
+  const sessionEntry: Record<string, SessionTouch> = {};
+  for (const e of windowedEvents) {
+    if (!sessionEntry[e.session_id]) {
+      sessionEntry[e.session_id] = {
+        utm_source: e.utm_source,
+        utm_medium: e.utm_medium,
+        utm_campaign: e.utm_campaign,
+        utm_content: e.utm_content,
+        referrer_domain: referrerDomain(e.referrer),
+        ref_code: null,
+        visitor_id: e.visitor_id,
+      };
+    }
+  }
+  for (const e of windowedEvents) {
+    if (e.event_name === "ref_link_visit") {
+      const code = str(e.metadata?.ref_code) || null;
+      if (code && sessionEntry[e.session_id]) sessionEntry[e.session_id].ref_code = code;
+    }
+  }
+
+  function toMarketingTouch(t: { utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; utm_content: string | null; referrer_domain: string | null; ref_code: string | null }): MarketingTouch {
+    return {
+      source: normalizeSource(t.utm_source, t.referrer_domain),
+      medium: t.utm_medium,
+      campaign: t.utm_campaign,
+      content: t.utm_content,
+      refCode: t.ref_code,
+    };
+  }
+
+  const marketingMap: Record<string, MarketingBucket> = {};
+  for (const t of Object.values(sessionEntry)) {
+    const m = toMarketingTouch(t);
+    const key = marketingKey(m);
+    (marketingMap[key] ??= { ...m, visitors: new Set(), signups: 0 }).visitors.add(t.visitor_id);
+  }
+
+  // Signups matched to the session/touch that actually converted, same as
+  // the dashboard: prefer waitlist_email_success, fall back to
+  // waitlist_email_submit, then to the visitor's persisted first-touch.
+  const successEventByVisitor: Record<string, EventRow> = {};
+  const submitEventByVisitor: Record<string, EventRow> = {};
+  for (const e of windowedEvents) {
+    if (e.event_name === "waitlist_email_success") successEventByVisitor[e.visitor_id] = e;
+    else if (e.event_name === "waitlist_email_submit") submitEventByVisitor[e.visitor_id] = e;
+  }
+  for (const w of trackedWaitlist) {
+    if (!w.visitor_id) continue;
+    const convEvent = successEventByVisitor[w.visitor_id] ?? submitEventByVisitor[w.visitor_id];
+    const t = convEvent
+      ? {
+          utm_source: convEvent.utm_source,
+          utm_medium: convEvent.utm_medium,
+          utm_campaign: convEvent.utm_campaign,
+          utm_content: convEvent.utm_content,
+          referrer_domain: referrerDomain(convEvent.referrer),
+          ref_code: str(convEvent.metadata?.ref_code) || sessionEntry[convEvent.session_id]?.ref_code || null,
+        }
+      : {
+          utm_source: w.first_utm_source,
+          utm_medium: w.first_utm_medium,
+          utm_campaign: w.first_utm_campaign,
+          utm_content: w.first_utm_content,
+          referrer_domain: referrerDomain(w.first_referrer),
+          ref_code: w.first_ref_code,
+        };
+    const m = toMarketingTouch(t);
+    const key = marketingKey(m);
+    (marketingMap[key] ??= { ...m, visitors: new Set(), signups: 0 }).signups += 1;
+  }
+
+  const topCampaigns: DigestMarketingRow[] = Object.values(marketingMap)
+    .map(b => ({
+      source: b.source,
+      medium: b.medium,
+      campaign: b.campaign,
+      content: b.content,
+      refCode: b.refCode,
+      visitors: b.visitors.size,
+      signups: b.signups,
+      conversionRate: pct(b.signups, b.visitors.size),
+    }))
+    .filter(r => !isTestArtifact(r.source, r.medium, r.campaign, r.content))
+    .sort((a, b) => b.signups - a.signups || b.visitors - a.visitors)
     .slice(0, 8);
 
   // ── CTAs ──────────────────────────────────────────────────────
@@ -426,6 +596,7 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
     summary,
     funnel,
     sources,
+    topCampaigns,
     ctas,
     sections,
     scrollDepth,

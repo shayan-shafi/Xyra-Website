@@ -14,6 +14,7 @@ import {
   type ScrollRow,
   type CardRow,
   type ReferralRow,
+  type MarketingRow,
   type CampaignRow,
   type Insight,
   type ActionCard,
@@ -298,7 +299,64 @@ function ReferralTable({ rows }: { rows: ReferralRow[] }) {
   );
 }
 
-// ── Campaign / Session Attribution ─────────────────────────────────────────────
+// ── Marketing Performance ───────────────────────────────────────────────────────
+
+function MarketingTable({ rows }: { rows: MarketingRow[] }) {
+  if (rows.length === 0) return <Empty />;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[760px]">
+        <thead>
+          <tr>
+            <Th>Source</Th>
+            <Th>Medium</Th>
+            <Th>Campaign</Th>
+            <Th>Content / Post / Ad</Th>
+            <Th>Ref Code</Th>
+            <Th right>Visitors</Th>
+            <Th right>Sessions</Th>
+            <Th right>Signups</Th>
+            <Th right>Conv.</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const isDirect = r.source === "direct" && !r.medium && !r.campaign && !r.content && !r.refCode;
+            return (
+              <tr key={i}>
+                <Td>
+                  <span className={isDirect ? "text-gray-400 italic" : "font-medium text-gray-800 capitalize"}>
+                    {isDirect ? "Direct / unknown" : r.source}
+                  </span>
+                </Td>
+                <Td><span className="break-words">{dash(r.medium)}</span></Td>
+                <Td><span className="break-words">{dash(r.campaign)}</span></Td>
+                <Td><span className="break-words">{dash(r.content)}</span></Td>
+                <Td mono>{dash(r.refCode)}</Td>
+                <Td right>{r.visitors.toLocaleString()}</Td>
+                <Td right>{r.sessions.toLocaleString()}</Td>
+                <Td right>
+                  {r.signups.toLocaleString()}
+                  {r.approxSignups > 0 && (
+                    <span
+                      className="text-amber-500 ml-0.5"
+                      title={`${r.approxSignups} of these had no matching conversion event and used first-touch as a fallback`}
+                    >
+                      *
+                    </span>
+                  )}
+                </Td>
+                <Td right><ConvBadge rate={r.conversionRate} /></Td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Raw Session Details (debug) ─────────────────────────────────────────────────
 
 function CampaignTable({ rows }: { rows: CampaignRow[] }) {
   if (rows.length === 0) return <Empty />;
@@ -363,7 +421,7 @@ const DATE_RANGES: { label: string; value: DateRange }[] = [
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
-  const { summary, funnel, trafficSources, ctaPerformance, sectionEngagement, scrollDepth, featureCards, survey, referrals, campaigns, insights, actions, trackingStartDate } = data;
+  const { summary, funnel, trafficSources, ctaPerformance, sectionEngagement, scrollDepth, featureCards, survey, referrals, marketing, campaigns, insights, actions, trackingStartDate } = data;
 
   const showTrackingNote = summary.legacySignups > 0 || trackingStartDate !== null;
   const trackingDateLabel = trackingStartDate
@@ -470,6 +528,11 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <Card>
             <H2>Traffic Sources</H2>
+            <p className="text-xs text-gray-400 mb-3 leading-snug">
+              Broad first-touch acquisition only — one row per visitor&apos;s true first-ever
+              channel. For which specific post, ad, or link drove signups, see Marketing
+              Performance below.
+            </p>
             <TrafficTable sources={trafficSources} />
           </Card>
           <Card>
@@ -539,22 +602,43 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
           </Card>
         )}
 
-        {/* Campaign / Session Attribution */}
+        {/* Marketing Performance — the decision-friendly campaign table */}
         <Card className="mb-6">
-          <H2>Campaign / Session Attribution</H2>
+          <H2>Marketing Performance</H2>
+          <p className="text-xs text-gray-400 mb-2 leading-snug">
+            One row per marketing identity (source + medium + campaign + content + ref code) —
+            answers &quot;which post, ad, link, or referral drove this&quot;. Unlike Traffic
+            Sources, the same visitor can appear in multiple rows if they arrived through more
+            than one link or session in this window; that&apos;s expected. Signups are credited
+            to the link/session that actually converted, not the visitor&apos;s original
+            first-touch. A <span className="text-amber-500">*</span> means some signups in that
+            row had no matching conversion event and fell back to first-touch instead.
+          </p>
+          <p className="text-xs text-gray-400 mb-4 leading-snug italic">
+            Exact post-level attribution only works when that post/ad/link used a unique UTM or
+            referral code. E.g. if every Instagram post points to the same link-in-bio URL, all
+            of them collapse into one <span className="not-italic font-medium">instagram / link_in_bio / general</span> row
+            — we can&apos;t tell which specific post drove a click. Give each important
+            post/ad/QR/DM its own <span className="not-italic font-medium">utm_content</span> or{" "}
+            <span className="not-italic font-medium">utm_campaign</span> going forward to
+            separate them.
+          </p>
+          <MarketingTable rows={marketing} />
+        </Card>
+
+        {/* Raw Session Details — debug view, collapsed by default */}
+        <details className="mb-6 bg-white rounded-xl border border-gray-200 p-6 group">
+          <summary className="text-sm font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none list-none group-open:mb-4">
+            Raw Session Details (debug)
+          </summary>
           <p className="text-xs text-gray-400 mb-4 leading-snug">
-            One row per distinct link (source + medium + campaign + content + ref code +
-            referrer + landing path) — not rolled up by channel. The same visitor can appear
-            in multiple rows if they arrived through more than one link or session in this
-            window; that&apos;s expected and different from the deduped acquisition view in
-            Traffic Sources above. Signups are credited to the link/session that actually
-            converted (via their signup event), not their original first-touch source.
-            A <span className="text-amber-500">*</span> next to a signup count means some of
-            those signups had no matching conversion event and fell back to first-touch
-            instead, so they&apos;re approximate.
+            One row per distinct link including referrer domain and landing path — useful for
+            debugging attribution, not for marketing decisions. The same visitor/session can
+            appear here multiple times split across rows that Marketing Performance above
+            would otherwise merge (e.g. same campaign, different referrer domain).
           </p>
           <CampaignTable rows={campaigns} />
-        </Card>
+        </details>
 
         <p className="text-center text-xs text-gray-300 py-4">
           First-party analytics · No ad tracking · Xyra internal tool

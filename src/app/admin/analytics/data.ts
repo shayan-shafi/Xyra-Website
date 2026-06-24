@@ -126,6 +126,24 @@ export type CampaignRow = {
   conversionRate: number;
 };
 
+// One row per distinct marketing identity (normalized source + medium +
+// campaign + content + ref code) — the "which post/ad/link drove this"
+// question, without splitting rows over debug-only signals like referrer
+// domain or landing path. This is the primary, decision-friendly table;
+// CampaignRow (above) remains available as the raw/debug breakdown.
+export type MarketingRow = {
+  source: string;
+  medium: string | null;
+  campaign: string | null;
+  content: string | null;
+  refCode: string | null;
+  visitors: number;
+  sessions: number;
+  signups: number;
+  approxSignups: number;
+  conversionRate: number;
+};
+
 export type Insight = {
   type: "warning" | "info" | "success";
   message: string;
@@ -152,6 +170,7 @@ export type DashboardData = {
     skipRate: number;
   };
   referrals: ReferralRow[];
+  marketing: MarketingRow[];
   campaigns: CampaignRow[];
   insights: Insight[];
   actions: ActionCard[];
@@ -188,10 +207,13 @@ function str(val: unknown): string {
 }
 
 // Known variants that should roll up under one display source. The raw value
-// is preserved separately (TrafficSource.rawSources) for debugging.
+// is preserved separately (TrafficSource.rawSources) for debugging. These
+// double as referrer-hostname aliases (see normalizeSource's fallback below),
+// which is why hostname-shaped keys like "l.instagram.com" are already here.
 const SOURCE_ALIASES: Record<string, string> = {
   instagram: "instagram",
   ig: "instagram",
+  "instagram.com": "instagram",
   "l.instagram.com": "instagram",
   linkedin: "linkedin",
   "linkedin.com": "linkedin",
@@ -203,11 +225,37 @@ const SOURCE_ALIASES: Record<string, string> = {
   chatgpt: "chatgpt",
 };
 
-function normalizeSource(raw: string | null): string {
-  if (!raw) return "direct";
-  const v = raw.toLowerCase().trim();
-  if (!v) return "direct";
-  return SOURCE_ALIASES[v] ?? v;
+// Resolves a display source from utm_source, falling back to the referrer's
+// hostname when there's no UTM tag at all (e.g. an untagged click from
+// l.instagram.com should still show up as "instagram", not "direct"). Strips
+// common subdomain prefixes (l., m., www.) so hostname variants still match
+// the same alias. "localhost" (dev-only artifact) is never a real source.
+function normalizeSource(utmSource: string | null, referrerHost: string | null = null): string {
+  const raw = utmSource?.toLowerCase().trim();
+  if (raw) return SOURCE_ALIASES[raw] ?? raw;
+
+  const host = referrerHost?.toLowerCase().trim();
+  if (!host || host === "localhost") return "direct";
+  const stripped = host.replace(/^(l|m|www)\./, "");
+  return SOURCE_ALIASES[host] ?? SOURCE_ALIASES[stripped] ?? "direct";
+}
+
+// Internal dev/QA artifacts (manual curl tests, local validation runs) that
+// sometimes land in production analytics_events/waitlist rows. They're real
+// rows — never deleted/mutated — but they're noise in decision-facing views,
+// so marketing-facing tables/digests filter them out while the raw/debug
+// views (which read campaignMap directly, not this filter) still show them.
+const TEST_ARTIFACT_SOURCES = new Set(["test", "test_source", "localhost"]);
+const TEST_ARTIFACT_TEXT = /local_analytics_test|analytics_validation|analytics_test|local_test/i;
+
+function isTestArtifact(
+  source: string,
+  medium: string | null,
+  campaign: string | null,
+  content: string | null
+): boolean {
+  if (TEST_ARTIFACT_SOURCES.has(source)) return true;
+  return TEST_ARTIFACT_TEXT.test(medium ?? "") || TEST_ARTIFACT_TEXT.test(campaign ?? "") || TEST_ARTIFACT_TEXT.test(content ?? "");
 }
 
 // Extracts just the hostname from a referrer URL, e.g.
@@ -338,7 +386,7 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
   const visitorFirstSource: Record<string, string> = {};
   for (const e of events) {
     if (!visitorFirstSource[e.visitor_id]) {
-      visitorFirstSource[e.visitor_id] = normalizeSource(e.utm_source);
+      visitorFirstSource[e.visitor_id] = normalizeSource(e.utm_source, referrerDomain(e.referrer));
     }
   }
   const sourceVisitors: Record<string, Set<string>> = {};
@@ -348,14 +396,16 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     (sourceVisitors[src] ??= new Set()).add(vid);
   }
   for (const e of events) {
-    const src = normalizeSource(e.utm_source);
-    (sourceRaw[src] ??= new Set()).add(e.utm_source?.toLowerCase().trim() || "direct");
+    const src = normalizeSource(e.utm_source, referrerDomain(e.referrer));
+    const rawLabel = e.utm_source?.toLowerCase().trim() || (referrerDomain(e.referrer) ? `referrer:${referrerDomain(e.referrer)}` : "direct");
+    (sourceRaw[src] ??= new Set()).add(rawLabel);
   }
   const sourceSignups: Record<string, number> = {};
   for (const w of trackedWaitlist) {
-    const src = normalizeSource(w.first_utm_source);
+    const src = normalizeSource(w.first_utm_source, referrerDomain(w.first_referrer));
     sourceSignups[src] = (sourceSignups[src] ?? 0) + 1;
-    (sourceRaw[src] ??= new Set()).add(w.first_utm_source?.toLowerCase().trim() || "direct");
+    const rawLabel = w.first_utm_source?.toLowerCase().trim() || (referrerDomain(w.first_referrer) ? `referrer:${referrerDomain(w.first_referrer)}` : "direct");
+    (sourceRaw[src] ??= new Set()).add(rawLabel);
   }
   const allSrcs = new Set([...Object.keys(sourceVisitors), ...Object.keys(sourceSignups)]);
   const trafficSources: TrafficSource[] = Array.from(allSrcs)
@@ -475,6 +525,32 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
       .join("");
   }
 
+  // The clean marketing identity for a touch — normalized source, raw
+  // medium/campaign/content/ref_code, deliberately excluding referrer domain
+  // and landing path (those are debug-only signals, not campaign identity).
+  type MarketingTouch = { source: string; medium: string | null; campaign: string | null; content: string | null; refCode: string | null };
+  type MarketingBucket = MarketingTouch & { visitors: Set<string>; sessions: Set<string>; signups: number; approxSignups: number };
+
+  function toMarketingTouch(t: CampaignTouch): MarketingTouch {
+    return {
+      source: normalizeSource(t.utm_source, t.referrer_domain),
+      medium: t.utm_medium,
+      campaign: t.utm_campaign,
+      content: t.utm_content,
+      refCode: t.ref_code,
+    };
+  }
+
+  // Pure direct/unknown traffic (no medium/campaign/content/ref code at all)
+  // collapses into one canonical "direct" row rather than many near-empty
+  // ones. Anything with even one piece of marketing identity — including a
+  // referral code on otherwise-direct traffic — keeps its own row.
+  function marketingKey(m: MarketingTouch): string {
+    const isPureDirect = m.source === "direct" && !m.medium && !m.campaign && !m.content && !m.refCode;
+    if (isPureDirect) return "direct";
+    return [m.source, m.medium, m.campaign, m.content, m.refCode].map(v => v ?? "").join("");
+  }
+
   // Entry touch per session = the session's earliest event (windowedEvents is
   // already ordered ascending by created_at, so "first seen" = earliest).
   const sessionEntry: Record<string, CampaignTouch & { visitor_id: string }> = {};
@@ -503,12 +579,18 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
   }
 
   const campaignMap: Record<string, CampaignBucket> = {};
+  const marketingMap: Record<string, MarketingBucket> = {};
   for (const t of Object.values(sessionEntry)) {
     const key = campaignKey(t);
     (campaignMap[key] ??= { ...t, visitors: new Set(), sessions: new Set(), signups: 0, approxSignups: 0 }).visitors.add(t.visitor_id);
+
+    const m = toMarketingTouch(t);
+    const mKey = marketingKey(m);
+    (marketingMap[mKey] ??= { ...m, visitors: new Set(), sessions: new Set(), signups: 0, approxSignups: 0 }).visitors.add(t.visitor_id);
   }
   for (const [sid, t] of Object.entries(sessionEntry)) {
     campaignMap[campaignKey(t)].sessions.add(sid);
+    marketingMap[marketingKey(toMarketingTouch(t))].sessions.add(sid);
   }
 
   // Signups are matched to the session/touch that actually produced them,
@@ -552,7 +634,29 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     const bucket = (campaignMap[key] ??= { ...t, visitors: new Set(), sessions: new Set(), signups: 0, approxSignups: 0 });
     bucket.signups += 1;
     if (isApprox) bucket.approxSignups += 1;
+
+    const m = toMarketingTouch(t);
+    const mKey = marketingKey(m);
+    const mBucket = (marketingMap[mKey] ??= { ...m, visitors: new Set(), sessions: new Set(), signups: 0, approxSignups: 0 });
+    mBucket.signups += 1;
+    if (isApprox) mBucket.approxSignups += 1;
   }
+
+  const marketing: MarketingRow[] = Object.values(marketingMap)
+    .map(b => ({
+      source: b.source,
+      medium: b.medium,
+      campaign: b.campaign,
+      content: b.content,
+      refCode: b.refCode,
+      visitors: b.visitors.size,
+      sessions: b.sessions.size,
+      signups: b.signups,
+      approxSignups: b.approxSignups,
+      conversionRate: pct(b.signups, b.visitors.size),
+    }))
+    .filter(r => !isTestArtifact(r.source, r.medium, r.campaign, r.content))
+    .sort((a, b) => b.signups - a.signups || b.visitors - a.visitors);
 
   const campaigns: CampaignRow[] = Object.values(campaignMap)
     .map(b => ({
@@ -658,6 +762,7 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     featureCards,
     survey,
     referrals,
+    marketing,
     campaigns,
     insights,
     actions,

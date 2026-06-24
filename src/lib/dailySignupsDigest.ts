@@ -9,6 +9,7 @@ type WaitlistDailyRow = {
   first_utm_medium: string | null;
   first_utm_campaign: string | null;
   first_utm_content: string | null;
+  first_referrer: string | null;
   first_ref_code: string | null;
   created_at: string;
 };
@@ -17,6 +18,7 @@ type EventRow = {
   visitor_id: string;
   session_id: string;
   event_name: string;
+  referrer: string | null;
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
@@ -59,6 +61,7 @@ export type DailySignupsData = {
 const SOURCE_ALIASES: Record<string, string> = {
   instagram: "instagram",
   ig: "instagram",
+  "instagram.com": "instagram",
   "l.instagram.com": "instagram",
   linkedin: "linkedin",
   "linkedin.com": "linkedin",
@@ -70,11 +73,44 @@ const SOURCE_ALIASES: Record<string, string> = {
   chatgpt: "chatgpt",
 };
 
-function normalizeSource(raw: string | null): string {
-  if (!raw) return "direct";
-  const v = raw.toLowerCase().trim();
-  if (!v) return "direct";
-  return SOURCE_ALIASES[v] ?? v;
+// Resolves a display source from utm_source, falling back to the referrer's
+// hostname when there's no UTM tag at all. "localhost" (dev-only artifact)
+// is never treated as a real source.
+function normalizeSource(utmSource: string | null, referrerHost: string | null = null): string {
+  const raw = utmSource?.toLowerCase().trim();
+  if (raw) return SOURCE_ALIASES[raw] ?? raw;
+
+  const host = referrerHost?.toLowerCase().trim();
+  if (!host || host === "localhost") return "direct";
+  const stripped = host.replace(/^(l|m|www)\./, "");
+  return SOURCE_ALIASES[host] ?? SOURCE_ALIASES[stripped] ?? "direct";
+}
+
+// Internal dev/QA artifacts (manual curl tests, local validation runs) that
+// sometimes land in production waitlist/analytics_events rows. Real rows —
+// never deleted/mutated — but noise in the campaign summary, so they're
+// excluded from byCampaign only; bySource/byRefCode/per-signup detail and the
+// total signup count are left untouched.
+const TEST_ARTIFACT_SOURCES = new Set(["test", "test_source", "localhost"]);
+const TEST_ARTIFACT_TEXT = /local_analytics_test|analytics_validation|analytics_test|local_test/i;
+
+function isTestArtifact(
+  source: string,
+  medium: string | null,
+  campaign: string | null,
+  content: string | null
+): boolean {
+  if (TEST_ARTIFACT_SOURCES.has(source)) return true;
+  return TEST_ARTIFACT_TEXT.test(medium ?? "") || TEST_ARTIFACT_TEXT.test(campaign ?? "") || TEST_ARTIFACT_TEXT.test(content ?? "");
+}
+
+function referrerDomain(referrer: string | null): string | null {
+  if (!referrer) return null;
+  try {
+    return new URL(referrer).hostname || null;
+  } catch {
+    return null;
+  }
 }
 
 function str(val: unknown): string {
@@ -175,7 +211,7 @@ export async function fetchDailySignupsData(now: Date = new Date()): Promise<Dai
   const [{ data: wlRaw, error: wlErr }, { count: totalWaitlist, error: countErr }] = await Promise.all([
     supabaseAdmin
       .from("waitlist")
-      .select("email,visitor_id,first_utm_source,first_utm_medium,first_utm_campaign,first_utm_content,first_ref_code,created_at")
+      .select("email,visitor_id,first_utm_source,first_utm_medium,first_utm_campaign,first_utm_content,first_referrer,first_ref_code,created_at")
       .gte("created_at", start.toISOString())
       .lt("created_at", end.toISOString())
       .order("created_at", { ascending: true })
@@ -199,7 +235,7 @@ export async function fetchDailySignupsData(now: Date = new Date()): Promise<Dai
   if (visitorIds.length > 0) {
     const { data: evRaw, error: evErr } = await supabaseAdmin
       .from("analytics_events")
-      .select("visitor_id,session_id,event_name,utm_source,utm_medium,utm_campaign,utm_content,metadata")
+      .select("visitor_id,session_id,event_name,referrer,utm_source,utm_medium,utm_campaign,utm_content,metadata")
       .in("visitor_id", visitorIds)
       .in("event_name", ["waitlist_email_success", "waitlist_email_submit", "ref_link_visit"])
       .order("created_at", { ascending: true })
@@ -238,13 +274,14 @@ export async function fetchDailySignupsData(now: Date = new Date()): Promise<Dai
           utm_campaign: w.first_utm_campaign,
           utm_content: w.first_utm_content,
         };
+    const referrerHost = convEvent ? referrerDomain(convEvent.referrer) : referrerDomain(w.first_referrer);
     const refCode =
       (convEvent && (str(convEvent.metadata?.ref_code) || refCodeBySession[convEvent.session_id])) ||
       w.first_ref_code ||
       null;
     return {
       email: w.email,
-      source: normalizeSource(tuple.utm_source),
+      source: normalizeSource(tuple.utm_source, referrerHost),
       campaignLabel: campaignLabel(tuple),
       refCode,
       isUnknown: false,
@@ -256,7 +293,18 @@ export async function fetchDailySignupsData(now: Date = new Date()): Promise<Dai
   const byRefMap: Record<string, number> = {};
   for (const s of signups) {
     bySourceMap[s.source] = (bySourceMap[s.source] ?? 0) + 1;
-    if (s.campaignLabel) byCampaignMap[s.campaignLabel] = (byCampaignMap[s.campaignLabel] ?? 0) + 1;
+    if (s.campaignLabel) {
+      // campaignLabel() always joins with " / " using "—" for nulls, so this
+      // split is safe to recover medium/campaign/content for the artifact check.
+      const [, medium, campaign, content] = s.campaignLabel.split(" / ");
+      const isArtifact = isTestArtifact(
+        s.source,
+        medium === "—" ? null : medium,
+        campaign === "—" ? null : campaign,
+        content === "—" ? null : content
+      );
+      if (!isArtifact) byCampaignMap[s.campaignLabel] = (byCampaignMap[s.campaignLabel] ?? 0) + 1;
+    }
     const refKey = s.refCode ?? "none";
     byRefMap[refKey] = (byRefMap[refKey] ?? 0) + 1;
   }
