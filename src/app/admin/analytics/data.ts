@@ -121,12 +121,39 @@ export type CardRow = {
   uniqueClickers: number;
 };
 
+// IMPORTANT: this is a marketing-attribution view, NOT the app's actual
+// referral reward/leaderboard logic. The real reward credit (referral_count
+// increments in src/app/api/waitlist/route.ts) is first-touch-priority:
+// `firstTouch.first_ref_code || referredBy-param || null`, where the
+// referredBy param is only ever sent by the /ref/[code] page (never the
+// homepage form) and only used when first_ref_code is absent. So a visitor
+// whose first-ever touch had no ref code, who later clicked a *different*
+// referral link before signing up on the homepage, gets ZERO real referral
+// credit — but attributedSignups below (session/conversion-event based,
+// matching Campaign/Content Breakdown) would still attribute that signup to
+// the later code. Don't treat this table as a leaderboard of record.
 export type ReferralRow = {
   refCode: string;
   visitors: number;
   sessions: number;
-  signups: number;
-  conversionRate: number;
+  // Signups whose MARKETING attribution credits this code, using the SAME
+  // logic as Campaign/Content Breakdown: the converting session's ref code
+  // at signup time, falling back to the visitor's persisted first-touch ref
+  // code only when no conversion event was tracked at all. This intentionally
+  // matches Campaign Breakdown (not the real reward logic above) so a code
+  // never shows signups here that don't also show up there, or vice versa.
+  attributedSignups: number;
+  // Subset of attributedSignups backed by an actual tracked conversion event
+  // (waitlist_email_success/submit), not the first-touch fallback.
+  matchedSignups: number;
+  firstVisit: string | null;
+  lastVisit: string | null;
+  firstSignupAt: string | null;
+  lastSignupAt: string | null;
+  // Null when not meaningful (no tracked visitors, or attributedSignups >
+  // visitors — see conversionLabel for what to show instead).
+  conversionRate: number | null;
+  conversionLabel: string;
 };
 
 // One row per distinct utm_source + utm_medium + utm_campaign + utm_content +
@@ -571,29 +598,20 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     skipRate: pct(surveySkippers, successfulSignups),
   };
 
-  // ── Referrals (tracked waitlist only) ─────────────────────────
+  // ── Referrals: visit tracking (credited signups are computed later, once
+  // the conversion-event attribution loop below has run — see refCreditMap).
   const refVisitors: Record<string, Set<string>> = {};
   const refSessions: Record<string, Set<string>> = {};
+  const refFirstSeen: Record<string, string> = {};
+  const refLastSeen: Record<string, string> = {};
   for (const e of windowedEvents.filter(e => e.event_name === "ref_link_visit")) {
     const code = str(e.metadata?.ref_code) || "unknown";
     (refVisitors[code] ??= new Set()).add(e.visitor_id);
     (refSessions[code] ??= new Set()).add(e.session_id);
+    refFirstSeen[code] = minStr(refFirstSeen[code] ?? null, e.created_at);
+    refLastSeen[code] = maxStr(refLastSeen[code] ?? null, e.created_at);
   }
-  const refSignups: Record<string, number> = {};
-  for (const w of trackedWaitlist) {
-    if (w.first_ref_code) {
-      refSignups[w.first_ref_code] = (refSignups[w.first_ref_code] ?? 0) + 1;
-    }
-  }
-  const allRefCodes = new Set([...Object.keys(refVisitors), ...Object.keys(refSignups)]);
-  const referrals: ReferralRow[] = Array.from(allRefCodes)
-    .map(code => {
-      const visitors = refVisitors[code]?.size ?? 0;
-      const sessions = refSessions[code]?.size ?? 0;
-      const signups = refSignups[code] ?? 0;
-      return { refCode: code, visitors, sessions, signups, conversionRate: pct(signups, visitors) };
-    })
-    .sort((a, b) => b.signups - a.signups || b.visitors - a.visitors);
+  const refCreditMap: Record<string, { signups: number; matchedSignups: number; firstSignupAt: string | null; lastSignupAt: string | null }> = {};
 
   // ── Campaign / Session Attribution ────────────────────────────
   // Unlike Traffic Sources (deduped to one row per visitor's true first-ever
@@ -772,6 +790,14 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     bucket.signups += 1;
     if (isApprox) bucket.approxSignups += 1;
 
+    if (t.ref_code) {
+      const rc = (refCreditMap[t.ref_code] ??= { signups: 0, matchedSignups: 0, firstSignupAt: null, lastSignupAt: null });
+      rc.signups += 1;
+      if (!isApprox) rc.matchedSignups += 1;
+      rc.firstSignupAt = minStr(rc.firstSignupAt, w.created_at);
+      rc.lastSignupAt = maxStr(rc.lastSignupAt, w.created_at);
+    }
+
     const m = toMarketingTouch(t);
     const mKey = marketingKey(m);
     const mBucket = (marketingMap[mKey] ??= newMarketingBucket(m));
@@ -783,6 +809,42 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     if (!mBucket.sampleLandingPath && t.landing_path) mBucket.sampleLandingPath = t.landing_path;
     if (!mBucket.sampleReferrerDomain && t.referrer_domain) mBucket.sampleReferrerDomain = t.referrer_domain;
   }
+
+  // A code can have attributed signups with zero tracked visitors (visit
+  // never tracked) or visitors with zero attributed signups (no one
+  // converted yet) — both are valid, so the rate is only meaningful when
+  // there's a real denominator and the numerator doesn't exceed it.
+  function refConversion(visitors: number, attributed: number): { rate: number | null; label: string } {
+    if (visitors === 0) return { rate: null, label: attributed > 0 ? "N/A*" : "—" };
+    if (attributed > visitors) return { rate: null, label: ">100%*" };
+    const rate = pct(attributed, visitors);
+    return { rate, label: `${rate}%` };
+  }
+
+  const allRefCodes = new Set([...Object.keys(refVisitors), ...Object.keys(refCreditMap)]);
+  const referrals: ReferralRow[] = Array.from(allRefCodes)
+    .map(code => {
+      const visitors = refVisitors[code]?.size ?? 0;
+      const sessions = refSessions[code]?.size ?? 0;
+      const credit = refCreditMap[code];
+      const attributedSignups = credit?.signups ?? 0;
+      const matchedSignups = credit?.matchedSignups ?? 0;
+      const { rate, label } = refConversion(visitors, attributedSignups);
+      return {
+        refCode: code,
+        visitors,
+        sessions,
+        attributedSignups,
+        matchedSignups,
+        firstVisit: refFirstSeen[code] ?? null,
+        lastVisit: refLastSeen[code] ?? null,
+        firstSignupAt: credit?.firstSignupAt ?? null,
+        lastSignupAt: credit?.lastSignupAt ?? null,
+        conversionRate: rate,
+        conversionLabel: label,
+      };
+    })
+    .sort((a, b) => b.attributedSignups - a.attributedSignups || b.visitors - a.visitors);
 
   const cleanMarketingBuckets = Object.values(marketingMap).filter(
     b => !isTestArtifact(b.source, b.medium, b.campaign, b.content)

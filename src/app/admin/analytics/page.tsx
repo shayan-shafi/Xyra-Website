@@ -279,31 +279,57 @@ function CardBars({ rows }: { rows: CardRow[] }) {
 
 // ── Referrals ─────────────────────────────────────────────────────────────────
 
+function RefConvBadge({ row }: { row: ReferralRow }) {
+  if (row.conversionRate === null) {
+    return (
+      <span
+        className="text-amber-600 font-medium"
+        title="Attributed signups exceed tracked visitors, or there were no tracked visitors at all — see helper text above."
+      >
+        {row.conversionLabel}
+      </span>
+    );
+  }
+  return <ConvBadge rate={row.conversionRate} />;
+}
+
 function ReferralTable({ rows }: { rows: ReferralRow[] }) {
   if (rows.length === 0) return <Empty />;
   return (
-    <table className="w-full">
-      <thead>
-        <tr>
-          <Th>Ref Code</Th>
-          <Th right>Visitors</Th>
-          <Th right>Sessions</Th>
-          <Th right>Signups</Th>
-          <Th right>Conv.</Th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map(r => (
-          <tr key={r.refCode}>
-            <Td mono>{r.refCode}</Td>
-            <Td right>{r.visitors}</Td>
-            <Td right>{r.sessions}</Td>
-            <Td right>{r.signups}</Td>
-            <Td right><ConvBadge rate={r.conversionRate} /></Td>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[860px]">
+        <thead>
+          <tr>
+            <Th>Ref Code</Th>
+            <Th right>Visitors</Th>
+            <Th right>Sessions</Th>
+            <Th right>Referral-attributed Signups</Th>
+            <Th right>Matched</Th>
+            <Th>First Visit</Th>
+            <Th>Last Visit</Th>
+            <Th>First Signup</Th>
+            <Th>Last Signup</Th>
+            <Th right>Conv.</Th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.refCode}>
+              <Td mono>{r.refCode}</Td>
+              <Td right>{r.visitors}</Td>
+              <Td right>{r.sessions}</Td>
+              <Td right>{r.attributedSignups}</Td>
+              <Td right>{r.matchedSignups}</Td>
+              <Td><span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(r.firstVisit)}</span></Td>
+              <Td><span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(r.lastVisit)}</span></Td>
+              <Td><span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(r.firstSignupAt)}</span></Td>
+              <Td><span className="text-xs text-gray-400 whitespace-nowrap">{fmtDate(r.lastSignupAt)}</span></Td>
+              <Td right><RefConvBadge row={r} /></Td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -449,6 +475,13 @@ function MarketingDebugTable({ rows }: { rows: MarketingRowDebug[] }) {
   );
 }
 
+// Referral-code traffic with no stronger UTM source shouldn't read as plain
+// "Direct" in the decision-facing table — it's a known acquisition channel,
+// just not a UTM-tagged one.
+function marketingSourceLabel(source: string, refCode: string | null): string {
+  return source === "direct" && refCode ? "referral" : source;
+}
+
 function MarketingTable({ rows }: { rows: MarketingRow[] }) {
   if (rows.length === 0) return <Empty />;
   return (
@@ -470,11 +503,12 @@ function MarketingTable({ rows }: { rows: MarketingRow[] }) {
         <tbody>
           {rows.map((r, i) => {
             const isDirect = r.source === "direct" && !r.medium && !r.campaign && !r.content && !r.refCode;
+            const sourceLabel = marketingSourceLabel(r.source, r.refCode);
             return (
               <tr key={i}>
                 <Td>
                   <span className={isDirect ? "text-gray-400 italic" : "font-medium text-gray-800 capitalize"}>
-                    {isDirect ? "Direct / unknown" : r.source}
+                    {isDirect ? "Direct / unknown" : sourceLabel}
                   </span>
                 </Td>
                 <Td><span className="break-words">{dash(r.medium)}</span></Td>
@@ -764,6 +798,20 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
         {referrals.length > 0 && (
           <Card className="mb-6">
             <H2>Referral Performance</H2>
+            <p className="text-xs text-gray-400 mb-1 leading-snug">
+              Marketing attribution, not the app&apos;s referral reward logic — &quot;Referral-attributed
+              Signups&quot; credits whichever ref code was active in the session that converted (matching
+              Campaign / Content Breakdown above), falling back to the visitor&apos;s first-ever touch
+              only when that session wasn&apos;t tracked. The actual referral reward / leaderboard
+              credit (<span className="font-mono">referral_count</span>) is keyed primarily off the
+              visitor&apos;s first-ever-touch ref code instead, so the two can disagree for a visitor
+              who clicks a different referral link on a later visit before signing up. Don&apos;t treat
+              this table as a leaderboard of record.
+            </p>
+            <p className="text-xs text-gray-400 mb-3 leading-snug">
+              If a signup is attributed to a ref code but the matching visit/session is missing,
+              conversion may be approximate or unavailable.
+            </p>
             <ReferralTable rows={referrals} />
           </Card>
         )}
@@ -799,6 +847,10 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
             grouped by source above. A <span className="text-amber-500">*</span> means some
             signups in that row had no matching conversion event and fell back to first-touch
             instead.
+          </p>
+          <p className="text-xs text-gray-400 mb-2 leading-snug italic">
+            Campaign rows with a ref code are displayed as Referral instead of Direct when no UTM
+            source exists.
           </p>
           <p className="text-xs text-gray-400 mb-4 leading-snug italic">
             Exact post-level attribution only works when that post/ad/link used a unique UTM or

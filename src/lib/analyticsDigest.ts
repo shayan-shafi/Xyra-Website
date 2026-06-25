@@ -147,6 +147,27 @@ export type DigestSourceTotal = {
   conversionRate: number;
 };
 
+// One row per referral code — a MARKETING-attribution view, attributed the
+// same way as topCampaigns (the converting session's ref code, falling back
+// to first-touch only when no conversion event was tracked), so a code
+// never shows signups here that don't also show up in topCampaigns, or vice
+// versa. This is NOT the app's actual referral reward/leaderboard logic —
+// real referral_count credit (src/app/api/waitlist/route.ts) is keyed
+// primarily off the visitor's first-ever-touch ref code, so the two can
+// disagree for a visitor who clicks a different referral link on a later
+// visit before signing up.
+export type DigestReferralRow = {
+  refCode: string;
+  visitors: number;
+  sessions: number;
+  attributedSignups: number;
+  matchedSignups: number;
+  // Null when not meaningful (no tracked visitors, or attributedSignups >
+  // visitors) — see conversionLabel for what to show instead.
+  conversionRate: number | null;
+  conversionLabel: string;
+};
+
 export type DigestData = {
   period: { start: Date; end: Date; days: number };
   // ISO string from ANALYTICS_TRACKING_START_DATE, or null.
@@ -156,6 +177,7 @@ export type DigestData = {
   sources: DigestSource[];
   topSources: DigestSourceTotal[];
   topCampaigns: DigestMarketingRow[];
+  referrals: DigestReferralRow[];
   ctas: DigestCta[];
   sections: DigestSection[];
   scrollDepth: DigestScroll[];
@@ -479,6 +501,17 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
     (marketingMap[key] ??= { ...m, visitors: new Set(), signups: 0 }).visitors.add(t.visitor_id);
   }
 
+  // Referral codes: visit tracking (credited signups come from the
+  // conversion-event loop below — see refCreditMap).
+  const refVisitors: Record<string, Set<string>> = {};
+  const refSessions: Record<string, Set<string>> = {};
+  for (const e of windowedEvents.filter(e => e.event_name === "ref_link_visit")) {
+    const code = str(e.metadata?.ref_code) || "unknown";
+    (refVisitors[code] ??= new Set()).add(e.visitor_id);
+    (refSessions[code] ??= new Set()).add(e.session_id);
+  }
+  const refCreditMap: Record<string, { signups: number; matchedSignups: number }> = {};
+
   // Signups matched to the session/touch that actually converted, same as
   // the dashboard: prefer waitlist_email_success, fall back to
   // waitlist_email_submit, then to the visitor's persisted first-touch.
@@ -491,6 +524,7 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
   for (const w of trackedWaitlist) {
     if (!w.visitor_id) continue;
     const convEvent = successEventByVisitor[w.visitor_id] ?? submitEventByVisitor[w.visitor_id];
+    const isApprox = !convEvent;
     const t = convEvent
       ? {
           utm_source: convEvent.utm_source,
@@ -511,7 +545,33 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
     const m = toMarketingTouch(t);
     const key = marketingKey(m);
     (marketingMap[key] ??= { ...m, visitors: new Set(), signups: 0 }).signups += 1;
+
+    if (t.ref_code) {
+      const rc = (refCreditMap[t.ref_code] ??= { signups: 0, matchedSignups: 0 });
+      rc.signups += 1;
+      if (!isApprox) rc.matchedSignups += 1;
+    }
   }
+
+  function refConversion(visitors: number, attributed: number): { rate: number | null; label: string } {
+    if (visitors === 0) return { rate: null, label: attributed > 0 ? "N/A*" : "—" };
+    if (attributed > visitors) return { rate: null, label: ">100%*" };
+    const rate = pct(attributed, visitors);
+    return { rate, label: `${rate}%` };
+  }
+
+  const allRefCodes = new Set([...Object.keys(refVisitors), ...Object.keys(refCreditMap)]);
+  const referrals: DigestReferralRow[] = Array.from(allRefCodes)
+    .map(code => {
+      const visitors = refVisitors[code]?.size ?? 0;
+      const sessions = refSessions[code]?.size ?? 0;
+      const credit = refCreditMap[code];
+      const attributedSignups = credit?.signups ?? 0;
+      const matchedSignups = credit?.matchedSignups ?? 0;
+      const { rate, label } = refConversion(visitors, attributedSignups);
+      return { refCode: code, visitors, sessions, attributedSignups, matchedSignups, conversionRate: rate, conversionLabel: label };
+    })
+    .sort((a, b) => b.attributedSignups - a.attributedSignups || b.visitors - a.visitors);
 
   const cleanMarketingBuckets = Object.values(marketingMap).filter(
     b => !isTestArtifact(b.source, b.medium, b.campaign, b.content)
@@ -667,6 +727,7 @@ export async function fetchDigestData(daysBack = 3): Promise<DigestData | null> 
     sources,
     topSources,
     topCampaigns,
+    referrals,
     ctas,
     sections,
     scrollDepth,

@@ -57,7 +57,7 @@ function tagStyle(tag: DigestAction["tag"]): string {
 // ── Builder ───────────────────────────────────────────────────────────────────
 
 export function buildDigestHtml(data: DigestData): string {
-  const { period, trackingStartDate, summary, funnel, sources, topSources, topCampaigns, ctas, sections, scrollDepth, featureCards, survey, actions } = data;
+  const { period, trackingStartDate, summary, funnel, sources, topSources, topCampaigns, referrals, ctas, sections, scrollDepth, featureCards, survey, actions } = data;
 
   const periodStr = `${fmtDate(period.start)} – ${fmtDate(period.end)}`;
 
@@ -163,10 +163,15 @@ export function buildDigestHtml(data: DigestData): string {
         </tr>`).join("")}
       </table>`;
 
-  const campaignLabel = (c: { source: string; medium: string | null; campaign: string | null; content: string | null }) =>
-    c.medium || c.campaign || c.content
-      ? [c.source, c.medium, c.campaign, c.content].filter(Boolean).join(" / ")
-      : c.source;
+  // Referral-code traffic with no stronger UTM source shouldn't read as plain
+  // "direct" in the email — see marketingSourceLabel in page.tsx for the same
+  // rule on the dashboard.
+  const campaignLabel = (c: { source: string; medium: string | null; campaign: string | null; content: string | null; refCode: string | null }) => {
+    const sourceLabel = c.source === "direct" && c.refCode ? "Referral" : c.source;
+    return c.medium || c.campaign || c.content
+      ? [sourceLabel, c.medium, c.campaign, c.content].filter(Boolean).join(" / ")
+      : sourceLabel;
+  };
   const topCampaignsBody = topCampaigns.length === 0
     ? `<p style="margin:8px 0;font-size:13px;color:#9ca3af;font-style:italic;">No campaign data for this period.</p>`
     : `<p style="margin:0 0 8px;font-size:11px;font-weight:600;color:#9ca3af;text-transform:uppercase;">Campaign / Content Breakdown</p>
@@ -187,6 +192,36 @@ export function buildDigestHtml(data: DigestData): string {
       </table>
       <p style="margin:10px 0 0;font-size:11px;color:#9ca3af;line-height:1.5;">
         Exact post-level attribution only works when that post/ad/link used a unique UTM or referral code — posts sharing the same link collapse into one row above. Some signups counted in source totals above aren't shown in this breakdown because their converting visit was never tracked (ad blocker, private browsing, or a first touch outside this window).
+      </p>`;
+
+  // Referral Performance — only rendered when referral-code activity exists
+  // in this window. This is a MARKETING-attribution view, attributed the
+  // same way as the campaign breakdown above (converting session's ref code,
+  // falling back to first-touch only when no conversion event was tracked).
+  // It is NOT the app's actual referral reward/leaderboard logic — real
+  // referral_count credit is keyed primarily off the visitor's
+  // first-ever-touch ref code (see src/app/api/waitlist/route.ts), so the
+  // two can disagree for a visitor who clicks a different referral link on
+  // a later visit before signing up.
+  const referralsBody = referrals.length === 0
+    ? ""
+    : `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;padding:0 0 6px;">Ref Code</td>
+          <td style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;padding:0 0 6px;text-align:right;">Visitors</td>
+          <td style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;padding:0 0 6px;text-align:right;">Attributed</td>
+          <td style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;padding:0 0 6px;text-align:right;">Conv.</td>
+        </tr>
+        ${referrals.map(r => `
+        <tr style="border-bottom:1px solid #f9fafb;">
+          <td style="font-size:13px;font-weight:600;color:#111827;font-family:monospace;padding:7px 0;">${esc(r.refCode)}</td>
+          <td style="font-size:13px;color:#374151;text-align:right;padding:7px 0 7px 8px;">${r.visitors.toLocaleString()}</td>
+          <td style="font-size:13px;color:#374151;text-align:right;padding:7px 0 7px 8px;">${r.attributedSignups.toLocaleString()}</td>
+          <td style="font-size:13px;font-weight:600;text-align:right;padding:7px 0 7px 8px;color:${r.conversionRate === null ? "#d97706" : r.conversionRate > 15 ? "#16a34a" : r.conversionRate > 5 ? "#d97706" : "#374151"};">${esc(r.conversionLabel)}</td>
+        </tr>`).join("")}
+      </table>
+      <p style="margin:10px 0 0;font-size:11px;color:#9ca3af;line-height:1.5;">
+        Marketing attribution, not the app&#39;s referral reward logic — &quot;Attributed&quot; credits whichever ref code was active in the session that converted (matching the campaign breakdown above), falling back to first-touch only when that session wasn&#39;t tracked. The actual referral reward/leaderboard credit is keyed primarily off the visitor&#39;s first-ever-touch ref code instead, so the two can disagree. If a signup is attributed to a ref code but the matching visit/session is missing, conversion may be approximate or unavailable.
       </p>`;
 
   // CTA table
@@ -342,6 +377,9 @@ export function buildDigestHtml(data: DigestData): string {
 
                 <!-- Top Campaigns -->
                 ${section("Top Campaigns", topSourcesBody + `<div style="margin-top:18px;">${topCampaignsBody}</div>`)}
+
+                <!-- Referral Performance (only when referral-code activity exists) -->
+                ${referrals.length > 0 ? section("Referral Performance", referralsBody) : ""}
 
                 <!-- CTAs -->
                 ${section("CTA Performance", ctaBody)}

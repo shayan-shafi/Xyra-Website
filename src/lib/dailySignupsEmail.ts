@@ -51,7 +51,8 @@ export function buildDailySignupsText(data: DailySignupsData): string {
   } else {
     for (const s of data.signups) {
       const attribution = s.campaignLabel ?? displayLabel(s.source);
-      lines.push(`- ${s.email} — ${attribution}`);
+      const refSuffix = s.refCode ? ` (ref: ${s.refCode})` : "";
+      lines.push(`- ${s.email} — ${attribution}${refSuffix}`);
     }
   }
   lines.push("");
@@ -215,7 +216,7 @@ export function buildDailySignupsHtml(data: DailySignupsData): string {
               s => `
           <tr style="border-bottom:1px solid #f9fafb;">
             <td style="font-size:13px;color:#111827;padding:7px 10px 7px 0;word-break:break-all;overflow-wrap:anywhere;vertical-align:top;">${esc(s.email)}</td>
-            <td style="font-size:13px;color:#374151;padding:7px 0;word-break:break-word;overflow-wrap:anywhere;vertical-align:top;">${esc(s.campaignLabel ?? displayLabel(s.source))}</td>
+            <td style="font-size:13px;color:#374151;padding:7px 0;word-break:break-word;overflow-wrap:anywhere;vertical-align:top;">${esc(s.campaignLabel ?? displayLabel(s.source))}${s.refCode ? `<div style="font-size:11px;color:#9ca3af;margin-top:1px;">ref: ${esc(s.refCode)}</div>` : ""}</td>
           </tr>`
             )
             .join("")}
