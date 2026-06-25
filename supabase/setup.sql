@@ -176,3 +176,51 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_signup_digest_runs_date ON daily_sig
 ALTER TABLE daily_signup_digest_runs ENABLE ROW LEVEL SECURITY;
 -- No RLS policies: anon role has no access.
 -- The service_role key bypasses RLS and is the only accessor.
+
+
+-- 7. Instagram comment → DM automation log + dedupe
+--    Every Instagram comment our webhook receives is recorded here, keyed by a
+--    UNIQUE comment_id. The unique constraint is what guarantees we never reply
+--    to the same comment twice — a duplicate webhook delivery hits a 23505
+--    unique-violation on insert and is skipped.
+--
+--    Only the service_role key (supabaseAdmin) can read or write this table.
+--    Anon users have NO access (no policies + RLS enabled). It can contain
+--    Instagram usernames, so it must never be exposed to the browser.
+CREATE TABLE IF NOT EXISTS instagram_comment_events (
+  id                  BIGSERIAL PRIMARY KEY,
+  comment_id          TEXT NOT NULL UNIQUE,   -- IG comment id (dedupe key)
+  media_id            TEXT,                   -- post/reel/ad the comment is on
+  commenter_id        TEXT,                   -- IG-scoped user id of commenter
+  commenter_username  TEXT,
+  comment_text        TEXT,
+  matched_keyword     BOOLEAN DEFAULT false,  -- did it contain the trigger word?
+  reply_status        TEXT DEFAULT 'pending', -- pending | skipped_no_match | dry_run | sent | failed
+  reply_kind          TEXT,                   -- private_reply | public_reply | both
+  reply_error         TEXT,                   -- error detail when reply_status = 'failed'
+  dry_run             BOOLEAN DEFAULT true,   -- was the system in dry-run when seen?
+  raw_event           JSONB,                  -- full webhook payload for debugging
+  created_at          TIMESTAMPTZ DEFAULT now(),
+  replied_at          TIMESTAMPTZ
+);
+
+-- Safe to run multiple times — adds columns if the table already existed.
+ALTER TABLE instagram_comment_events ADD COLUMN IF NOT EXISTS media_id           TEXT;
+ALTER TABLE instagram_comment_events ADD COLUMN IF NOT EXISTS commenter_id       TEXT;
+ALTER TABLE instagram_comment_events ADD COLUMN IF NOT EXISTS commenter_username TEXT;
+ALTER TABLE instagram_comment_events ADD COLUMN IF NOT EXISTS comment_text       TEXT;
+ALTER TABLE instagram_comment_events ADD COLUMN IF NOT EXISTS matched_keyword    BOOLEAN DEFAULT false;
+ALTER TABLE instagram_comment_events ADD COLUMN IF NOT EXISTS reply_status       TEXT DEFAULT 'pending';
+ALTER TABLE instagram_comment_events ADD COLUMN IF NOT EXISTS reply_kind         TEXT;
+ALTER TABLE instagram_comment_events ADD COLUMN IF NOT EXISTS reply_error        TEXT;
+ALTER TABLE instagram_comment_events ADD COLUMN IF NOT EXISTS dry_run            BOOLEAN DEFAULT true;
+ALTER TABLE instagram_comment_events ADD COLUMN IF NOT EXISTS raw_event          JSONB;
+ALTER TABLE instagram_comment_events ADD COLUMN IF NOT EXISTS replied_at         TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_ig_comment_events_media   ON instagram_comment_events (media_id);
+CREATE INDEX IF NOT EXISTS idx_ig_comment_events_status  ON instagram_comment_events (reply_status);
+CREATE INDEX IF NOT EXISTS idx_ig_comment_events_created ON instagram_comment_events (created_at DESC);
+
+ALTER TABLE instagram_comment_events ENABLE ROW LEVEL SECURITY;
+-- No RLS policies: anon role has no access.
+-- The service_role key bypasses RLS and is the only accessor.
