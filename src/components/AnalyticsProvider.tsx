@@ -13,6 +13,7 @@ import {
   optOut,
   track,
   trackOncePerSession,
+  backfillFirstTouchRefCode,
 } from "@/lib/analytics";
 
 const SCROLL_THRESHOLDS = [25, 50, 75, 90] as const;
@@ -52,6 +53,10 @@ export default function AnalyticsProvider() {
     if (pathname.startsWith("/ref/")) {
       const code = pathname.split("/")[2];
       if (code) {
+        // Backfill first-touch ref_code when it was previously null — so a
+        // creator's link gets reward credit even if the visitor first landed
+        // on a non-ref page. No-op if a code is already stored (first wins).
+        backfillFirstTouchRefCode(code);
         track("ref_link_visit", { ref_code: code });
       }
     }

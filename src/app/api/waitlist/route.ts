@@ -97,12 +97,19 @@ export async function POST(request: Request) {
       typeof visitor_id === "string" && UUID_RE.test(visitor_id) ? visitor_id : null;
     const firstTouch = pickFirstTouch(first_touch);
 
-    // The persisted first-touch ref code (captured once, on the visitor's
-    // actual first /ref/[code] visit) is the source of truth — it survives
-    // even when the signup happens later on the homepage rather than on the
-    // /ref/[code] page itself. The explicit `referredBy` param (only sent by
-    // the /ref/[code] page form) is just a fallback for when first-touch
-    // capture failed (e.g. localStorage disabled).
+    // first_ref_code is the "first referral code ever seen by this visitor"
+    // — captured at first-touch and, since the Option-C backfill in
+    // AnalyticsProvider.tsx (backfillFirstTouchRefCode), also updated from
+    // null when the visitor later navigates to any /ref/[code] page. Once
+    // set it is never overwritten (first-referral-wins). This means creators
+    // get reward credit for homepage signups driven by their link, not only
+    // for signups that happen directly on the /ref/[code] page itself.
+    // The explicit `referredBy` param (only sent by the /ref/[code] page
+    // form, never the homepage) is a last-resort fallback for visitors with
+    // localStorage disabled or who somehow land on /ref/[code] with a
+    // still-null first_ref_code (e.g. first_ref_code capture race on very
+    // first load). Logic is unchanged — first_ref_code just now covers more
+    // cases than before.
     const effectiveReferredBy =
       firstTouch?.first_ref_code || (typeof referredBy === "string" ? referredBy.trim() : "") || null;
 

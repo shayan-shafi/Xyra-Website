@@ -128,6 +128,27 @@ function extractRefCodeFromPath(): string | null {
   return match ? match[1] : null;
 }
 
+// Backfills ref_code into an already-stored first-touch record when that
+// field is currently null. Called every time a visitor hits /ref/[code],
+// even on later visits — so a creator's link gets reward credit for
+// homepage signups, not only for signups that happen directly on the
+// /ref/[code] page. First-referral-wins semantics are preserved: if
+// ref_code is already set this is a no-op.
+export function backfillFirstTouchRefCode(code: string): void {
+  if (!isBrowser()) return;
+  const existing = safeGet(FIRST_TOUCH_KEY);
+  if (!existing) return; // first-touch not captured yet — getFirstTouch() handles it
+  try {
+    const parsed = JSON.parse(existing) as FirstTouch;
+    if (!parsed.ref_code) {
+      parsed.ref_code = code;
+      safeSet(FIRST_TOUCH_KEY, JSON.stringify(parsed));
+    }
+  } catch {
+    // analytics must never throw or break the page
+  }
+}
+
 export function getFirstTouch(): FirstTouch {
   if (!isBrowser()) {
     return {
