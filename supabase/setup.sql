@@ -176,3 +176,128 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_signup_digest_runs_date ON daily_sig
 ALTER TABLE daily_signup_digest_runs ENABLE ROW LEVEL SECURITY;
 -- No RLS policies: anon role has no access.
 -- The service_role key bypasses RLS and is the only accessor.
+
+
+-- ============================================================
+-- 7. Growth / Alpha admin fields on waitlist  (Growth + Email Ops admin)
+--    Additive + idempotent. Safe to run multiple times. Adds nullable
+--    columns only — never drops, renames, or mutates existing data.
+--
+--    alpha_status     : free-text lifecycle marker. Suggested values:
+--                       'candidate' | 'selected' | 'invited' | 'declined'.
+--                       Left free-text (no CHECK) so the vocabulary can evolve
+--                       without another migration. The admin Growth UI reads
+--                       it; the guarded real-send path only ever writes
+--                       'invited' (when an Alpha invite is actually sent).
+--    alpha_invited_at : set by the guarded real-send path at invite time.
+--    admin_notes      : internal free-text notes shown only in the admin UI.
+-- ============================================================
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS alpha_status     TEXT;
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS alpha_invited_at TIMESTAMPTZ;
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS admin_notes      TEXT;
+
+-- Optional hardening (commented out — uncomment to make the DB reject
+-- unexpected status values):
+-- ALTER TABLE waitlist
+--   ADD CONSTRAINT waitlist_alpha_status_chk
+--   CHECK (alpha_status IS NULL
+--          OR alpha_status IN ('candidate','selected','invited','declined'));
+
+
+-- ============================================================
+-- 8. Email campaign send logging  (Growth Email Ops)
+--    Used ONLY by the guarded real-send path, which is disabled unless the
+--    ENABLE_GROWTH_EMAIL_SENDS env flag is "true". Preview / test-send / CSV
+--    export never touch these tables. They let a real selected-user send (a)
+--    record what was sent and (b) refuse to send the same campaign to the same
+--    person twice.
+--    Only the service_role key (supabaseAdmin) can read or write these. Anon
+--    users have no access (RLS on, no policies).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS email_campaign_runs (
+  id              BIGSERIAL PRIMARY KEY,
+  campaign_key    TEXT NOT NULL,           -- admin-chosen id, e.g. 'alpha-2026-06-29'
+  template_id     TEXT NOT NULL,           -- 'alpha-invite' | 'newsletter'
+  subject         TEXT NOT NULL,
+  recipient_count INTEGER NOT NULL DEFAULT 0,
+  sent_by         TEXT,                    -- optional label for who triggered it
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS email_campaign_recipients (
+  id            BIGSERIAL PRIMARY KEY,
+  campaign_key  TEXT NOT NULL,
+  template_id   TEXT NOT NULL,
+  email         TEXT NOT NULL,
+  run_id        BIGINT REFERENCES email_campaign_runs(id) ON DELETE SET NULL,
+  status        TEXT NOT NULL DEFAULT 'sent',  -- 'sent' | 'failed'
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Idempotency guard: at most one row per (campaign_key, email). The send path
+-- inserts here as it sends and treats a unique-violation as "already sent —
+-- skip", so re-running a campaign can never double-email the same person.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_email_campaign_recipients_campaign_email
+  ON email_campaign_recipients (campaign_key, email);
+
+CREATE INDEX IF NOT EXISTS idx_email_campaign_recipients_run ON email_campaign_recipients (run_id);
+
+ALTER TABLE email_campaign_runs       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_campaign_recipients ENABLE ROW LEVEL SECURITY;
+-- No RLS policies: anon role has no access.
+-- The service_role key bypasses RLS and is the only accessor.
+
+
+-- ============================================================
+-- 9. Growth email template drafts  (Email Ops template editor)
+--    Stores admin edits to the email templates so they persist across
+--    sessions. Defaults always live in code (growthEmailTemplates.ts); a row
+--    here OVERRIDES the code default for that template_id. "Reset to default"
+--    deletes the row. Until this table exists, the editor falls back to
+--    browser localStorage so editing still works for review.
+--    Only the service_role key (supabaseAdmin) can read or write. Anon users
+--    have no access (RLS on, no policies).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS growth_email_templates (
+  template_id   TEXT PRIMARY KEY,            -- 'alpha-invite' | 'newsletter' | 'general-message'
+  subject       TEXT NOT NULL,
+  values_json   JSONB NOT NULL DEFAULT '{}'::jsonb,  -- { placeholderKey: value }
+  sections_json JSONB NOT NULL DEFAULT '{}'::jsonb,  -- { sectionKey: boolean } (enabled sections)
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by    TEXT
+);
+-- Safe to run if the table already existed without sections_json:
+ALTER TABLE growth_email_templates ADD COLUMN IF NOT EXISTS sections_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE growth_email_templates ENABLE ROW LEVEL SECURITY;
+-- No RLS policies: anon role has no access.
+-- The service_role key bypasses RLS and is the only accessor.
+
+
+-- ============================================================
+-- 10. Email image storage  (Email Ops drag-and-drop image upload)
+--     The newsletter "behind the scenes" block (and any future image fields)
+--     upload through POST /admin/growth/email/upload-image, which stores the
+--     file in a PUBLIC Supabase Storage bucket and returns a public HTTPS URL.
+--     Emails require a public URL, so the bucket must be public-read.
+--
+--     ⚠ STORAGE IS NOT CREATED BY THIS FILE. Create the bucket explicitly
+--     (it is a one-time setup, and creating it is left to you to approve):
+--
+--     Option A — Dashboard: Storage → New bucket →
+--        name: email-assets   (or set GROWTH_IMAGE_BUCKET to match)
+--        Public bucket: ON
+--        (optional) allowed MIME types: image/png, image/jpeg, image/webp, image/gif
+--        (optional) file size limit: 5 MB
+--
+--     Option B — SQL (run only if you're comfortable; creates a public bucket):
+--        insert into storage.buckets (id, name, public)
+--        values ('email-assets', 'email-assets', true)
+--        on conflict (id) do update set public = true;
+--
+--     The upload route uses the service_role key, which bypasses RLS, so no
+--     extra storage policies are required for uploads. Public read is provided
+--     by the bucket's "public" flag. Until the bucket exists, Email Ops shows a
+--     "image upload needs setup" state and the manual public-URL field still
+--     works.
+-- ============================================================

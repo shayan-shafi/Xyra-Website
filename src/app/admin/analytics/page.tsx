@@ -23,13 +23,14 @@ import {
   type ActionCard,
 } from "./data";
 import LoginForm from "./LoginForm";
+import AdminNav from "@/components/AdminNav";
 
 // ── Small helper components (server-rendered) ────────────────────────────────
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="text-xs font-medium text-gray-400 uppercase tracking-wide">{label}</div>
+    <div className="bg-white rounded-2xl border border-gray-200 p-5">
+      <div className="font-[family-name:var(--font-jetbrains)] text-[10px] font-medium text-gray-400 uppercase tracking-[0.12em]">{label}</div>
       <div className="mt-1 text-3xl font-bold text-gray-900 tabular-nums">{value}</div>
       {sub && <div className="mt-0.5 text-xs text-gray-400">{sub}</div>}
     </div>
@@ -37,12 +38,12 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 }
 
 function H2({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">{children}</h2>;
+  return <h2 className="font-[family-name:var(--font-playfair)] text-lg text-gray-900 mb-4">{children}</h2>;
 }
 
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 p-6 ${className}`}>
+    <div className={`bg-white rounded-2xl border border-gray-200 p-6 ${className}`}>
       {children}
     </div>
   );
@@ -85,7 +86,7 @@ function ActionTag({ tag }: { tag: ActionCard["tag"] }) {
 
 function Th({ children, right }: { children: React.ReactNode; right?: boolean }) {
   return (
-    <th className={`pb-2 text-xs font-medium text-gray-400 ${right ? "text-right" : "text-left"}`}>
+    <th className={`pb-2 font-[family-name:var(--font-jetbrains)] text-[10px] font-medium text-gray-400 uppercase tracking-[0.1em] ${right ? "text-right" : "text-left"}`}>
       {children}
     </th>
   );
@@ -632,20 +633,22 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
     <main className="min-h-screen bg-gray-50" style={{ fontFamily: "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
 
+        <AdminNav current="analytics" />
+
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Xyra website · first-party only · private</p>
+            <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-gray-900">Analytics</h1>
+            <p className="font-[family-name:var(--font-eb-garamond)] text-base text-gray-500 mt-1">Xyra website · first-party only · private</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {DATE_RANGES.map(r => (
               <Link
                 key={r.value}
                 href={`/admin/analytics?range=${r.value}`}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                className={`px-3.5 py-1.5 rounded-full text-xs font-medium font-[family-name:var(--font-jetbrains)] tracking-wide transition-colors ${
                   range === r.value
-                    ? "bg-gray-900 text-white"
+                    ? "bg-black text-white"
                     : "bg-white text-gray-600 border border-gray-200 hover:border-gray-400 hover:text-gray-900"
                 }`}
               >
