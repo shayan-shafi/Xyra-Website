@@ -7,6 +7,7 @@ import {
   CSS2DRenderer,
   CSS2DObject,
 } from "three/examples/jsm/renderers/CSS2DRenderer.js";
+import { isWebGLAvailable } from "@/lib/webgl";
 
 const categories = [
   { label: "Personal", children: ["Gym", "Prayer", "Finances", "Schedule"] },
@@ -33,6 +34,9 @@ export default function BrainCanvas({ zoomProgress = 0, hideTitle = false, hideL
 
   useEffect(() => {
     if (!containerRef.current) return;
+    // Bail gracefully when the browser can't do WebGL — otherwise creating the
+    // renderer below throws and white-screens the whole page.
+    if (!isWebGLAvailable()) return;
     const container = containerRef.current;
 
     // Scene

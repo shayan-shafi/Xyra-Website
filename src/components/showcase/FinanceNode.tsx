@@ -7,12 +7,15 @@ import {
   CSS2DRenderer,
   CSS2DObject,
 } from "three/examples/jsm/renderers/CSS2DRenderer.js";
+import { isWebGLAvailable } from "@/lib/webgl";
 
 export default function FinanceNode() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
+    // Skip WebGL setup when unsupported so the page doesn't crash to white.
+    if (!isWebGLAvailable()) return;
     const container = containerRef.current;
 
     const scene = new THREE.Scene();
