@@ -65,7 +65,7 @@ export async function POST(request: Request) {
   // Fields the model may fill: global placeholders only (per-recipient fields
   // are derived from waitlist data at send time, never drafted here).
   const globalFields = tpl.placeholders
-    .filter(p => !isPerRecipient(p.key))
+    .filter(p => !isPerRecipient(p.key) && p.type !== "image" && p.type !== "images")
     .map(p => ({ key: p.key, label: p.label, multiline: Boolean(p.multiline), help: p.help ?? "" }));
   const sectionKeys = tpl.sections.map(s => ({ key: s.key, label: s.label }));
 

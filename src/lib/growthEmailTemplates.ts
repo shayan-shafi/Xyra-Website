@@ -40,8 +40,13 @@ export type PlaceholderDef = {
   multiline?: boolean;
   help?: string;
   section?: string;
-  type?: "image";
+  type?: "image" | "images";
 };
+
+// A single image in a multi-image gallery field. Persisted as a JSON string in
+// the regular values map (so it rides through values_json / localStorage / the
+// send route with no schema change). url is always a public http(s) URL.
+export type GalleryImage = { url: string; alt: string; caption: string };
 
 export type SectionDef = { key: string; label: string; defaultEnabled: boolean };
 
@@ -105,6 +110,100 @@ function htmlList(items: string[]): string {
   return `<ul style="margin:0 0 18px;padding-left:20px;">${items
     .map(i => `<li style="font-family:${SERIF};font-size:16px;line-height:1.65;color:${BODY_INK};margin:0 0 8px;">${esc(i)}</li>`)
     .join("")}</ul>`;
+}
+
+// ── Image gallery (multi-image) ──────────────────────────────────────────────
+// Stored as a JSON string in a single values key. Only entries with a valid
+// http(s) URL survive parsing, so an empty/placeholder field never renders an
+// image block in the actual email.
+
+const HTTP_RE = /^https?:\/\//i;
+
+export function parseGallery(value: string | undefined): GalleryImage[] {
+  if (!value || !value.trim()) return [];
+  let arr: unknown;
+  try { arr = JSON.parse(value); } catch { return []; }
+  if (!Array.isArray(arr)) return [];
+  const out: GalleryImage[] = [];
+  for (const item of arr) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const url = typeof o.url === "string" ? o.url.trim() : "";
+    if (!HTTP_RE.test(url)) continue;
+    out.push({
+      url,
+      alt: typeof o.alt === "string" ? o.alt.trim() : "",
+      caption: typeof o.caption === "string" ? o.caption.trim() : "",
+    });
+  }
+  return out;
+}
+
+export function serializeGallery(images: GalleryImage[]): string {
+  const clean = images
+    .filter(i => HTTP_RE.test((i.url || "").trim()))
+    .map(i => ({ url: i.url.trim(), alt: (i.alt || "").trim(), caption: (i.caption || "").trim() }));
+  return clean.length ? JSON.stringify(clean) : "";
+}
+
+function galleryImg(img: GalleryImage, maxWidth: number): string {
+  return `<img src="${esc(img.url)}" alt="${esc(img.alt)}" style="display:block;width:100%;max-width:${maxWidth}px;height:auto;border-radius:12px;border:1px solid ${HAIRLINE};margin:0 auto;" />`;
+}
+
+function galleryCaption(caption: string): string {
+  return caption
+    ? `<p style="margin:6px 0 0;font-family:${SANS};font-size:12px;line-height:1.5;color:${FAINT};text-align:center;">${esc(caption)}</p>`
+    : "";
+}
+
+// A single image, full content width, caption centered beneath.
+function singleImageRow(img: GalleryImage, maxWidth: number): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 14px;"><tr><td align="center">${galleryImg(img, maxWidth)}${galleryCaption(img.caption)}</td></tr></table>`;
+}
+
+// Two images side by side on wide screens, stacking on narrow ones. Uses the
+// "fluid hybrid" technique: inline-block columns with a max-width wrap on their
+// own when the viewport is narrower than two columns (no media queries, which
+// Gmail strips), plus MSO conditional tables so desktop Outlook holds the row.
+// The parent cell uses font-size:0 to remove inline-block whitespace, and the
+// two columns are concatenated with no whitespace between them.
+function twoUpRow(a: GalleryImage, b: GalleryImage): string {
+  const col = (img: GalleryImage) =>
+    `<div style="display:inline-block;width:100%;max-width:228px;vertical-align:top;text-align:center;font-size:14px;"><div style="padding:0 6px 4px;"><img src="${esc(img.url)}" alt="${esc(img.alt)}" style="display:block;width:100%;height:auto;border-radius:12px;border:1px solid ${HAIRLINE};" />${galleryCaption(img.caption)}</div></div>`;
+  return (
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 14px;"><tr><td align="center" style="font-size:0;">` +
+    `<!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td width="50%" valign="top" align="center"><![endif]-->` +
+    col(a) +
+    `<!--[if mso]></td><td width="50%" valign="top" align="center"><![endif]-->` +
+    col(b) +
+    `<!--[if mso]></td></tr></table><![endif]-->` +
+    `</td></tr></table>`
+  );
+}
+
+// 0 images → nothing. 1 → full width. 2 → side-by-side (stacks on mobile).
+// 3+ → stacked full-width rows (always email-safe).
+function galleryHtml(images: GalleryImage[]): string {
+  if (images.length === 0) return "";
+  if (images.length === 1) return singleImageRow(images[0], 480);
+  if (images.length === 2) return twoUpRow(images[0], images[1]);
+  return images.map(img => singleImageRow(img, 480)).join("");
+}
+
+// Plain-text: one line per image — "caption: url" when a caption exists, else
+// just the url. Returns [] for no images so the block is omitted entirely.
+function galleryTextLines(images: GalleryImage[]): string[] {
+  return images.map(img => (img.caption ? `${img.caption}: ${img.url}` : img.url));
+}
+
+// Newsletter "behind the scenes" images, with backward-compatibility for the
+// earlier single-image field (behind_scenes_image_url) so older saved drafts
+// keep rendering their image.
+function behindScenesImages(v: Record<string, string>): GalleryImage[] {
+  const gallery = parseGallery(v.behind_scenes_images);
+  if (gallery.length) return gallery;
+  const legacy = (v.behind_scenes_image_url ?? "").trim();
+  return HTTP_RE.test(legacy) ? [{ url: legacy, alt: "", caption: "" }] : [];
 }
 
 function eyebrowHeader(text: string): string {
@@ -323,7 +422,7 @@ const newsletter: GrowthTemplate = {
     { key: "working_on", label: "What we're working on (one per line)", example: "Mobile polish\nAlpha onboarding flow", scope: "global", multiline: true, section: "working_on" },
     { key: "fixed", label: "What we fixed (one per line)", example: "Login edge cases\nEmail rendering on Gmail", scope: "global", multiline: true, section: "fixed" },
     { key: "behind_scenes_note", label: "Behind the scenes note", example: "Late nights, lots of coffee, and a wall full of sticky notes.", scope: "global", multiline: true, section: "behind_scenes" },
-    { key: "behind_scenes_image_url", label: "Behind the scenes image", example: "", scope: "global", section: "behind_scenes", type: "image", help: "Drag and drop or paste a public HTTPS URL. Local files from your computer will not load in an email. If empty, no image block is shown." },
+    { key: "behind_scenes_images", label: "Behind the scenes images", example: "", scope: "global", section: "behind_scenes", type: "images", help: "Upload one or more images, one at a time (e.g. one of Cole and one of Shayan). Add optional alt text and a caption for each. Two images sit side by side and stack on mobile. If none are added, no image block is shown." },
     { key: "ask", label: "What we need from you", example: "Reply and tell us the one thing you want Xyra to handle first.", scope: "global", multiline: true, section: "ask" },
     ...signoffFields(),
     { key: "referral_link", label: "Referral link", example: "https://xyra.dev/ref/abc123", scope: "perRecipient", required: true, section: "referral", help: "Auto-filled per recipient on a real send." },
@@ -334,13 +433,14 @@ const newsletter: GrowthTemplate = {
     const shipped = on("shipped") ? htmlList(lines(v.shipped)) : "";
     const working = on("working_on") ? htmlList(lines(v.working_on)) : "";
     const fixed = on("fixed") ? htmlList(lines(v.fixed)) : "";
-    const hasImg = has(v, "behind_scenes_image_url");
+    const bsImages = behindScenesImages(v);
+    const hasImg = bsImages.length > 0;
     const hasNote = has(v, "behind_scenes_note");
     const behindScenes =
       on("behind_scenes") && (hasImg || hasNote)
         ? [
             eyebrowHeader("Behind the scenes"),
-            ...(hasImg ? [`<img src="${esc(raw(v, "behind_scenes_image_url"))}" alt="Behind the scenes at Xyra" style="display:block;width:100%;max-width:480px;height:auto;border-radius:12px;border:1px solid ${HAIRLINE};margin:4px 0 14px;" />`] : []),
+            ...(hasImg ? [galleryHtml(bsImages)] : []),
             ...(hasNote ? [paragraph(esc(raw(v, "behind_scenes_note")))] : []),
           ]
         : [];
@@ -371,7 +471,12 @@ const newsletter: GrowthTemplate = {
       ...(on("shipped") ? block("What we shipped", lines(v.shipped)) : []),
       ...(on("working_on") ? block("What we're working on", lines(v.working_on)) : []),
       ...(on("fixed") ? block("What we fixed", lines(v.fixed)) : []),
-      ...(on("behind_scenes") && has(v, "behind_scenes_note") ? [``, `Behind the scenes:`, raw(v, "behind_scenes_note")] : []),
+      ...(on("behind_scenes") ? (() => {
+        const imgs = behindScenesImages(v);
+        const noteOn = has(v, "behind_scenes_note");
+        if (!imgs.length && !noteOn) return [];
+        return [``, `Behind the scenes:`, ...(noteOn ? [raw(v, "behind_scenes_note")] : []), ...galleryTextLines(imgs)];
+      })() : []),
       ...(on("ask") ? [``, `What we need from you:`, raw(v, "ask")] : []),
       ...(on("referral") ? [``, `Know someone who'd love this? Your referral link moves you up:`, raw(v, "referral_link")] : []),
       ...signoffText(v),
@@ -388,6 +493,7 @@ const generalMessage: GrowthTemplate = {
   description: "A flexible one-off message to selected waitlist users: updates, announcements, reminders, follow-ups.",
   confirmPhrase: "SEND MESSAGE",
   sections: [
+    { key: "images", label: "Photos", defaultEnabled: false },
     { key: "cta", label: "Call-to-action button", defaultEnabled: false },
     { key: "referral", label: "Referral block", defaultEnabled: false },
   ],
@@ -395,6 +501,7 @@ const generalMessage: GrowthTemplate = {
     { key: "first_name", label: "First name", example: "Alex", scope: "perRecipient", required: true, help: "Auto-filled per recipient on a real send." },
     ...headerFields("A note from Xyra", ""),
     { key: "message_body", label: "Message body (paragraphs separated by blank lines)", example: "Thanks for being on the Xyra waitlist. We wanted to share a quick update.\n\nWe're getting close to opening things up, and we'll be in touch soon with next steps.", scope: "global", required: true, multiline: true },
+    { key: "message_images", label: "Photos", example: "", scope: "global", section: "images", type: "images", help: "Optional. Upload one or more images, one at a time, each with optional alt text and a caption. Two images sit side by side and stack on mobile." },
     { key: "cta_label", label: "Button label", example: "Read more", scope: "global", section: "cta", help: "Shown only if both button label and link are filled." },
     { key: "cta_link", label: "Button link", example: "", scope: "global", section: "cta", help: "Public HTTPS URL." },
     { key: "referral_intro", label: "Referral block intro", example: "Know someone who'd love Xyra? Your referral link moves you up the list:", scope: "global", section: "referral", multiline: true },
@@ -409,12 +516,15 @@ const generalMessage: GrowthTemplate = {
       .map(p => p.trim())
       .filter(Boolean)
       .map(p => paragraph(esc(p).replace(/\n/g, "<br>")));
+    const images = on("images") ? parseGallery(v.message_images) : [];
+    const imagesHtml = images.length ? galleryHtml(images) : "";
     const cta = on("cta") && has(v, "cta_label") && has(v, "cta_link") ? pillButton(raw(v, "cta_label"), raw(v, "cta_link")) : "";
     const referral = on("referral") && has(v, "referral_intro") ? referralBlock(esc(raw(v, "referral_intro")), raw(v, "referral_link")) : "";
     const body = [
       ...(has(v, "headline") ? [headlineBlock(raw(v, "headline"))] : []),
       paragraph(`Hi ${esc(raw(v, "first_name"))},`),
       ...(paras.length ? paras : [paragraph(esc(raw(v, "message_body")))]),
+      imagesHtml,
       cta,
       referral,
       signoffHtml(v),
@@ -423,6 +533,8 @@ const generalMessage: GrowthTemplate = {
   },
   buildText: (v, sections) => {
     const on = makeOn(sections);
+    const images = on("images") ? parseGallery(v.message_images) : [];
+    const imageLines = images.length ? [``, ...galleryTextLines(images)] : [];
     const cta = on("cta") && has(v, "cta_label") && has(v, "cta_link") ? [``, `${raw(v, "cta_label")}: ${raw(v, "cta_link")}`] : [];
     const referral = on("referral") && has(v, "referral_intro") ? [``, raw(v, "referral_intro"), raw(v, "referral_link")] : [];
     return [
@@ -430,6 +542,7 @@ const generalMessage: GrowthTemplate = {
       `Hi ${raw(v, "first_name")},`,
       ``,
       raw(v, "message_body"),
+      ...imageLines,
       ...cta,
       ...referral,
       ...signoffText(v),

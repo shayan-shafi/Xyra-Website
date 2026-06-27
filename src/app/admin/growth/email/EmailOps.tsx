@@ -9,8 +9,11 @@ import {
   defaultSections,
   resolveSections,
   missingPlaceholders,
+  parseGallery,
+  serializeGallery,
   PER_RECIPIENT_KEYS,
   type PlaceholderDef,
+  type GalleryImage,
 } from "@/lib/growthEmailTemplates";
 
 const RECIPIENTS_KEY = "xyra_growth_recipients";
@@ -115,6 +118,159 @@ function ImageField({
       {value && /^https?:\/\//.test(value) && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={value} alt="preview" className="mt-2 max-h-32 rounded-lg border border-gray-200" />
+      )}
+    </div>
+  );
+}
+
+// ── Multi-image gallery field ───────────────────────────────────────────────
+// Upload one image at a time (or paste a public HTTPS URL) to build an ordered
+// list. Each entry has optional alt text + caption, can be reordered or removed.
+// The whole list serializes to a JSON string stored in one template value, so it
+// persists through saved drafts (DB values_json or localStorage) with no schema
+// change. The dropzone/placeholder lives here only — it never reaches the email.
+function ImageGalleryField({
+  value,
+  onChange,
+  ready,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  ready: boolean;
+}) {
+  const images = useMemo(() => parseGallery(value), [value]);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [drag, setDrag] = useState(false);
+  const [manualUrl, setManualUrl] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Always re-parse from the latest `value` so concurrent edits never clobber.
+  const commit = useCallback((next: GalleryImage[]) => onChange(serializeGallery(next)), [onChange]);
+  const append = useCallback((img: GalleryImage) => onChange(serializeGallery([...parseGallery(value), img])), [onChange, value]);
+
+  const upload = useCallback(async (file: File) => {
+    setErr(null);
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/admin/growth/email/upload-image", { method: "POST", body: fd });
+      const json = await res.json();
+      if (res.ok && json.url) append({ url: json.url, alt: "", caption: "" });
+      else setErr(json.error ?? `Upload failed (${res.status})`);
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setUploading(false);
+    }
+  }, [append]);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDrag(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) upload(file);
+  }, [upload]);
+
+  const move = useCallback((i: number, dir: -1 | 1) => {
+    const arr = parseGallery(value);
+    const j = i + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    commit(arr);
+  }, [value, commit]);
+
+  const removeAt = useCallback((i: number) => {
+    const arr = parseGallery(value);
+    arr.splice(i, 1);
+    commit(arr);
+  }, [value, commit]);
+
+  const patch = useCallback((i: number, p: Partial<GalleryImage>) => {
+    const arr = parseGallery(value);
+    if (!arr[i]) return;
+    arr[i] = { ...arr[i], ...p };
+    commit(arr);
+  }, [value, commit]);
+
+  const addManual = useCallback(() => {
+    const u = manualUrl.trim();
+    if (!/^https?:\/\//i.test(u)) { setErr("Enter a public HTTPS image URL (starts with https://)."); return; }
+    setErr(null);
+    append({ url: u, alt: "", caption: "" });
+    setManualUrl("");
+  }, [manualUrl, append]);
+
+  const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-800 focus:outline-none focus:border-gray-400 bg-white";
+
+  return (
+    <div>
+      {ready ? (
+        <div
+          onDragOver={e => { e.preventDefault(); setDrag(true); }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={onDrop}
+          onClick={() => inputRef.current?.click()}
+          className={`cursor-pointer rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors ${drag ? "border-gray-900 bg-gray-50" : "border-gray-200 hover:border-gray-400"}`}
+        >
+          {uploading ? (
+            <p className="text-sm text-gray-500">Uploading…</p>
+          ) : (
+            <p className="text-sm text-gray-500">
+              <span className="font-medium text-gray-700">Drag &amp; drop</span> an image, or click to choose. PNG/JPG/WEBP/GIF, max 5&nbsp;MB. Add as many as you like, one at a time.
+            </p>
+          )}
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); if (inputRef.current) inputRef.current.value = ""; }}
+          />
+        </div>
+      ) : (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-snug">
+          Image upload needs a one-time setup — create a public Supabase Storage bucket
+          (<span className="font-mono">email-assets</span>, see <span className="font-mono">supabase/setup.sql §10</span>).
+          Until then, paste public HTTPS image URLs below.
+        </div>
+      )}
+
+      <div className="flex gap-2 mt-2">
+        <input
+          className={inputCls}
+          value={manualUrl}
+          onChange={e => setManualUrl(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addManual(); } }}
+          placeholder="https://… (public HTTPS image URL)"
+        />
+        <button type="button" onClick={addManual} className="shrink-0 px-3 py-2 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200">Add</button>
+      </div>
+      <p className="text-[11px] text-gray-400 mt-1 leading-snug">Email images must be hosted at a public HTTPS URL — a local file from your computer will not load in an email.</p>
+      {err && <p className="text-xs text-red-600 mt-1">{err}</p>}
+
+      {images.length > 0 && (
+        <ul className="mt-3 space-y-3">
+          {images.map((img, i) => (
+            <li key={`${img.url}-${i}`} className="flex gap-3 rounded-xl border border-gray-200 p-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.url} alt={img.alt || "preview"} className="h-16 w-16 shrink-0 rounded-lg border border-gray-200 object-cover" />
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <input className={inputCls} value={img.alt} onChange={e => patch(i, { alt: e.target.value })} placeholder="Alt text (optional, for accessibility)" />
+                <input className={inputCls} value={img.caption} onChange={e => patch(i, { caption: e.target.value })} placeholder="Caption (optional, shown under the image)" />
+              </div>
+              <div className="flex shrink-0 flex-col items-center gap-1">
+                <button type="button" onClick={() => move(i, -1)} disabled={i === 0} className="px-2 py-0.5 rounded text-xs text-gray-500 hover:bg-gray-100 disabled:opacity-30" title="Move up">↑</button>
+                <button type="button" onClick={() => move(i, 1)} disabled={i === images.length - 1} className="px-2 py-0.5 rounded text-xs text-gray-500 hover:bg-gray-100 disabled:opacity-30" title="Move down">↓</button>
+                <button type="button" onClick={() => removeAt(i)} className="px-2 py-0.5 rounded text-xs text-red-500 hover:bg-red-50" title="Remove">✕</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {images.length >= 2 && (
+        <p className="text-[11px] text-gray-400 mt-2 leading-snug">Two images render side by side (stacking on mobile); three or more stack vertically.</p>
       )}
     </div>
   );
@@ -422,14 +578,17 @@ export default function EmailOps({
                   <span className={labelCls}>{p.label} {p.required && <span className="text-red-400">*</span>}</span>
                   <span className="font-mono text-[10px] text-gray-300">{`{{${p.key}}}`}</span>
                 </label>
-                {p.type === "image" ? (
+                {p.type === "images" ? (
+                  <ImageGalleryField value={values[p.key] ?? ""} onChange={val => setValue(p.key, val)} ready={imageUploadReady} />
+                ) : p.type === "image" ? (
                   <ImageField value={values[p.key] ?? ""} onChange={url => setValue(p.key, url)} ready={imageUploadReady} />
                 ) : p.multiline ? (
                   <textarea className={inputCls + " resize-y"} rows={3} value={values[p.key] ?? ""} onChange={e => setValue(p.key, e.target.value)} placeholder={p.example} />
                 ) : (
                   <input className={inputCls} value={values[p.key] ?? ""} onChange={e => setValue(p.key, e.target.value)} placeholder={p.example || `{{${p.key}}}`} />
                 )}
-                {p.help && p.type !== "image" && <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{p.help}</p>}
+                {p.help && p.type === "images" && <p className="text-[11px] text-gray-400 mt-2 leading-snug">{p.help}</p>}
+                {p.help && p.type !== "image" && p.type !== "images" && <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{p.help}</p>}
               </div>
             ))}
           </div>
