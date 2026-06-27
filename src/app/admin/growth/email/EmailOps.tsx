@@ -27,6 +27,7 @@ type DryRunResult = {
   skippedDuplicate: string[];
   skippedUnknown: string[];
   missingGlobals?: string[];
+  dryRunToken?: string;
 };
 
 function isPerRecipient(key: string): boolean {
@@ -471,13 +472,13 @@ export default function EmailOps({
     try {
       const res = await fetch("/admin/growth/email/send", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateId, subject, values, sections: draft.sections, recipients: recipientEmails, campaignKey, confirm: confirmText }),
+        body: JSON.stringify({ templateId, subject, values, sections: draft.sections, recipients: recipientEmails, campaignKey, confirm: confirmText, dryRunToken: dryRunResult?.dryRunToken }),
       });
       const json = await res.json();
       if (!res.ok) setMessage(`Send failed: ${json.error ?? res.status}`);
       else { setMessage(`Sent ${json.counts.sent} · failed ${json.counts.failed} · skipped dup ${json.counts.skippedDuplicate} · unknown ${json.counts.skippedUnknown}.`); setConfirmText(""); setDryRunResult(null); }
     } catch (e) { setMessage(`Send error: ${String(e)}`); } finally { setBusy(false); }
-  }, [confirmText, tpl, templateId, subject, values, draft.sections, recipientEmails, campaignKey]);
+  }, [confirmText, tpl, templateId, subject, values, draft.sections, recipientEmails, campaignKey, dryRunResult]);
 
   const clearRecipients = useCallback(() => {
     setRecipients([]);

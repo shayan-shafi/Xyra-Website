@@ -3,6 +3,7 @@ import { resend } from "@/lib/resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminApiAuth";
 import { getGrowthTemplate, buildRecipientValues, missingRequiredGlobals, PER_RECIPIENT_KEYS } from "@/lib/growthEmailTemplates";
+import { issueDryRunToken, verifyDryRunToken } from "@/lib/growthDryRunToken";
 
 // ── Guarded real send to SELECTED waitlist users ────────────────────────────
 //
@@ -71,6 +72,7 @@ export async function POST(request: Request) {
     campaignKey?: unknown;
     confirm?: unknown;
     dryRun?: unknown;
+    dryRunToken?: unknown;
     sentBy?: unknown;
   };
   try {
@@ -155,6 +157,12 @@ export async function POST(request: Request) {
   // Disabled sections are excluded from the requirement.
   const missingGlobals = missingRequiredGlobals(tpl, globalValues, sections);
 
+  // Bind a signed token to the exact send payload (template, campaign key,
+  // subject, global content, sections, and requested recipients). The real send
+  // requires it back and re-verifies, so a send can't be made directly without
+  // a matching, recent dry run.
+  const fingerprintInput = { templateId, campaignKey, subject, values: globalValues, sections, recipients };
+
   if (dryRun) {
     return NextResponse.json({
       dryRun: true,
@@ -166,10 +174,19 @@ export async function POST(request: Request) {
       willSend,
       skippedDuplicate,
       skippedUnknown,
+      dryRunToken: issueDryRunToken(fingerprintInput),
     });
   }
 
   // ── Real send from here ──────────────────────────────────────────────────
+  // Require proof of a recent, matching dry run before anything else in the
+  // send path. This is enforced server-side and does not trust the client UI.
+  const dryRunToken = typeof body.dryRunToken === "string" ? body.dryRunToken : "";
+  const dryRunCheck = verifyDryRunToken(dryRunToken, fingerprintInput);
+  if (!dryRunCheck.ok) {
+    return NextResponse.json({ error: dryRunCheck.reason }, { status: 400 });
+  }
+
   const expected = tpl.confirmPhrase;
   if (body.confirm !== expected) {
     return NextResponse.json({ error: `Confirmation phrase mismatch. Type "${expected}" to send.` }, { status: 400 });

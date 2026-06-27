@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import LogoutButton from "./LogoutButton";
 
 // Branded admin header + section nav. Server-rendered, reused by
 // /admin/analytics, /admin/growth, and /admin/growth/email. The admin auth
@@ -22,7 +23,7 @@ export default function AdminNav({ current }: { current: AdminSection }) {
         <span className="font-[family-name:var(--font-jetbrains)] text-[10px] uppercase tracking-[0.18em] text-gray-400 mt-0.5">Admin</span>
       </Link>
 
-      {/* Section pills */}
+      {/* Section pills + logout */}
       <nav className="flex items-center gap-1.5">
         {LINKS.map(l => (
           <Link
@@ -37,6 +38,8 @@ export default function AdminNav({ current }: { current: AdminSection }) {
             {l.label}
           </Link>
         ))}
+        <span className="mx-1 h-4 w-px bg-gray-200" aria-hidden="true" />
+        <LogoutButton />
       </nav>
     </div>
   );
