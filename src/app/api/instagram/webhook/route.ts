@@ -172,7 +172,7 @@ async function processComment(
 
   // 4. Dry-run → record what we WOULD send, but send nothing.
   if (dryRun) {
-    const message = buildDmMessage(config);
+    const message = buildDmMessage(config, comment.mediaId);
     await finalize(comment.commentId, {
       reply_status: "dry_run",
       reply_kind: config.replyMode,
@@ -193,7 +193,7 @@ async function sendReplies(
   config: InstagramConfig,
   matched: boolean
 ): Promise<{ status: ProcessStatus; matched: boolean }> {
-  const message = buildDmMessage(config);
+  const message = buildDmMessage(config, comment.mediaId);
   const wantPrivate = config.replyMode === "private_reply" || config.replyMode === "both";
   const wantPublic =
     (config.replyMode === "public_reply" || config.replyMode === "both") &&

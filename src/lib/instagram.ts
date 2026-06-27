@@ -107,17 +107,51 @@ export function matchesTriggerKeyword(text: string | null | undefined, keyword: 
 // ── Message building ─────────────────────────────────────────────────────────
 
 /**
+ * Build the waitlist URL for a DM, adding per-post attribution.
+ *
+ * When the webhook event carries a media_id (the post/Reel/ad the comment was
+ * on), we set `utm_content=ig_media_<media_id>` so signups can be attributed to
+ * the exact post that drove them. ALL other existing params in
+ * INSTAGRAM_WAITLIST_URL (utm_source, utm_medium, utm_campaign, etc.) are
+ * preserved. Only media_id is used — never the commenter's id or username, so no
+ * personal identifier ever ends up in the URL.
+ *
+ * `utm_content` is reserved for this per-post value: if the base URL already has
+ * a `utm_content`, it is replaced with the media-specific one (that's the whole
+ * point of per-post attribution). With no media_id, the base URL is returned
+ * unchanged.
+ */
+export function buildWaitlistUrl(baseUrl: string, mediaId: string | null | undefined): string {
+  if (!mediaId) return baseUrl;
+  try {
+    const url = new URL(baseUrl);
+    url.searchParams.set("utm_content", `ig_media_${mediaId}`);
+    return url.toString();
+  } catch {
+    // baseUrl isn't a valid absolute URL — fall back to a manual append that
+    // still preserves whatever query string is already there.
+    const sep = baseUrl.includes("?") ? "&" : "?";
+    return `${baseUrl}${sep}utm_content=ig_media_${encodeURIComponent(mediaId)}`;
+  }
+}
+
+/**
  * The DM body sent to a commenter. Supports a {url} placeholder in
  * INSTAGRAM_DM_MESSAGE; if no template is set, falls back to a sensible default
  * that explains the waitlist + referral mechanic.
+ *
+ * When `mediaId` is provided, the waitlist link carries per-post attribution
+ * (see buildWaitlistUrl). Only media_id is used for attribution — never any
+ * commenter identifier.
  */
-export function buildDmMessage(config: InstagramConfig): string {
+export function buildDmMessage(config: InstagramConfig, mediaId: string | null = null): string {
+  const url = buildWaitlistUrl(config.waitlistUrl, mediaId);
   if (config.dmMessageTemplate) {
-    return config.dmMessageTemplate.replace(/\{url\}/g, config.waitlistUrl);
+    return config.dmMessageTemplate.replace(/\{url\}/g, url);
   }
   return [
     "Thanks for commenting! 🎉 Here's your Xyra waitlist link:",
-    config.waitlistUrl,
+    url,
     "",
     "Join the waitlist and you'll get your own unique referral link. Every friend you refer moves you up the list — so you get alpha access sooner. See you inside ✨",
   ].join("\n");

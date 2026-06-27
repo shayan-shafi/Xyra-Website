@@ -53,6 +53,14 @@ The preview endpoint checks keyword matching and shows the exact DM copy. It
 **What to check:** punctuation/emoji around ALPHA still matches; "alphabet"
 does not; the message copy and URL look right.
 
+**Per-post attribution:** add a `media` param to preview the per-post UTM:
+```
+GET http://localhost:3000/api/instagram/test?secret=SECRET&text=ALPHA&media=17900000000000000
+```
+The returned `messageThatWouldBeSent` link should now end with
+`utm_content=ig_media_17900000000000000` while keeping any UTMs already in
+`INSTAGRAM_WAITLIST_URL`. No commenter id/username ever appears in the URL.
+
 ---
 
 ## Test 2 — Webhook handshake (verification)

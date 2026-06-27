@@ -136,6 +136,28 @@ Full list with explanations: `.env.instagram.example`.
 **Redeploy** so the new variables take effect. (Do not deploy until you intend
 to — per your instructions, deployment is your call.)
 
+### Per-post attribution (which post drove each signup)
+
+You don't need to do anything extra for this — it's automatic. Whenever a
+comment arrives, the system knows which post/Reel/ad it was on (the `media_id`)
+and **automatically adds `utm_content=ig_media_<media_id>` to the waitlist link**
+in that person's DM.
+
+- Set `INSTAGRAM_WAITLIST_URL` once, with your campaign-wide UTMs (e.g.
+  `utm_source=instagram&utm_medium=social&utm_campaign=alpha`). Those are
+  **preserved** on every DM.
+- The system fills in `utm_content` per post, so two different Reels produce two
+  different `utm_content` values and you can see which post converts best in your
+  analytics.
+- `utm_content` is reserved for this — if you put your own `utm_content` in
+  `INSTAGRAM_WAITLIST_URL`, it will be replaced by the per-post value.
+- **Privacy:** only the post id is used. The commenter's username and user id are
+  **never** put in the URL.
+
+Example: base `https://xyra.dev/?utm_source=instagram&utm_medium=social&utm_campaign=alpha`
+→ DM link becomes
+`https://xyra.dev/?utm_source=instagram&utm_medium=social&utm_campaign=alpha&utm_content=ig_media_17900000000000000`.
+
 ---
 
 ## 8. Meta — subscribe the webhook
