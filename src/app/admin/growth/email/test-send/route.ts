@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resend } from "@/lib/resend";
 import { isAdminRequest } from "@/lib/adminApiAuth";
 import { getGrowthTemplate } from "@/lib/growthEmailTemplates";
+import { isValidEmail } from "@/lib/emailValidation";
 
 // ── Test send ────────────────────────────────────────────────────────────────
 // Renders a template and sends it ONLY to internal/admin recipients (from env),
@@ -16,7 +17,8 @@ function internalRecipients(): string[] {
     process.env.ANALYTICS_REPORT_RECIPIENTS ||
     process.env.DAILY_SIGNUPS_RECIPIENTS ||
     "";
-  return raw.split(",").map(e => e.trim()).filter(e => e.includes("@"));
+  // Exclude malformed addresses before any send (same rule as the real-send route).
+  return raw.split(",").map(e => e.trim()).filter(e => isValidEmail(e));
 }
 
 function serializeError(err: unknown): Record<string, unknown> {

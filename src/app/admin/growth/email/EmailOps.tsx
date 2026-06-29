@@ -22,10 +22,12 @@ const draftKey = (id: string) => `xyra_email_draft_${id}`;
 type StagedRecipient = { name: string | null; email: string; refCode: string | null };
 type Draft = { subject: string; values: Record<string, string>; sections: Record<string, boolean> };
 type DryRunResult = {
-  counts: { requested: number; willSend: number; skippedDuplicate: number; skippedUnknown: number };
+  counts: { requested: number; valid: number; willSend: number; skippedDuplicate: number; skippedUnknown: number; skippedInvalid: number; placeholderName: number };
   willSend: string[];
   skippedDuplicate: string[];
   skippedUnknown: string[];
+  skippedInvalid: string[];
+  placeholderNameRecipients: string[];
   missingGlobals?: string[];
   dryRunToken?: string;
 };
@@ -462,7 +464,7 @@ export default function EmailOps({
       });
       const json = await res.json();
       if (!res.ok) setMessage(`Dry run failed: ${json.error ?? res.status}`);
-      else { setDryRunResult(json as DryRunResult); setMessage(`Dry run OK — ${json.counts.willSend} would send, ${json.counts.skippedDuplicate} already sent, ${json.counts.skippedUnknown} not on waitlist.`); }
+      else { setDryRunResult(json as DryRunResult); setMessage(`Dry run OK — ${json.counts.willSend} would send · ${json.counts.skippedInvalid} malformed (skipped) · ${json.counts.skippedDuplicate} already sent · ${json.counts.skippedUnknown} not on waitlist · ${json.counts.placeholderName} no-name (neutral greeting).`); }
     } catch (e) { setMessage(`Dry run error: ${String(e)}`); } finally { setBusy(false); }
   }, [templateId, subject, values, draft.sections, recipientEmails, campaignKey]);
 
@@ -707,9 +709,11 @@ export default function EmailOps({
               </button>
               {dryRunResult && (
                 <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
-                  <div><strong>{dryRunResult.counts.willSend}</strong> will send · <strong>{dryRunResult.counts.skippedDuplicate}</strong> already sent · <strong>{dryRunResult.counts.skippedUnknown}</strong> not on waitlist</div>
+                  <div><strong>{dryRunResult.counts.willSend}</strong> will send · <strong>{dryRunResult.counts.skippedInvalid}</strong> malformed · <strong>{dryRunResult.counts.skippedDuplicate}</strong> already sent · <strong>{dryRunResult.counts.skippedUnknown}</strong> not on waitlist</div>
                   {(dryRunResult.missingGlobals?.length ?? 0) > 0 && <div className="text-red-600">Fill required fields before sending: {dryRunResult.missingGlobals!.map(k => `{{${k}}}`).join(", ")}</div>}
+                  {dryRunResult.skippedInvalid.length > 0 && <div className="text-red-600">Malformed (excluded, never sent): {dryRunResult.skippedInvalid.join(", ")}</div>}
                   {dryRunResult.skippedUnknown.length > 0 && <div className="text-amber-600">Unknown: {dryRunResult.skippedUnknown.join(", ")}</div>}
+                  {dryRunResult.counts.placeholderName > 0 && <div className="text-gray-500">{dryRunResult.counts.placeholderName} recipient(s) have no usable name — they&apos;ll get a neutral greeting (no &quot;Hi Xyra waitlist member,&quot;).</div>}
                 </div>
               )}
               <div>

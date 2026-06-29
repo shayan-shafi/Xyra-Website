@@ -239,6 +239,34 @@ function signoffText(v: Record<string, string>): string[] {
   return closing ? [``, closing, name] : [``, name];
 }
 
+// ── Personalized greeting ────────────────────────────────────────────────────
+// The import placeholder name (used for waitlist rows that have no real name)
+// must never appear in a greeting like "Hi Xyra waitlist member,". A name is
+// only usable for personalization when it's non-empty and not that placeholder;
+// otherwise we fall back to a neutral, name-less greeting.
+export const NAME_PLACEHOLDER = "Xyra waitlist member";
+
+export function usableFirstName(name: string | null | undefined): string {
+  const n = (name ?? "").trim();
+  if (!n) return "";
+  if (n.toLowerCase() === NAME_PLACEHOLDER.toLowerCase()) return "";
+  return n.split(/\s+/)[0] || "";
+}
+
+// HTML/text greeting line. `first_name` in `values` is already the usable first
+// name (set by buildRecipientValues on a real send, or the admin's preview
+// value). Empty/placeholder -> neutral "Hey," with no name.
+function greetingLine(v: Record<string, string>): string {
+  const fn = (v.first_name ?? "").trim();
+  return fn && fn.toLowerCase() !== NAME_PLACEHOLDER.toLowerCase() ? `Hi ${fn},` : `Hey,`;
+}
+function greetingHtml(v: Record<string, string>): string {
+  return paragraph(esc(greetingLine(v)));
+}
+function greetingText(v: Record<string, string>): string {
+  return greetingLine(v);
+}
+
 function emailShell(opts: { kicker: string; preheader?: string; bodyHtml: string }): string {
   const { kicker, preheader, bodyHtml } = opts;
   return `<!DOCTYPE html>
@@ -360,7 +388,7 @@ const alphaInvite: GrowthTemplate = {
     const expectations = on("expectations") ? htmlList(lines(v.expectations)) : "";
     const body = [
       ...(has(v, "headline") ? [headlineBlock(raw(v, "headline"))] : []),
-      paragraph(`Hi ${esc(raw(v, "first_name"))},`),
+      greetingHtml(v),
       paragraph(esc(raw(v, "intro"))),
       paragraph(esc(raw(v, "context"))),
       ...(expectations ? [eyebrowHeader("What we're hoping for"), expectations] : []),
@@ -380,7 +408,7 @@ const alphaInvite: GrowthTemplate = {
     const exp = on("expectations") ? lines(v.expectations) : [];
     return [
       ...(has(v, "headline") ? [raw(v, "headline"), ``] : []),
-      `Hi ${raw(v, "first_name")},`,
+      greetingText(v),
       ``,
       raw(v, "intro"),
       ``,
@@ -446,7 +474,7 @@ const newsletter: GrowthTemplate = {
         : [];
     const body = [
       ...(has(v, "headline") ? [headlineBlock(raw(v, "headline"))] : []),
-      paragraph(`Hi ${esc(raw(v, "first_name"))},`),
+      greetingHtml(v),
       paragraph(esc(raw(v, "opening"))),
       ...(on("quick_update") ? [eyebrowHeader("Quick update"), paragraph(esc(raw(v, "quick_update")))] : []),
       ...(shipped ? [eyebrowHeader("What we shipped"), shipped] : []),
@@ -464,7 +492,7 @@ const newsletter: GrowthTemplate = {
     const block = (title: string, items: string[]) => (items.length ? [``, `${title}:`, ...items.map(i => `- ${i}`)] : []);
     return [
       ...(has(v, "headline") ? [raw(v, "headline"), ``] : []),
-      `Hi ${raw(v, "first_name")},`,
+      greetingText(v),
       ``,
       raw(v, "opening"),
       ...(on("quick_update") ? [``, `Quick update:`, raw(v, "quick_update")] : []),
@@ -522,7 +550,7 @@ const generalMessage: GrowthTemplate = {
     const referral = on("referral") && has(v, "referral_intro") ? referralBlock(esc(raw(v, "referral_intro")), raw(v, "referral_link")) : "";
     const body = [
       ...(has(v, "headline") ? [headlineBlock(raw(v, "headline"))] : []),
-      paragraph(`Hi ${esc(raw(v, "first_name"))},`),
+      greetingHtml(v),
       ...(paras.length ? paras : [paragraph(esc(raw(v, "message_body")))]),
       imagesHtml,
       cta,
@@ -539,7 +567,7 @@ const generalMessage: GrowthTemplate = {
     const referral = on("referral") && has(v, "referral_intro") ? [``, raw(v, "referral_intro"), raw(v, "referral_link")] : [];
     return [
       ...(has(v, "headline") ? [raw(v, "headline"), ``] : []),
-      `Hi ${raw(v, "first_name")},`,
+      greetingText(v),
       ``,
       raw(v, "message_body"),
       ...imageLines,
@@ -602,7 +630,9 @@ export function buildRecipientValues(
   recipient: { name: string | null; refCode: string | null },
   siteBaseUrl: string
 ): Record<string, string> {
-  const firstName = (recipient.name ?? "").trim().split(/\s+/)[0] || "there";
+  // Empty when the name is blank or the import placeholder — the greeting then
+  // falls back to a neutral "Hey," instead of "Hi Xyra waitlist member,".
+  const firstName = usableFirstName(recipient.name);
   const referralLink = recipient.refCode ? `${siteBaseUrl.replace(/\/$/, "")}/ref/${recipient.refCode}` : "";
   return { ...globalValues, first_name: firstName, referral_link: referralLink };
 }

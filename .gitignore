@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# survey lead imports & dry-run reports — contain personal emails (PII), never commit
+/imports/
+
 # large video source files (mp4 compressed versions are used instead)
 public/assets/xyra-day-in-life.mov
 public/assets/xyra-day-in-life-2.mov

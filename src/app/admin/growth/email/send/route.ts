@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { resend } from "@/lib/resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminApiAuth";
-import { getGrowthTemplate, buildRecipientValues, missingRequiredGlobals, PER_RECIPIENT_KEYS } from "@/lib/growthEmailTemplates";
+import { getGrowthTemplate, buildRecipientValues, missingRequiredGlobals, PER_RECIPIENT_KEYS, NAME_PLACEHOLDER } from "@/lib/growthEmailTemplates";
 import { issueDryRunToken, verifyDryRunToken } from "@/lib/growthDryRunToken";
+import { isValidEmail } from "@/lib/emailValidation";
 
 // ── Guarded real send to SELECTED waitlist users ────────────────────────────
 //
@@ -110,11 +111,23 @@ export async function POST(request: Request) {
 
   // Recipients: explicit, non-empty, de-duplicated, capped.
   const rawRecipients = Array.isArray(body.recipients) ? body.recipients : [];
-  const recipients = Array.from(
-    new Set(rawRecipients.filter((e): e is string => typeof e === "string" && e.includes("@")).map(e => e.trim().toLowerCase()))
+  const allRecipients = Array.from(
+    new Set(rawRecipients.filter((e): e is string => typeof e === "string" && e.trim().length > 0).map(e => e.trim().toLowerCase()))
   );
-  if (recipients.length === 0) {
+  // Malformed addresses are excluded here, server-side, BEFORE any waitlist
+  // lookup or send — they are never handed to Resend. Enforced independent of
+  // any UI filtering. The known bad legacy addresses (no dot in the domain)
+  // are caught here.
+  const recipients = allRecipients.filter(e => isValidEmail(e));
+  const skippedInvalid = allRecipients.filter(e => !isValidEmail(e));
+  if (allRecipients.length === 0) {
     return NextResponse.json({ error: "recipients must be a non-empty list of emails." }, { status: 400 });
+  }
+  if (recipients.length === 0) {
+    return NextResponse.json(
+      { error: "No valid recipient emails after excluding malformed addresses.", skippedInvalid },
+      { status: 400 }
+    );
   }
   if (recipients.length > MAX_SEND) {
     return NextResponse.json({ error: `Too many recipients (${recipients.length}). Max is ${MAX_SEND}.` }, { status: 400 });
@@ -150,6 +163,16 @@ export async function POST(request: Request) {
   const skippedDuplicate = recipients.filter(e => byEmail.has(e) && alreadySent.has(e));
   const willSend = recipients.filter(e => byEmail.has(e) && !alreadySent.has(e));
 
+  // Recipients who will receive a neutral greeting (no usable name) because
+  // their waitlist name is blank or the import placeholder. Surfaced in the
+  // dry run so the sender knows; personalization suppression itself happens in
+  // buildRecipientValues at send time.
+  const isPlaceholderName = (n: string | null) => {
+    const t = (n ?? "").trim();
+    return !t || t.toLowerCase() === NAME_PLACEHOLDER.toLowerCase();
+  };
+  const placeholderNameRecipients = willSend.filter(e => isPlaceholderName(byEmail.get(e)?.name ?? null));
+
   const subjectOverride = typeof body.subject === "string" && body.subject.trim() ? body.subject.trim() : null;
   const subject = subjectOverride ?? tpl.buildSubject(globalValues);
 
@@ -170,10 +193,20 @@ export async function POST(request: Request) {
       campaignKey,
       subject,
       missingGlobals,
-      counts: { requested: recipients.length, willSend: willSend.length, skippedDuplicate: skippedDuplicate.length, skippedUnknown: skippedUnknown.length },
+      counts: {
+        requested: allRecipients.length,
+        valid: recipients.length,
+        willSend: willSend.length,
+        skippedDuplicate: skippedDuplicate.length,
+        skippedUnknown: skippedUnknown.length,
+        skippedInvalid: skippedInvalid.length,
+        placeholderName: placeholderNameRecipients.length,
+      },
       willSend,
       skippedDuplicate,
       skippedUnknown,
+      skippedInvalid,
+      placeholderNameRecipients,
       dryRunToken: issueDryRunToken(fingerprintInput),
     });
   }
@@ -285,14 +318,18 @@ export async function POST(request: Request) {
     campaignKey,
     subject,
     counts: {
-      requested: recipients.length,
+      requested: allRecipients.length,
+      valid: recipients.length,
       sent: sent.length,
       failed: failed.length,
       skippedDuplicate: skippedDuplicate.length,
       skippedUnknown: skippedUnknown.length,
+      skippedInvalid: skippedInvalid.length,
+      placeholderName: placeholderNameRecipients.length,
     },
     failed,
     skippedDuplicate,
     skippedUnknown,
+    skippedInvalid,
   });
 }
