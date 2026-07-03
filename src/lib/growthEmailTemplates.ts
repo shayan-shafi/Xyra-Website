@@ -357,6 +357,12 @@ function signoffFields(): PlaceholderDef[] {
 
 // ── Template 1: Alpha invite ────────────────────────────────────────────────
 
+// Default label for the optional onboarding/tutorial button. Single source of
+// truth: used both as the editable field's default and as the render-time
+// fallback if the admin clears the label while keeping a tutorial link, so the
+// button never renders an empty or {{token}} label.
+const ONBOARDING_BTN_DEFAULT = "Open the tutorial";
+
 const alphaInvite: GrowthTemplate = {
   id: "alpha-invite",
   name: "Alpha Invite",
@@ -364,6 +370,7 @@ const alphaInvite: GrowthTemplate = {
   confirmPhrase: "SEND ALPHA",
   sections: [
     { key: "expectations", label: "What we're hoping for", defaultEnabled: true },
+    { key: "onboarding", label: "Onboarding / tutorial", defaultEnabled: true },
     { key: "closing", label: "Closing line", defaultEnabled: true },
     { key: "referral", label: "Referral nudge", defaultEnabled: true },
   ],
@@ -373,8 +380,11 @@ const alphaInvite: GrowthTemplate = {
     { key: "intro", label: "Opening line", example: "We've been reading every signup, and we'd like you in the Xyra Alpha.", scope: "global", required: true, multiline: true },
     { key: "context", label: "Why them / context", example: "We're opening access today. We're keeping this first group small on purpose: we want real feedback from real people who'll actually use it, not a launch-day crowd. You're one of them.", scope: "global", required: true, multiline: true },
     { key: "expectations", label: "What we're hoping for (one per line)", example: "Give it an honest go. Actually use Xyra for the things you're juggling in your head.\nWhen something breaks or feels off, tell us. Rough edges are expected.\nUse the in-app feedback option when it's there, or just reach us directly.\nBe open to a short, casual call with us at some point.", scope: "global", multiline: true, section: "expectations" },
-    { key: "alpha_access_link", label: "Alpha access link", example: "", scope: "global", required: true, help: "The real setup/access URL. Type or paste it here. Left blank shows the {{token}} in the preview and blocks the send, so you never send a fake link." },
-    { key: "access_timing_text", label: "Access timing line", example: "so you can get started today", scope: "global", required: true, help: "Completes “We’ve included setup instructions at the link below ___.” We’re sending today, so the default says “today.” Change to “this weekend,” “Monday,” or whatever fits the send." },
+    { key: "access_instructions_line", label: "Access instructions line", example: "We've included setup instructions at the link below so you can get started today.", scope: "global", required: true, multiline: true, help: "The full sentence shown above the Alpha access button. Entirely editable — reword the whole line however you like for this send." },
+    { key: "alpha_access_link", label: "Alpha access / TestFlight link", example: "", scope: "global", required: true, help: "Paste the link people need to install or open Xyra Alpha (e.g. TestFlight). This is required before sending. Left blank shows the {{token}} in the preview and blocks the send, so you never send a fake link." },
+    { key: "onboarding_resource_line", label: "Onboarding/tutorial line", example: "You can find a quick onboarding tutorial here.", scope: "global", section: "onboarding", help: "Optional. The line shown above the tutorial button. Only appears in the email when a tutorial link is set below." },
+    { key: "onboarding_resource_link", label: "Onboarding/tutorial link", example: "", scope: "global", section: "onboarding", help: "Optional. Paste a video, walkthrough, or tutorial link if you want to include one. Left blank hides the whole onboarding section (it never blocks sending)." },
+    { key: "onboarding_resource_button_label", label: "Onboarding/tutorial button label", example: ONBOARDING_BTN_DEFAULT, scope: "global", section: "onboarding", help: "Optional. The text shown on the tutorial button. Only used when a tutorial link is set; blank falls back to the default and never blocks sending." },
     { key: "feedback_contact", label: "Feedback contact", example: "hello@xyra.dev", scope: "global", required: true, help: "Where users can reach you directly." },
     { key: "closing", label: "Closing line", example: "Genuinely excited to put this in your hands.", scope: "global", multiline: true, section: "closing" },
     ...signoffFields(),
@@ -387,6 +397,7 @@ const alphaInvite: GrowthTemplate = {
       ? pillButton("Get set up for Alpha", raw(v, "alpha_access_link"))
       : `<p style="margin:6px 0 18px;padding:12px 14px;background:#fffaf0;border:1px solid #f0e2c0;border-radius:10px;font-family:${SANS};font-size:13px;color:#8a6d3b;">Add the Alpha access link before sending. The field is currently empty.</p>`;
     const expectations = on("expectations") ? htmlList(lines(v.expectations)) : "";
+    const onboardingBtnLabel = has(v, "onboarding_resource_button_label") ? raw(v, "onboarding_resource_button_label") : ONBOARDING_BTN_DEFAULT;
     const body = [
       ...(has(v, "headline") ? [headlineBlock(raw(v, "headline"))] : []),
       greetingHtml(v),
@@ -394,8 +405,11 @@ const alphaInvite: GrowthTemplate = {
       paragraph(esc(raw(v, "context"))),
       ...(expectations ? [eyebrowHeader("What we're hoping for"), expectations] : []),
       eyebrowHeader("Your access"),
-      paragraph(`We've included setup instructions at the link below ${esc(raw(v, "access_timing_text"))}.`),
+      paragraph(esc(raw(v, "access_instructions_line"))),
       accessBlock,
+      ...(on("onboarding") && has(v, "onboarding_resource_link")
+        ? [eyebrowHeader("Getting started"), paragraph(esc(raw(v, "onboarding_resource_line"))), pillButton(onboardingBtnLabel, raw(v, "onboarding_resource_link"))]
+        : []),
       paragraph(`You can reach us anytime at <a href="mailto:${esc(raw(v, "feedback_contact"))}" style="color:${INK};font-weight:600;">${esc(raw(v, "feedback_contact"))}</a>.`),
       ...(on("referral") ? [eyebrowHeader("Bring a friend"), referralBlock("Your referral link still works, and every friend who joins moves you up:", raw(v, "referral_link"))] : []),
       ...(on("closing") && has(v, "closing") ? [paragraph(esc(raw(v, "closing")))] : []),
@@ -406,6 +420,7 @@ const alphaInvite: GrowthTemplate = {
   buildText: (v, sections) => {
     const on = makeOn(sections);
     const access = has(v, "alpha_access_link") ? raw(v, "alpha_access_link") : "(add the access link before sending)";
+    const onboardingBtnLabel = has(v, "onboarding_resource_button_label") ? raw(v, "onboarding_resource_button_label") : ONBOARDING_BTN_DEFAULT;
     const exp = on("expectations") ? lines(v.expectations) : [];
     return [
       ...(has(v, "headline") ? [raw(v, "headline"), ``] : []),
@@ -416,8 +431,11 @@ const alphaInvite: GrowthTemplate = {
       raw(v, "context"),
       ...(exp.length ? [``, `What we're hoping for:`, ...exp.map(e => `- ${e}`)] : []),
       ``,
-      `We've included setup instructions at the link below ${raw(v, "access_timing_text")}.`,
+      raw(v, "access_instructions_line"),
       `Your access: ${access}`,
+      ...(on("onboarding") && has(v, "onboarding_resource_link")
+        ? [``, raw(v, "onboarding_resource_line"), `${onboardingBtnLabel}: ${raw(v, "onboarding_resource_link")}`]
+        : []),
       `Reach us anytime: ${raw(v, "feedback_contact")}`,
       ...(on("referral") ? [``, `Your referral link still works, and every friend who joins moves you up:`, raw(v, "referral_link")] : []),
       ...(on("closing") && has(v, "closing") ? [``, raw(v, "closing")] : []),
