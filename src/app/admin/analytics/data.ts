@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { normalizeSource } from "@/lib/analyticsSource";
 
 // Supabase/PostgREST caps every single response at the project's max-rows
 // setting (commonly 1000) no matter what .limit() requests — once a table
@@ -59,18 +60,49 @@ type WaitlistRow = {
 
 export type DateRange = "7d" | "30d" | "all";
 
+// Preset OR a custom start/end range. "custom" is resolved from explicit
+// start/end query params; the three presets are rolling windows.
+export type RangePreset = "7d" | "30d" | "all" | "custom";
+
+// A fully-resolved analytics window. All downstream code works off this, so
+// presets and custom ranges share one code path.
+//   - startIso: inclusive lower bound (UTC ISO) or null for "all"/open start
+//   - endIso:   EXCLUSIVE upper bound (UTC ISO) or null for open end (now)
+//   - startDateCT / endDateCT: the Chicago calendar dates the user picked
+//     (YYYY-MM-DD), echoed back for the date inputs. endDateCT is the
+//     exclusive day (traffic on that day is NOT included).
+// Custom ranges are interpreted in America/Chicago (see resolveWindow).
+export type ResolvedWindow = {
+  preset: RangePreset;
+  startIso: string | null;
+  endIso: string | null;
+  startDateCT: string | null;
+  endDateCT: string | null;
+  label: string;
+  // Non-null when the user passed invalid start/end params; the UI surfaces it
+  // and we fall back to the default 30-day preset.
+  error: string | null;
+};
+
 export type Summary = {
   uniqueVisitors: number;
   totalSessions: number;
   ctaClickers: number;
   waitlistViewers: number;
   emailSubmitters: number;
-  // Tracked signups: visitor_id present + after ANALYTICS_TRACKING_START_DATE.
-  // Used for all conversion rates.
+  // Tracked, non-import signups: visitor_id present + after
+  // ANALYTICS_TRACKING_START_DATE. Used for all conversion rates.
   successfulSignups: number;
-  // Total waitlist entries in the date range (includes pre-tracking rows).
+  // Total waitlist entries in the date range (includes imports + pre-tracking).
   totalSignups: number;
-  // Signups that pre-date analytics tracking or have no visitor_id.
+  // Real signups (non-import) in the window, tracked or not — what a founder
+  // means by "how many people actually signed up". Excludes imports only.
+  realSignups: number;
+  // Backfilled/imported contacts (survey_import / notion_import). Excluded from
+  // all attribution + conversion; surfaced separately in its own note card.
+  importSignups: number;
+  // Real signups that pre-date analytics tracking or have no visitor_id.
+  // Excludes imports (which are counted under importSignups instead).
   legacySignups: number;
   surveySubmitters: number;
   surveySkippers: number;
@@ -254,6 +286,56 @@ export type MarketingRowDebug = {
   sampleReferrerDomain: string | null;
 };
 
+// One point per Chicago calendar day inside the window, gap-filled so missing
+// days render as zero. Drives the "signups over time" + "visitors vs signups"
+// charts. signups = real (non-import) signups that day; visitors = distinct
+// tracked visitors with any event that day.
+export type TimePoint = {
+  date: string; // YYYY-MM-DD (America/Chicago)
+  signups: number;
+  visitors: number;
+};
+
+// Signups + conversion by normalized source, for the source charts. Same
+// numbers as marketingSourceTotals but shaped for charting and already
+// import-free.
+export type SourceChartRow = {
+  source: string;
+  visitors: number;
+  signups: number;
+  conversionRate: number;
+  pctOfSignups: number;
+};
+
+// Performance of a specific creative/post (utm_content), grouped with its
+// source. This is what makes per-ad analysis work once each ad ships a unique
+// utm_content (e.g. graveyard_v2, prof_promo_v2).
+export type ContentRow = {
+  content: string;
+  source: string;
+  campaign: string | null;
+  visitors: number;
+  signups: number;
+  conversionRate: number;
+};
+
+// Per-campaign rollup (utm_campaign) with % of total real signups.
+export type CampaignPerfRow = {
+  campaign: string;
+  source: string;
+  visitors: number;
+  signups: number;
+  conversionRate: number;
+  pctOfSignups: number;
+};
+
+// Small breakdown of imported contacts by their import source, for the import
+// note card. Never mixed into attribution.
+export type ImportRow = {
+  source: string;
+  signups: number;
+};
+
 export type Insight = {
   type: "warning" | "info" | "success";
   message: string;
@@ -285,19 +367,170 @@ export type DashboardData = {
   unmatchedSignups: UnmatchedSignupRow[];
   marketingDebug: MarketingRowDebug[];
   campaigns: CampaignRow[];
+  // New for custom-range analysis:
+  signupsOverTime: TimePoint[];
+  sourceChart: SourceChartRow[];
+  campaignPerformance: CampaignPerfRow[];
+  contentPerformance: ContentRow[];
+  imports: ImportRow[];
   insights: Insight[];
   actions: ActionCard[];
+  // The resolved window this data was computed for (echoed back for display).
+  window: ResolvedWindow;
   // ISO string if ANALYTICS_TRACKING_START_DATE is set, otherwise null.
   trackingStartDate: string | null;
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function getStartDate(range: DateRange): string | null {
-  if (range === "all") return null;
+// ── Timezone helpers (America/Chicago) ────────────────────────────────────────
+// analytics_events.created_at and waitlist.created_at are stored UTC
+// (TIMESTAMPTZ). The founder thinks in Chicago time, and paid-ad windows are
+// expressed as Chicago calendar dates, so custom ranges and day-bucketing are
+// done in America/Chicago. This handles CDT/CST (DST) automatically via Intl
+// rather than hard-coding a fixed UTC offset.
+
+const CT_TZ = "America/Chicago";
+// en-CA formats as YYYY-MM-DD, which sorts lexicographically = chronologically.
+const CT_DAY_FMT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: CT_TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+// The Chicago calendar date (YYYY-MM-DD) an instant falls on.
+function chicagoDayKey(iso: string): string {
+  return CT_DAY_FMT.format(new Date(iso));
+}
+
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Converts a Chicago wall-clock midnight (YYYY-MM-DD 00:00 America/Chicago) to
+// the exact UTC instant, accounting for DST. Works by measuring the zone's
+// offset near that date via a toLocaleString round-trip. Returns null for
+// malformed input.
+function chicagoMidnightToUtcIso(dateStr: string): string | null {
+  if (!YMD_RE.test(dateStr)) return null;
+  const naiveUtc = new Date(`${dateStr}T00:00:00Z`);
+  if (isNaN(naiveUtc.getTime())) return null;
+  // Offset (ms) of America/Chicago relative to UTC at this instant.
+  const asCt = new Date(naiveUtc.toLocaleString("en-US", { timeZone: CT_TZ }));
+  const asUtc = new Date(naiveUtc.toLocaleString("en-US", { timeZone: "UTC" }));
+  const offsetMs = asCt.getTime() - asUtc.getTime();
+  // Real UTC instant of local midnight = naive midnight minus the local offset.
+  return new Date(naiveUtc.getTime() - offsetMs).toISOString();
+}
+
+// Enumerates Chicago day keys from startKey..endKey inclusive. Used to gap-fill
+// the time series so days with no signups still render as zero.
+function enumerateChicagoDays(startKey: string, endKey: string): string[] {
+  if (startKey > endKey) return [];
+  const out: string[] = [];
+  // Step through days at UTC noon (safe from DST edges) and read the CT key.
+  let cursor = new Date(`${startKey}T12:00:00Z`);
+  const guard = new Date(`${endKey}T12:00:00Z`);
+  guard.setUTCDate(guard.getUTCDate() + 1);
+  let key = chicagoDayKey(cursor.toISOString());
+  let safety = 0;
+  while (key <= endKey && cursor < guard && safety < 5000) {
+    out.push(key);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    key = chicagoDayKey(cursor.toISOString());
+    safety++;
+  }
+  return out;
+}
+
+// Resolves the ?range / ?start / ?end query params into one window.
+// Custom (explicit start+end) is interpreted in America/Chicago with an
+// INCLUSIVE start and EXCLUSIVE end. Presets are rolling windows ending "now".
+export function resolveWindow(params: {
+  range?: string | null;
+  start?: string | null;
+  end?: string | null;
+}): ResolvedWindow {
+  const start = params.start?.trim() || null;
+  const end = params.end?.trim() || null;
+
+  // Custom range requested (either bound present) → validate strictly.
+  if (start || end) {
+    if (!start || !end) {
+      return fallbackWindow("Enter both a start and an end date for a custom range.");
+    }
+    if (!YMD_RE.test(start) || !YMD_RE.test(end)) {
+      return fallbackWindow("Dates must be in YYYY-MM-DD format.");
+    }
+    if (end < start) {
+      return fallbackWindow("End date must be on or after the start date.");
+    }
+    if (end === start) {
+      return fallbackWindow("End date is exclusive — pick an end at least one day after the start.");
+    }
+    const startIso = chicagoMidnightToUtcIso(start);
+    const endIso = chicagoMidnightToUtcIso(end);
+    if (!startIso || !endIso) {
+      return fallbackWindow("Could not parse those dates.");
+    }
+    return {
+      preset: "custom",
+      startIso,
+      endIso,
+      startDateCT: start,
+      endDateCT: end,
+      label: `${start} → ${end}`,
+      error: null,
+    };
+  }
+
+  // Preset range.
+  const range = params.range === "7d" || params.range === "all" ? params.range : "30d";
+  if (range === "all") {
+    return { preset: "all", startIso: null, endIso: null, startDateCT: null, endDateCT: null, label: "All time", error: null };
+  }
+  const days = range === "7d" ? 7 : 30;
   const d = new Date();
-  d.setDate(d.getDate() - (range === "7d" ? 7 : 30));
-  return d.toISOString();
+  d.setDate(d.getDate() - days);
+  return {
+    preset: range,
+    startIso: d.toISOString(),
+    endIso: null,
+    startDateCT: null,
+    endDateCT: null,
+    label: `Last ${days} days`,
+    error: null,
+  };
+}
+
+// 30-day default, tagged with a validation error for the UI to surface.
+function fallbackWindow(error: string): ResolvedWindow {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return {
+    preset: "30d",
+    startIso: d.toISOString(),
+    endIso: null,
+    startDateCT: null,
+    endDateCT: null,
+    label: "Last 30 days",
+    error,
+  };
+}
+
+// ── Import detection ───────────────────────────────────────────────────────────
+// Backfilled contact imports (old survey responses, Notion beta tracker) are
+// tagged at import time with a distinctive source/landing/campaign. They are
+// real waitlist rows but NOT organic signups, so they're excluded from all
+// attribution + conversion and shown only in a separate note.
+const IMPORT_SOURCES = new Set(["survey_import", "notion_import"]);
+const IMPORT_LANDINGS = new Set(["survey_import", "notion_import"]);
+const IMPORT_CAMPAIGN_RE = /(^|_)import(_|$)|old_survey_import|notion_contact/i;
+
+function isImportSignup(w: WaitlistRow): boolean {
+  const src = (w.first_utm_source ?? "").toLowerCase().trim();
+  const land = (w.first_landing_page ?? "").toLowerCase().trim();
+  const camp = w.first_utm_campaign ?? "";
+  return IMPORT_SOURCES.has(src) || IMPORT_LANDINGS.has(land) || IMPORT_CAMPAIGN_RE.test(camp);
 }
 
 // Returns the ISO string from ANALYTICS_TRACKING_START_DATE, or null.
@@ -319,47 +552,9 @@ function str(val: unknown): string {
   return "";
 }
 
-// Known variants that should roll up under one display source. The raw value
-// is preserved separately (TrafficSource.rawSources) for debugging. These
-// double as referrer-hostname aliases (see normalizeSource's fallback below),
-// which is why hostname-shaped keys like "l.instagram.com" are already here.
-const SOURCE_ALIASES: Record<string, string> = {
-  instagram: "instagram",
-  ig: "instagram",
-  "instagram.com": "instagram",
-  "www.instagram.com": "instagram",
-  "l.instagram.com": "instagram",
-  // Android in-app browsers report document.referrer as the app's package
-  // name (e.g. "android-app://com.instagram.android/"), not a normal URL.
-  "com.instagram.android": "instagram",
-  linkedin: "linkedin",
-  "linkedin.com": "linkedin",
-  "www.linkedin.com": "linkedin",
-  "lnkd.in": "linkedin",
-  "com.linkedin.android": "linkedin",
-  youtube: "youtube",
-  "youtu.be": "youtube",
-  "youtube.com": "youtube",
-  "www.youtube.com": "youtube",
-  "com.google.android.youtube": "youtube",
-  "chatgpt.com": "chatgpt",
-  chatgpt: "chatgpt",
-};
-
-// Resolves a display source from utm_source, falling back to the referrer's
-// hostname when there's no UTM tag at all (e.g. an untagged click from
-// l.instagram.com should still show up as "instagram", not "direct"). Strips
-// common subdomain prefixes (l., m., www.) so hostname variants still match
-// the same alias. "localhost" (dev-only artifact) is never a real source.
-function normalizeSource(utmSource: string | null, referrerHost: string | null = null): string {
-  const raw = utmSource?.toLowerCase().trim();
-  if (raw) return SOURCE_ALIASES[raw] ?? raw;
-
-  const host = referrerHost?.toLowerCase().trim();
-  if (!host || host === "localhost") return "direct";
-  const stripped = host.replace(/^(l|m|www)\./, "");
-  return SOURCE_ALIASES[host] ?? SOURCE_ALIASES[stripped] ?? "direct";
-}
+// normalizeSource + source aliases now live in src/lib/analyticsSource.ts so the
+// server data layer and the chart/table components share one definition (and one
+// color map). Imported at the top of this file.
 
 // Internal dev/QA artifacts (manual curl tests, local validation runs) that
 // sometimes land in production analytics_events/waitlist rows. They're real
@@ -393,10 +588,12 @@ function referrerDomain(referrer: string | null): string | null {
 
 // ── Main fetch ───────────────────────────────────────────────────────────────
 
-export async function fetchDashboardData(range: DateRange): Promise<DashboardData | null> {
+export async function fetchDashboardData(window: ResolvedWindow): Promise<DashboardData | null> {
   if (!supabaseAdmin) return null;
 
-  const rangeStart = getStartDate(range);
+  // Inclusive start / exclusive end. Either may be null (open bound).
+  const rangeStart = window.startIso;
+  const rangeEnd = window.endIso;
   const trackingStart = getTrackingStartDate();
 
   // Events are fetched from the tracking start, NOT the selected range start.
@@ -416,36 +613,44 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     return q;
   }, "analytics_events");
 
-  // Waitlist uses only the range filter. We fetch all rows (including pre-tracking
-  // legacy entries) and split them in JS so we can show both counts.
-  const wlStart = rangeStart;
-
+  // Waitlist is filtered to the window (inclusive start, exclusive end) in SQL.
+  // We keep imports + pre-tracking legacy rows in the result and split them in
+  // JS so we can show every count separately.
   const waitlistPromise = fetchAllRows<WaitlistRow>((from, to) => {
     let q = supabaseAdmin!
       .from("waitlist")
       .select("visitor_id,first_utm_source,first_utm_medium,first_utm_campaign,first_utm_content,first_referrer,first_landing_page,first_ref_code,survey_must_have,created_at")
       .order("created_at", { ascending: true })
       .range(from, to);
-    if (wlStart) q = q.gte("created_at", wlStart);
+    if (rangeStart) q = q.gte("created_at", rangeStart);
+    if (rangeEnd) q = q.lt("created_at", rangeEnd);
     return q;
   }, "waitlist");
 
   const [events, waitlist] = await Promise.all([eventsPromise, waitlistPromise]);
 
-  // Events that actually fall inside the selected window. Used for everything
-  // EXCEPT source attribution (which needs the full `events` history above).
-  const windowedEvents = rangeStart ? events.filter(e => e.created_at >= rangeStart) : events;
+  // Events that actually fall inside the selected window (inclusive start,
+  // exclusive end). Used for everything EXCEPT source attribution, which needs
+  // the full `events` history above to compute each visitor's true first touch.
+  const windowedEvents = events.filter(
+    e => (!rangeStart || e.created_at >= rangeStart) && (!rangeEnd || e.created_at < rangeEnd)
+  );
 
-  // ── Split waitlist: tracked vs legacy ────────────────────────
-  // A signup is "tracked" when it has a visitor_id AND was created after the
-  // analytics tracking start date (if that date is configured).
-  // Legacy signups are excluded from all conversion rate calculations.
-  const trackedWaitlist = waitlist.filter(
+  // ── Split waitlist: imports vs real; tracked vs legacy ────────
+  // 1. Imports (backfilled contacts) are removed from all attribution up front.
+  // 2. Of the remaining REAL signups, a row is "tracked" when it has a
+  //    visitor_id AND was created after the tracking start date (if set).
+  //    Legacy = real but untracked; excluded from conversion rates.
+  const importWaitlist = waitlist.filter(isImportSignup);
+  const realWaitlist = waitlist.filter(w => !isImportSignup(w));
+  const trackedWaitlist = realWaitlist.filter(
     w => w.visitor_id !== null && (!trackingStart || w.created_at >= trackingStart)
   );
   const totalSignups = waitlist.length;
+  const importSignups = importWaitlist.length;
+  const realSignupCount = realWaitlist.length;
   const trackedSignups = trackedWaitlist.length;
-  const legacySignups = totalSignups - trackedSignups;
+  const legacySignups = realSignupCount - trackedSignups;
 
   // ── Per-event sets ───────────────────────────────────────────
   const allVisitors = new Set(windowedEvents.map(e => e.visitor_id));
@@ -481,6 +686,8 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     emailSubmitters,
     successfulSignups,
     totalSignups,
+    realSignups: realSignupCount,
+    importSignups,
     legacySignups,
     surveySubmitters,
     surveySkippers,
@@ -947,6 +1154,94 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     }))
     .sort((a, b) => b.sessions - a.sessions || b.signups - a.signups);
 
+  // ── Signups over time (per Chicago day, gap-filled) ────────────
+  // Signups = real (non-import) waitlist rows in the window, bucketed by the
+  // Chicago calendar day they were created. Visitors = distinct tracked
+  // visitors with any event that day. Both are gap-filled across the observed
+  // range so quiet days render as zero rather than collapsing the axis.
+  const signupsByDay: Record<string, number> = {};
+  for (const w of realWaitlist) {
+    const k = chicagoDayKey(w.created_at);
+    signupsByDay[k] = (signupsByDay[k] ?? 0) + 1;
+  }
+  const visitorsByDay: Record<string, Set<string>> = {};
+  for (const e of windowedEvents) {
+    (visitorsByDay[chicagoDayKey(e.created_at)] ??= new Set()).add(e.visitor_id);
+  }
+  const dayKeys = [...Object.keys(signupsByDay), ...Object.keys(visitorsByDay)].sort();
+  let signupsOverTime: TimePoint[] = [];
+  if (dayKeys.length > 0) {
+    const days = enumerateChicagoDays(dayKeys[0], dayKeys[dayKeys.length - 1]);
+    signupsOverTime = days.map(date => ({
+      date,
+      signups: signupsByDay[date] ?? 0,
+      visitors: visitorsByDay[date]?.size ?? 0,
+    }));
+  }
+
+  // ── Source chart data (import-free; % of real signups) ─────────
+  const totalSourceSignups = marketingSourceTotals.reduce((s, r) => s + r.signups, 0);
+  const sourceChart: SourceChartRow[] = marketingSourceTotals.map(r => ({
+    source: r.source,
+    visitors: r.visitors,
+    signups: r.signups,
+    conversionRate: r.conversionRate,
+    pctOfSignups: pct(r.signups, totalSourceSignups),
+  }));
+
+  // ── Campaign performance (utm_campaign rollup) ─────────────────
+  const campaignAgg: Record<string, { campaign: string; source: string; visitors: Set<string>; signups: number }> = {};
+  for (const b of cleanMarketingBuckets) {
+    if (!b.campaign) continue;
+    const key = `${b.source}||${b.campaign}`;
+    const c = (campaignAgg[key] ??= { campaign: b.campaign, source: b.source, visitors: new Set(), signups: 0 });
+    for (const v of b.visitors) c.visitors.add(v);
+    c.signups += b.signups;
+  }
+  const campaignPerformance: CampaignPerfRow[] = Object.values(campaignAgg)
+    .map(c => ({
+      campaign: c.campaign,
+      source: c.source,
+      visitors: c.visitors.size,
+      signups: c.signups,
+      conversionRate: pct(c.signups, c.visitors.size),
+      pctOfSignups: pct(c.signups, totalSourceSignups),
+    }))
+    .sort((a, b) => b.signups - a.signups || b.visitors - a.visitors);
+
+  // ── Content / creative performance (utm_content rollup) ────────
+  // Grouped by source + content so each ad/post/creative is its own row. This
+  // is the table that makes per-ad analysis work once ads ship a unique
+  // utm_content (e.g. graveyard_v2, prof_promo_v2).
+  const contentAgg: Record<string, { content: string; source: string; campaign: string | null; visitors: Set<string>; signups: number }> = {};
+  for (const b of cleanMarketingBuckets) {
+    if (!b.content) continue;
+    const key = `${b.source}||${b.content}`;
+    const c = (contentAgg[key] ??= { content: b.content, source: b.source, campaign: b.campaign, visitors: new Set(), signups: 0 });
+    for (const v of b.visitors) c.visitors.add(v);
+    c.signups += b.signups;
+  }
+  const contentPerformance: ContentRow[] = Object.values(contentAgg)
+    .map(c => ({
+      content: c.content,
+      source: c.source,
+      campaign: c.campaign,
+      visitors: c.visitors.size,
+      signups: c.signups,
+      conversionRate: pct(c.signups, c.visitors.size),
+    }))
+    .sort((a, b) => b.signups - a.signups || b.visitors - a.visitors);
+
+  // ── Imports breakdown (kept out of attribution entirely) ───────
+  const importBySource: Record<string, number> = {};
+  for (const w of importWaitlist) {
+    const src = (w.first_utm_source ?? "import").toLowerCase().trim() || "import";
+    importBySource[src] = (importBySource[src] ?? 0) + 1;
+  }
+  const imports: ImportRow[] = Object.entries(importBySource)
+    .map(([source, signups]) => ({ source, signups }))
+    .sort((a, b) => b.signups - a.signups);
+
   // ── Rule-based insights ───────────────────────────────────────
   const insights: Insight[] = [];
   const actions: ActionCard[] = [];
@@ -1039,8 +1334,14 @@ export async function fetchDashboardData(range: DateRange): Promise<DashboardDat
     unmatchedSignups,
     marketingDebug,
     campaigns,
+    signupsOverTime,
+    sourceChart,
+    campaignPerformance,
+    contentPerformance,
+    imports,
     insights,
     actions,
+    window,
     trackingStartDate: trackingStart,
   };
 }
