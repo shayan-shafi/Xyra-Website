@@ -28,7 +28,7 @@ import {
 import { getSourceColor, sourceLabel } from "@/lib/analyticsSource";
 import LoginForm from "./LoginForm";
 import RangeControls from "./RangeControls";
-import { SignupsOverTimeChart, SourceSignupsChart, SourceConversionChart } from "./Charts";
+import { SignupsPerDayChart, VisitorsPerDayChart, SourceSignupsChart, SourceConversionChart } from "./Charts";
 import AdminNav from "@/components/AdminNav";
 
 // ── Small helper components (server-rendered) ────────────────────────────────
@@ -842,13 +842,17 @@ function Dashboard({ data, window }: { data: DashboardData; window: ResolvedWind
 
         {/* Signups over time */}
         <Card className="mb-6">
-          <H2>Signups Over Time</H2>
-          <p className="text-xs text-gray-400 mb-4 leading-snug">
+          <H2>Real Signups Per Day</H2>
+          <p className="text-xs text-gray-400 mb-5 leading-snug">
             Real signups per day (imports excluded), grouped by America/Chicago date, across the
-            selected range. The gray line is unique visitors per day — useful for spotting traffic
-            spikes that did or didn&apos;t convert.
+            selected range.
           </p>
-          <SignupsOverTimeChart data={signupsOverTime} />
+          <SignupsPerDayChart data={signupsOverTime} />
+
+          {/* Visitors — secondary, supporting context, own scale */}
+          <div className="mt-6 pt-5 border-t border-gray-100">
+            <VisitorsPerDayChart data={signupsOverTime} />
+          </div>
         </Card>
 
         {/* Attribution charts */}
