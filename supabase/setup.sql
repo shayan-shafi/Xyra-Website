@@ -301,3 +301,62 @@ ALTER TABLE growth_email_templates ENABLE ROW LEVEL SECURITY;
 --     "image upload needs setup" state and the manual public-URL field still
 --     works.
 -- ============================================================
+
+
+-- ============================================================
+-- 11. Blog posts  (SEO/GEO content — public /blog + admin Blog tab)
+--     Long-form marketing/SEO content authored in the admin Blog dashboard
+--     and rendered at /blog and /blog/[slug]. Body is authored in Markdown.
+--
+--     Reads: PUBLIC. The anon role may SELECT only PUBLISHED posts (RLS below),
+--            so the public site can render them with the anon key. Drafts are
+--            invisible to anon and only readable via the service_role key.
+--     Writes: service_role only (the admin Blog dashboard). Anon has no
+--            INSERT/UPDATE/DELETE.
+--
+--     Safe to run multiple times (idempotent).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS blog_posts (
+  id               BIGSERIAL PRIMARY KEY,
+  slug             TEXT NOT NULL UNIQUE,          -- url segment, e.g. 'why-voice-first'
+  title            TEXT NOT NULL,
+  excerpt          TEXT,                          -- 1-2 sentence summary (list + meta fallback)
+  body_md          TEXT NOT NULL DEFAULT '',      -- Markdown source
+  cover_image      TEXT,                          -- public image URL (optional)
+  tags             TEXT[] NOT NULL DEFAULT '{}',  -- topical tags
+  author           TEXT NOT NULL DEFAULT 'Xyra',
+  status           TEXT NOT NULL DEFAULT 'draft', -- 'draft' | 'published'
+  seo_title        TEXT,                          -- optional <title> override
+  seo_description  TEXT,                          -- optional meta description override
+  published_at     TIMESTAMPTZ,                   -- set when first published
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Fast "published, newest first" listing and slug lookups.
+CREATE INDEX IF NOT EXISTS idx_blog_posts_status_published
+  ON blog_posts (status, published_at DESC);
+
+ALTER TABLE blog_posts ENABLE ROW LEVEL SECURITY;
+
+-- Anon may read ONLY published posts. Drafts stay private (service_role only).
+DROP POLICY IF EXISTS "Allow anonymous read published posts" ON blog_posts;
+CREATE POLICY "Allow anonymous read published posts" ON blog_posts
+  FOR SELECT TO anon
+  USING (status = 'published');
+-- No anon INSERT/UPDATE/DELETE policies: only the service_role key (the admin
+-- Blog dashboard) can create, edit, publish, or delete posts.
+
+-- Keep updated_at fresh on every write.
+CREATE OR REPLACE FUNCTION set_blog_posts_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_blog_posts_updated_at ON blog_posts;
+CREATE TRIGGER trg_blog_posts_updated_at
+  BEFORE UPDATE ON blog_posts
+  FOR EACH ROW EXECUTE FUNCTION set_blog_posts_updated_at();

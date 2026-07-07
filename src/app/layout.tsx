@@ -4,6 +4,7 @@ import { Playfair_Display, EB_Garamond, JetBrains_Mono } from "next/font/google"
 import "./globals.css";
 import SmoothScroll from "@/components/SmoothScroll";
 import AnalyticsProvider from "@/components/AnalyticsProvider";
+import { SITE_URL } from "@/lib/site";
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -24,6 +25,10 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  alternates: {
+    types: { "application/rss+xml": "/blog/rss.xml" },
+  },
   title: "Xyra — The AI-Native Personal Operating System",
   description:
     "You speak, Xyra builds. Replace fragmented productivity tools with a single conversational interface. Join the beta waitlist.",
