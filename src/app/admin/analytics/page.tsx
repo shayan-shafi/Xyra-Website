@@ -1,12 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import { cookies } from "next/headers";
-import Link from "next/link";
 import { ADMIN_COOKIE, isValidAdminToken } from "@/lib/adminAuth";
 import {
   fetchDashboardData,
-  type DateRange,
+  resolveWindow,
   type DashboardData,
+  type ResolvedWindow,
   type FunnelStep,
   type TrafficSource,
   type CtaRow,
@@ -19,10 +19,16 @@ import {
   type UnmatchedSignupRow,
   type MarketingRowDebug,
   type CampaignRow,
+  type CampaignPerfRow,
+  type ContentRow,
+  type ImportRow,
   type Insight,
   type ActionCard,
 } from "./data";
+import { getSourceColor, sourceLabel } from "@/lib/analyticsSource";
 import LoginForm from "./LoginForm";
+import RangeControls from "./RangeControls";
+import { SignupsOverTimeChart, SourceSignupsChart, SourceConversionChart } from "./Charts";
 import AdminNav from "@/components/AdminNav";
 
 // ── Small helper components (server-rendered) ────────────────────────────────
@@ -593,17 +599,150 @@ function CampaignTable({ rows }: { rows: CampaignRow[] }) {
   );
 }
 
-// ── Date range nav ────────────────────────────────────────────────────────────
+// ── Source label chip (consistent color dot) ───────────────────────────────────
 
-const DATE_RANGES: { label: string; value: DateRange }[] = [
-  { label: "Last 7 days", value: "7d" },
-  { label: "Last 30 days", value: "30d" },
-  { label: "All time", value: "all" },
-];
+function SourceChip({ source }: { source: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ background: getSourceColor(source) }} />
+      <span className="font-medium text-gray-800">{sourceLabel(source)}</span>
+    </span>
+  );
+}
+
+// ── Campaign performance (utm_campaign) ─────────────────────────────────────────
+
+function CampaignPerfTable({ rows }: { rows: CampaignPerfRow[] }) {
+  if (rows.length === 0) return <Empty />;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[560px]">
+        <thead>
+          <tr>
+            <Th>Campaign</Th>
+            <Th>Source</Th>
+            <Th right>Visitors</Th>
+            <Th right>Signups</Th>
+            <Th right>% of signups</Th>
+            <Th right>Conv.</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <Td><span className="font-medium text-gray-800 break-words">{r.campaign}</span></Td>
+              <Td><SourceChip source={r.source} /></Td>
+              <Td right>{r.visitors.toLocaleString()}</Td>
+              <Td right>{r.signups.toLocaleString()}</Td>
+              <Td right>{r.pctOfSignups}%</Td>
+              <Td right><ConvBadge rate={r.conversionRate} /></Td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Content / creative performance (utm_content) ────────────────────────────────
+
+function ContentTable({ rows }: { rows: ContentRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <p className="text-sm text-gray-400 italic leading-snug">
+        No <span className="font-mono not-italic">utm_content</span> tags in this range yet. Give each
+        ad/creative a unique <span className="font-mono not-italic">utm_content</span> (e.g.{" "}
+        <span className="font-mono not-italic">graveyard_v2</span>) to compare them here.
+      </p>
+    );
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[560px]">
+        <thead>
+          <tr>
+            <Th>Content / Creative</Th>
+            <Th>Source</Th>
+            <Th>Campaign</Th>
+            <Th right>Visitors</Th>
+            <Th right>Signups</Th>
+            <Th right>Conv.</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <Td><span className="font-medium text-gray-800 break-words">{r.content}</span></Td>
+              <Td><SourceChip source={r.source} /></Td>
+              <Td>{dash(r.campaign)}</Td>
+              <Td right>{r.visitors.toLocaleString()}</Td>
+              <Td right>{r.signups.toLocaleString()}</Td>
+              <Td right><ConvBadge rate={r.conversionRate} /></Td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Imported-contacts note (kept out of attribution) ────────────────────────────
+
+function ImportNote({ imports, total }: { imports: ImportRow[]; total: number }) {
+  if (total === 0) return null;
+  return (
+    <div className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-6 text-sm text-slate-700">
+      <span className="shrink-0 mt-0.5">📥</span>
+      <div className="leading-snug">
+        <strong>{total.toLocaleString()} imported {total === 1 ? "contact" : "contacts"}</strong> in this
+        range {total === 1 ? "is" : "are"} <strong>excluded</strong> from all conversion and source
+        attribution — these are backfilled contacts, not organic signups.
+        {imports.length > 0 && (
+          <span className="text-slate-500">
+            {" "}Breakdown:{" "}
+            {imports.map((im, i) => (
+              <span key={im.source}>
+                {i > 0 && ", "}
+                <span className="font-mono">{im.source}</span> {im.signups}
+              </span>
+            ))}
+            .
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Data caveats (founder-readable) ─────────────────────────────────────────────
+
+function CaveatsCard() {
+  const items = [
+    "“Direct / unknown” may include people who saw an Instagram ad and later typed the site in manually, tapped an untagged link-in-bio, or came from an in-person demo — it is not a clean channel.",
+    "Source attribution now recognizes more referrers such as TikTok, Reddit, Google, Facebook, X/Twitter, and LinkedIn. Some traffic that previously appeared as Direct/Unknown may now appear under its actual source.",
+    "Imported contacts (survey_import / notion_import) are excluded from conversion and source attribution, and shown only in the note above.",
+    "Conversion rates depend on available visitor/session data — a signup whose visit wasn’t tracked (ad blocker, private browsing) can’t be tied to a source.",
+    "Each visitor’s source uses their true first-ever touch across all history, so it doesn’t change with the selected date range. Campaign/session rows below instead credit the link that actually converted.",
+    "Custom ranges use America/Chicago dates with an inclusive start and exclusive end.",
+  ];
+  return (
+    <Card className="mb-6">
+      <H2>How to read this</H2>
+      <ul className="space-y-2">
+        {items.map((t, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm text-gray-600 leading-snug">
+            <span className="text-gray-300 mt-0.5">•</span>
+            <span>{t}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
+function Dashboard({ data, window }: { data: DashboardData; window: ResolvedWindow }) {
   const {
     summary,
     funnel,
@@ -619,6 +758,11 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
     unmatchedSignups,
     marketingDebug,
     campaigns,
+    signupsOverTime,
+    sourceChart,
+    campaignPerformance,
+    contentPerformance,
+    imports,
     insights,
     actions,
     trackingStartDate,
@@ -641,21 +785,13 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
             <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-gray-900">Analytics</h1>
             <p className="font-[family-name:var(--font-eb-garamond)] text-base text-gray-500 mt-1">Xyra website · first-party only · private</p>
           </div>
-          <div className="flex items-center gap-1.5">
-            {DATE_RANGES.map(r => (
-              <Link
-                key={r.value}
-                href={`/admin/analytics?range=${r.value}`}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-medium font-[family-name:var(--font-jetbrains)] tracking-wide transition-colors ${
-                  range === r.value
-                    ? "bg-black text-white"
-                    : "bg-white text-gray-600 border border-gray-200 hover:border-gray-400 hover:text-gray-900"
-                }`}
-              >
-                {r.label}
-              </Link>
-            ))}
-          </div>
+          <RangeControls
+            preset={window.preset}
+            startDateCT={window.startDateCT}
+            endDateCT={window.endDateCT}
+            windowLabel={window.label}
+            error={window.error}
+          />
         </div>
 
         {/* Tracking note — only shown when legacy signups exist */}
@@ -675,14 +811,21 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
           </div>
         )}
 
+        {/* Imported-contacts note — only when imports fall in this range */}
+        <ImportNote imports={imports} total={summary.importSignups} />
+
         {/* Summary row 1: core KPIs */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-3">
           <StatCard label="Visitors" value={summary.uniqueVisitors.toLocaleString()} sub="unique people" />
-          <StatCard label="Sessions" value={summary.totalSessions.toLocaleString()} sub="visits, incl. repeats" />
+          <StatCard
+            label="Real signups"
+            value={summary.realSignups.toLocaleString()}
+            sub={summary.importSignups > 0 ? `imports excluded (+${summary.importSignups})` : "imports excluded"}
+          />
           <StatCard
             label="Tracked signups"
             value={summary.successfulSignups.toLocaleString()}
-            sub={summary.legacySignups > 0 ? `+${summary.legacySignups} pre-tracking` : undefined}
+            sub={summary.legacySignups > 0 ? `+${summary.legacySignups} pre-tracking` : "used for conv. rates"}
           />
           <StatCard label="Conversion" value={`${summary.conversionRate}%`} sub="tracked visitors→signup" />
           <StatCard label="Survey rate" value={`${summary.surveyCompletionRate}%`} sub="tracked signups→survey" />
@@ -695,6 +838,58 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
           <StatCard label="Email submits" value={summary.emailSubmitters.toLocaleString()} />
           <StatCard label="Survey submits" value={summary.surveySubmitters.toLocaleString()} />
           <StatCard label="Survey skips" value={summary.surveySkippers.toLocaleString()} />
+        </div>
+
+        {/* Signups over time */}
+        <Card className="mb-6">
+          <H2>Signups Over Time</H2>
+          <p className="text-xs text-gray-400 mb-4 leading-snug">
+            Real signups per day (imports excluded), grouped by America/Chicago date, across the
+            selected range. The gray line is unique visitors per day — useful for spotting traffic
+            spikes that did or didn&apos;t convert.
+          </p>
+          <SignupsOverTimeChart data={signupsOverTime} />
+        </Card>
+
+        {/* Attribution charts */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <Card>
+            <H2>Signups by Source</H2>
+            <p className="text-xs text-gray-400 mb-4 leading-snug">
+              Which source drove the most signups in this range. Colors are consistent across every
+              chart and table.
+            </p>
+            <SourceSignupsChart data={sourceChart} />
+          </Card>
+          <Card>
+            <H2>Conversion by Source</H2>
+            <p className="text-xs text-gray-400 mb-4 leading-snug">
+              Signup rate per source (sources with at least 3 tracked visitors, to avoid
+              low-volume noise). Answers &quot;which source converts best&quot;.
+            </p>
+            <SourceConversionChart data={sourceChart} />
+          </Card>
+        </div>
+
+        {/* Campaign + Content performance */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <Card>
+            <H2>Campaign Performance</H2>
+            <p className="text-xs text-gray-400 mb-4 leading-snug">
+              By <span className="font-mono">utm_campaign</span> — rolled up across creatives.
+              Signups credited to the session that converted; imports excluded.
+            </p>
+            <CampaignPerfTable rows={campaignPerformance} />
+          </Card>
+          <Card>
+            <H2>Content / Creative Performance</H2>
+            <p className="text-xs text-gray-400 mb-4 leading-snug">
+              By <span className="font-mono">utm_content</span> — one row per ad/post/creative. This
+              is where future paid ads (e.g. <span className="font-mono">graveyard_v2</span>,{" "}
+              <span className="font-mono">prof_promo_v2</span>) show up individually.
+            </p>
+            <ContentTable rows={contentPerformance} />
+          </Card>
         </div>
 
         {/* Funnel */}
@@ -910,6 +1105,9 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
           <CampaignTable rows={campaigns} />
         </details>
 
+        {/* Data caveats */}
+        <CaveatsCard />
+
         <p className="text-center text-xs text-gray-300 py-4">
           First-party analytics · No ad tracking · Xyra internal tool
         </p>
@@ -920,10 +1118,15 @@ function Dashboard({ data, range }: { data: DashboardData; range: DateRange }) {
 
 // ── Page entry point ──────────────────────────────────────────────────────────
 
+function first(v: string | string[] | undefined): string | null {
+  if (Array.isArray(v)) return v[0] ?? null;
+  return v ?? null;
+}
+
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: { range?: string | string[] };
+  searchParams: { range?: string | string[]; start?: string | string[]; end?: string | string[] };
 }) {
   const cookieStore = cookies();
   const token = cookieStore.get(ADMIN_COOKIE)?.value;
@@ -932,11 +1135,13 @@ export default async function AnalyticsPage({
     return <LoginForm />;
   }
 
-  const rawRange = Array.isArray(searchParams.range) ? searchParams.range[0] : searchParams.range;
-  const range: DateRange =
-    rawRange === "7d" ? "7d" : rawRange === "all" ? "all" : "30d";
+  const window = resolveWindow({
+    range: first(searchParams.range),
+    start: first(searchParams.start),
+    end: first(searchParams.end),
+  });
 
-  const data = await fetchDashboardData(range);
+  const data = await fetchDashboardData(window);
 
   if (!data) {
     return (
@@ -949,5 +1154,5 @@ export default async function AnalyticsPage({
     );
   }
 
-  return <Dashboard data={data} range={range} />;
+  return <Dashboard data={data} window={window} />;
 }
