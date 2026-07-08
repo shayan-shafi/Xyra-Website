@@ -315,6 +315,15 @@ export default function EmailOps({
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
 
+  // Saved recipient groups (load into / save from the recipient list). Loading a
+  // group only populates recipients — it never sends; the guarded send flow is
+  // unchanged.
+  const [groups, setGroups] = useState<{ id: number; name: string; memberCount: number }[]>([]);
+  const [loadedGroupName, setLoadedGroupName] = useState<string | null>(null);
+  const [showSaveGroup, setShowSaveGroup] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [groupDesc, setGroupDesc] = useState("");
+
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(RECIPIENTS_KEY);
@@ -484,8 +493,56 @@ export default function EmailOps({
 
   const clearRecipients = useCallback(() => {
     setRecipients([]);
+    setLoadedGroupName(null);
     try { sessionStorage.removeItem(RECIPIENTS_KEY); } catch { /* ignore */ }
   }, []);
+
+  const refreshGroups = useCallback(async () => {
+    try {
+      const res = await fetch("/admin/growth/email/recipient-groups");
+      const json = await res.json();
+      if (res.ok && !json.setupNeeded) {
+        const gs = (json.groups ?? []) as { id: number; name: string; memberCount: number }[];
+        setGroups(gs.map(g => ({ id: g.id, name: g.name, memberCount: g.memberCount })));
+      }
+    } catch { /* groups just won't show */ }
+  }, []);
+
+  useEffect(() => { void refreshGroups(); }, [refreshGroups]);
+
+  // Load a saved group into the recipient list. This ONLY populates recipients —
+  // it does not send. The admin still previews / dry-runs / confirms as usual.
+  const loadGroup = useCallback(async (id: number) => {
+    setBusy(true); setMessage(null);
+    try {
+      const res = await fetch(`/admin/growth/email/recipient-groups/${id}/use`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) { setMessage(json.error ?? `Failed to load group (${res.status})`); return; }
+      const members = (json.group?.members ?? []) as { email: string; name: string | null }[];
+      const staged: StagedRecipient[] = members.map(m => ({ name: m.name, email: m.email, refCode: null }));
+      setRecipients(staged);
+      try { sessionStorage.setItem(RECIPIENTS_KEY, JSON.stringify(staged)); } catch { /* ignore */ }
+      setLoadedGroupName(json.group?.name ?? null);
+      setMessage(`Loaded ${staged.length} recipient(s) from “${json.group?.name}”. Nothing was sent — review, then preview/test/send as usual.`);
+    } catch (e) { setMessage(`Load error: ${String(e)}`); } finally { setBusy(false); }
+  }, []);
+
+  const saveAsGroup = useCallback(async () => {
+    if (!groupName.trim()) { setMessage("Name the group first."); return; }
+    setBusy(true); setMessage(null);
+    try {
+      const members = recipients.map(r => ({ email: r.email, name: r.name }));
+      const res = await fetch("/admin/growth/email/recipient-groups", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: groupName, description: groupDesc, members }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setMessage(json.error ?? `Save failed (${res.status})`); return; }
+      setMessage(`Saved ${json.memberCount} recipient(s) as “${json.name}”.`);
+      setShowSaveGroup(false); setGroupName(""); setGroupDesc("");
+      void refreshGroups();
+    } catch (e) { setMessage(`Save error: ${String(e)}`); } finally { setBusy(false); }
+  }, [groupName, groupDesc, recipients, refreshGroups]);
 
   const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-800 focus:outline-none focus:border-gray-400 bg-white";
   const labelCls = "font-[family-name:var(--font-jetbrains)] text-[10px] uppercase tracking-[0.12em] text-gray-400";
@@ -621,6 +678,39 @@ export default function EmailOps({
             <h2 className={h2Cls}>Selected recipients</h2>
             <span className="font-[family-name:var(--font-jetbrains)] text-xs text-gray-500">{recipients.length} staged</span>
           </div>
+
+          {/* Saved recipient groups — load into / save from this list */}
+          <div className="flex flex-wrap items-center gap-2 mt-2 mb-3">
+            <select
+              value=""
+              onChange={e => { const id = Number(e.target.value); if (id) void loadGroup(id); e.currentTarget.value = ""; }}
+              disabled={busy || groups.length === 0}
+              className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white disabled:opacity-50"
+            >
+              <option value="">{groups.length === 0 ? "No saved groups" : "Load saved group…"}</option>
+              {groups.map(g => <option key={g.id} value={g.id}>{g.name} ({g.memberCount})</option>)}
+            </select>
+            <button type="button" onClick={() => setShowSaveGroup(s => !s)} disabled={recipients.length === 0} className="px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50">
+              Save current as group
+            </button>
+            <a href="/admin/growth/email/groups" className="text-xs text-gray-500 underline hover:text-gray-800">Manage groups</a>
+          </div>
+          {loadedGroupName && (
+            <p className="text-[11px] text-gray-400 mb-2">Loaded from group <span className="font-medium text-gray-600">“{loadedGroupName}”</span> — edit freely before sending.</p>
+          )}
+          {showSaveGroup && (
+            <div className="mb-3 rounded-xl border border-gray-200 p-3 space-y-2">
+              <input className={inputCls} value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Group name (e.g. Alpha Group 1)" />
+              <input className={inputCls} value={groupDesc} onChange={e => setGroupDesc(e.target.value)} placeholder="Description (optional)" />
+              <div className="flex gap-2">
+                <button type="button" onClick={saveAsGroup} disabled={busy || recipients.length === 0} className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-black text-white hover:bg-gray-800 disabled:opacity-50">
+                  Save {recipients.length} as group
+                </button>
+                <button type="button" onClick={() => setShowSaveGroup(false)} className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200">Cancel</button>
+              </div>
+            </div>
+          )}
+
           {recipients.length === 0 ? (
             <p className="font-[family-name:var(--font-eb-garamond)] text-sm text-gray-500 leading-snug">
               None staged. Go to <span className="font-semibold">Growth</span>, select users, and click <span className="font-semibold">“Email selected →”</span>. Preview and test-send work without recipients.
