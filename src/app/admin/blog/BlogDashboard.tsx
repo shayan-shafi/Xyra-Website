@@ -8,12 +8,16 @@ import type { AdminBlogPost, BlogAdminData } from "./data";
 // Client dashboard for authoring + monitoring blog posts. The server page
 // (page.tsx) gates auth and passes the initial data; mutations hit the
 // /admin/blog/* routes and then router.refresh() re-pulls fresh server data.
+//
+// "New post" opens a mode chooser with two paths:
+//   • AI Drafts — agentic: hand it topics (or let it suggest some), it drafts
+//     full posts that appear as review cards you can preview / edit / publish.
+//   • Write — a clean, focused editor for writing or pasting a post by hand.
 
 // ── small pure helpers ───────────────────────────────────────────────────────
 function slugify(input: string): string {
   return input
-    .toLowerCase()
-    .trim()
+    .toLowerCase().trim()
     .replace(/['"]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
@@ -48,7 +52,12 @@ function emptyEditor(): EditorState {
   };
 }
 
-function editorFromPost(p: AdminBlogPost): EditorState {
+type PostLike = Pick<
+  AdminBlogPost,
+  "id" | "title" | "slug" | "excerpt" | "tags" | "cover_image" | "author" | "status" | "seo_title" | "seo_description" | "body_md"
+>;
+
+function editorFromPost(p: PostLike): EditorState {
   return {
     id: p.id,
     title: p.title,
@@ -63,6 +72,15 @@ function editorFromPost(p: AdminBlogPost): EditorState {
     seo_description: p.seo_description ?? "",
     body_md: p.body_md ?? "",
   };
+}
+
+// A draft produced by the agentic flow, tracked per topic.
+interface GenDraft {
+  key: string;
+  topic: string;
+  state: "pending" | "done" | "error";
+  error?: string;
+  post?: PostLike; // the persisted draft row
 }
 
 // ── presentational bits (match the other admin dashboards) ───────────────────
@@ -93,13 +111,23 @@ const inputCls =
 
 export default function BlogDashboard({ initialData }: { initialData: BlogAdminData | null }) {
   const router = useRouter();
+
+  // modal: which surface of the "New post" flow (or edit) is open
+  const [modal, setModal] = useState<"choose" | "ai" | "write" | null>(null);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [tab, setTab] = useState<"write" | "preview">("write");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
-  const [aiPrompt, setAiPrompt] = useState("");
+
+  // agentic drafting state
+  const [topicsText, setTopicsText] = useState("");
+  const [angle, setAngle] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
+  const [suggestBusy, setSuggestBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [genDrafts, setGenDrafts] = useState<GenDraft[]>([]);
+  const [previewKey, setPreviewKey] = useState<string | null>(null);
 
   // ── setup notice (no service-role key) ─────────────────────────────────────
   if (!initialData) {
@@ -120,17 +148,21 @@ export default function BlogDashboard({ initialData }: { initialData: BlogAdminD
 
   const { counts, posts } = initialData;
 
-  // ── mutations ──────────────────────────────────────────────────────────────
+  // ── shared fetch helper ────────────────────────────────────────────────────
   async function postJson(url: string, body: unknown): Promise<{ ok: boolean; data: Record<string, unknown> }> {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     return { ok: res.ok, data };
   }
 
+  function closeModal() {
+    setModal(null);
+    setEditor(null);
+    setError(null);
+    setConfirmDelete(null);
+  }
+
+  // ── manual editor mutations ────────────────────────────────────────────────
   async function save(publishOverride?: "draft" | "published") {
     if (!editor) return;
     setError(null);
@@ -152,7 +184,7 @@ export default function BlogDashboard({ initialData }: { initialData: BlogAdminD
     const { ok, data } = await postJson("/admin/blog/save", payload);
     setBusy(false);
     if (!ok) { setError((data.error as string) ?? "Save failed."); return; }
-    setEditor(null);
+    closeModal();
     router.refresh();
   }
 
@@ -173,35 +205,96 @@ export default function BlogDashboard({ initialData }: { initialData: BlogAdminD
     router.refresh();
   }
 
-  async function draftWithAI() {
-    if (!editor || !aiPrompt.trim()) return;
-    setError(null);
-    setAiBusy(true);
-    const { ok, data } = await postJson("/admin/blog/generate-draft", { prompt: aiPrompt });
-    setAiBusy(false);
-    if (!ok) { setError((data.error as string) ?? "AI draft failed."); return; }
-    const d = (data.draft ?? {}) as Record<string, unknown>;
-    setEditor((e) => e && ({
-      ...e,
-      title: (d.title as string) || e.title,
-      slug: (d.slug as string) || e.slug,
-      slugTouched: true,
-      excerpt: (d.excerpt as string) ?? e.excerpt,
-      tags: Array.isArray(d.tags) ? (d.tags as string[]).join(", ") : e.tags,
-      seo_title: (d.seo_title as string) ?? e.seo_title,
-      seo_description: (d.seo_description as string) ?? e.seo_description,
-      body_md: (d.body_md as string) || e.body_md,
-    }));
-    setAiPrompt("");
-  }
-
   const set = <K extends keyof EditorState>(key: K, value: EditorState[K]) =>
     setEditor((e) => (e ? { ...e, [key]: value } : e));
+
+  // ── agentic drafting ───────────────────────────────────────────────────────
+  async function suggestTopics() {
+    setAiError(null);
+    setSuggestBusy(true);
+    const { ok, data } = await postJson("/admin/blog/suggest-topics", { angle, count: 6 });
+    setSuggestBusy(false);
+    if (!ok) { setAiError((data.error as string) ?? "Couldn't suggest topics."); return; }
+    const topics = Array.isArray(data.topics) ? (data.topics as string[]) : [];
+    setTopicsText((prev) => [prev.trim(), ...topics].filter(Boolean).join("\n"));
+  }
+
+  async function generateDrafts() {
+    const lines = topicsText.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) { setAiError("Add at least one topic (one per line)."); return; }
+    setAiError(null);
+    setAiBusy(true);
+
+    const queued: GenDraft[] = lines.map((topic, i) => ({ key: `g${Date.now()}_${i}`, topic, state: "pending" }));
+    setGenDrafts((prev) => [...queued, ...prev]);
+
+    for (const item of queued) {
+      // 1) draft the post
+      const gen = await postJson("/admin/blog/generate-draft", { prompt: item.topic });
+      if (!gen.ok) {
+        setGenDrafts((prev) => prev.map((d) => d.key === item.key ? { ...d, state: "error", error: (gen.data.error as string) ?? "Draft failed." } : d));
+        continue;
+      }
+      const draft = (gen.data.draft ?? {}) as Record<string, unknown>;
+      // 2) persist it as a draft so it survives and shows in the list
+      const savePayload = {
+        id: null,
+        title: (draft.title as string) || item.topic,
+        slug: (draft.slug as string) || slugify(item.topic),
+        excerpt: (draft.excerpt as string) ?? "",
+        tags: Array.isArray(draft.tags) ? (draft.tags as string[]) : [],
+        cover_image: "",
+        author: "Xyra",
+        status: "draft",
+        seo_title: (draft.seo_title as string) ?? "",
+        seo_description: (draft.seo_description as string) ?? "",
+        body_md: (draft.body_md as string) ?? "",
+      };
+      const saved = await postJson("/admin/blog/save", savePayload);
+      if (!saved.ok) {
+        setGenDrafts((prev) => prev.map((d) => d.key === item.key ? { ...d, state: "error", error: (saved.data.error as string) ?? "Save failed." } : d));
+        continue;
+      }
+      const post = saved.data.post as PostLike;
+      setGenDrafts((prev) => prev.map((d) => d.key === item.key ? { ...d, state: "done", post } : d));
+    }
+
+    setAiBusy(false);
+    setTopicsText("");
+    router.refresh();
+  }
+
+  async function publishGenerated(d: GenDraft) {
+    if (!d.post) return;
+    setBusy(true);
+    const { ok, data } = await postJson("/admin/blog/publish", { id: d.post.id, publish: true });
+    setBusy(false);
+    if (!ok) { setAiError((data.error as string) ?? "Publish failed."); return; }
+    setGenDrafts((prev) => prev.map((x) => x.key === d.key && x.post ? { ...x, post: { ...x.post, status: "published" } } : x));
+    router.refresh();
+  }
+
+  async function discardGenerated(d: GenDraft) {
+    if (d.post) {
+      setBusy(true);
+      await postJson("/admin/blog/delete", { id: d.post.id });
+      setBusy(false);
+    }
+    setGenDrafts((prev) => prev.filter((x) => x.key !== d.key));
+    router.refresh();
+  }
+
+  function editGenerated(d: GenDraft) {
+    if (!d.post) return;
+    setEditor(editorFromPost(d.post));
+    setTab("write");
+    setModal("write");
+  }
 
   // ── render ─────────────────────────────────────────────────────────────────
   return (
     <div>
-      {error && !editor && (
+      {error && !modal && (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
@@ -217,7 +310,7 @@ export default function BlogDashboard({ initialData }: { initialData: BlogAdminD
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-[family-name:var(--font-playfair)] text-lg text-gray-900">Posts</h2>
         <button
-          onClick={() => { setEditor(emptyEditor()); setTab("write"); setError(null); }}
+          onClick={() => { setModal("choose"); setError(null); }}
           className="rounded-full bg-black px-4 py-2 text-xs font-medium text-white font-[family-name:var(--font-jetbrains)] tracking-wide hover:bg-gray-800 transition-colors"
         >
           + New post
@@ -257,7 +350,7 @@ export default function BlogDashboard({ initialData }: { initialData: BlogAdminD
                         {p.status === "published" && (
                           <a href={`/blog/${p.slug}`} target="_blank" className="text-xs text-gray-500 hover:text-gray-900 px-2 py-1">View</a>
                         )}
-                        <button onClick={() => { setEditor(editorFromPost(p)); setTab("write"); setError(null); }} className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1">Edit</button>
+                        <button onClick={() => { setEditor(editorFromPost(p)); setTab("write"); setError(null); setModal("write"); }} className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1">Edit</button>
                         <button disabled={busy} onClick={() => togglePublish(p)} className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1 disabled:opacity-40">
                           {p.status === "published" ? "Unpublish" : "Publish"}
                         </button>
@@ -279,10 +372,146 @@ export default function BlogDashboard({ initialData }: { initialData: BlogAdminD
         )}
       </div>
 
-      {/* Editor modal */}
-      {editor && (
+      {/* ── Mode chooser ─────────────────────────────────────────────────────── */}
+      {modal === "choose" && (
+        <ModalShell onClose={closeModal} title="New post" widthClass="sm:max-w-2xl">
+          <p className="text-sm text-gray-500 mb-6">How do you want to create this post?</p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <button
+              onClick={() => { setModal("ai"); setAiError(null); }}
+              className="group text-left rounded-2xl border border-gray-200 bg-white p-6 hover:border-indigo-400 hover:shadow-sm transition-all"
+            >
+              <div className="text-2xl">✨</div>
+              <div className="mt-3 font-[family-name:var(--font-playfair)] text-lg text-gray-900">Draft with AI</div>
+              <p className="mt-1 text-sm text-gray-500 leading-relaxed">
+                Hand it topics (or let it suggest some). Agents draft full posts you can preview, edit, and publish.
+              </p>
+              <span className="mt-4 inline-block text-xs font-medium text-indigo-600 group-hover:translate-x-0.5 transition-transform">Agentic drafting →</span>
+            </button>
+            <button
+              onClick={() => { setEditor(emptyEditor()); setTab("write"); setModal("write"); }}
+              className="group text-left rounded-2xl border border-gray-200 bg-white p-6 hover:border-gray-900 hover:shadow-sm transition-all"
+            >
+              <div className="text-2xl">✍️</div>
+              <div className="mt-3 font-[family-name:var(--font-playfair)] text-lg text-gray-900">Write it myself</div>
+              <p className="mt-1 text-sm text-gray-500 leading-relaxed">
+                A clean editor to write in Markdown or paste something in. Full control over every field.
+              </p>
+              <span className="mt-4 inline-block text-xs font-medium text-gray-900 group-hover:translate-x-0.5 transition-transform">Open editor →</span>
+            </button>
+          </div>
+        </ModalShell>
+      )}
+
+      {/* ── Agentic drafting surface ─────────────────────────────────────────── */}
+      {modal === "ai" && (
+        <ModalShell
+          onClose={closeModal}
+          title="Draft with AI"
+          widthClass="sm:max-w-4xl"
+          headerExtra={
+            <button
+              onClick={() => { setEditor(emptyEditor()); setTab("write"); setModal("write"); }}
+              className="text-sm text-gray-500 hover:text-gray-800 px-3 py-1.5"
+            >
+              Write manually
+            </button>
+          }
+        >
+          {aiError && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{aiError}</div>}
+
+          {/* Composer */}
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-[family-name:var(--font-jetbrains)] text-[10px] font-medium text-indigo-500 uppercase tracking-[0.12em]">Topics — one per line</span>
+              <div className="flex items-center gap-2">
+                <input
+                  value={angle}
+                  onChange={(e) => setAngle(e.target.value)}
+                  placeholder="angle (optional)"
+                  className="rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs text-gray-700 focus:outline-none focus:border-indigo-400 w-40"
+                />
+                <button disabled={suggestBusy} onClick={suggestTopics} className="rounded-full border border-indigo-300 text-indigo-700 text-xs px-3 py-1 hover:bg-indigo-100 disabled:opacity-40 transition-colors">
+                  {suggestBusy ? "Thinking…" : "Suggest topics"}
+                </button>
+              </div>
+            </div>
+            <textarea
+              value={topicsText}
+              onChange={(e) => setTopicsText(e.target.value)}
+              rows={5}
+              placeholder={"Why voice-first beats app-switching for daily planning\nHow a personal knowledge graph ends the productivity-app graveyard\nThe case against 12 separate apps for one life"}
+              className={`${inputCls} bg-white resize-y font-[family-name:var(--font-jetbrains)] text-[13px] leading-relaxed`}
+            />
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-[11px] text-indigo-400">Each line becomes a full draft, saved for review. Nothing publishes automatically.</span>
+              <button disabled={aiBusy || !topicsText.trim()} onClick={generateDrafts} className="rounded-full bg-indigo-600 text-white text-xs px-5 py-2 disabled:opacity-40 hover:bg-indigo-700 transition-colors">
+                {aiBusy ? "Drafting…" : `Generate ${topicsText.split("\n").map((l) => l.trim()).filter(Boolean).length || ""} draft${topicsText.split("\n").map((l) => l.trim()).filter(Boolean).length === 1 ? "" : "s"}`.trim()}
+              </button>
+            </div>
+          </div>
+
+          {/* Review queue */}
+          {genDrafts.length === 0 ? (
+            <p className="text-sm text-gray-400 italic text-center py-8">
+              Drafts you generate appear here to review. They&apos;re also saved as drafts in the list.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {genDrafts.map((d) => (
+                <div key={d.key} className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                  <div className="flex items-start justify-between gap-4 p-4">
+                    <div className="min-w-0">
+                      {d.state === "pending" && (
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <span className="inline-block h-3 w-3 rounded-full border-2 border-indigo-300 border-t-indigo-600 animate-spin" />
+                          Drafting “{d.topic}”…
+                        </div>
+                      )}
+                      {d.state === "error" && (
+                        <div className="text-sm text-red-600">Failed: {d.topic} <span className="text-red-400">— {d.error}</span></div>
+                      )}
+                      {d.state === "done" && d.post && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900 truncate">{d.post.title}</span>
+                            <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${d.post.status === "published" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>{d.post.status}</span>
+                          </div>
+                          {d.post.excerpt && <p className="mt-1 text-xs text-gray-500 line-clamp-2">{d.post.excerpt}</p>}
+                          <div className="mt-1 text-[11px] text-gray-400 font-mono">/blog/{d.post.slug}</div>
+                        </>
+                      )}
+                    </div>
+                    {d.state === "done" && d.post && (
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button onClick={() => setPreviewKey(previewKey === d.key ? null : d.key)} className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1">{previewKey === d.key ? "Hide" : "Preview"}</button>
+                        <button onClick={() => editGenerated(d)} className="text-xs text-gray-600 hover:text-gray-900 px-2 py-1">Edit</button>
+                        {d.post.status !== "published" && (
+                          <button disabled={busy} onClick={() => publishGenerated(d)} className="text-xs text-white bg-black hover:bg-gray-800 rounded-full px-3 py-1 disabled:opacity-40">Publish</button>
+                        )}
+                        <button disabled={busy} onClick={() => discardGenerated(d)} className="text-xs text-gray-400 hover:text-red-600 px-2 py-1">Discard</button>
+                      </div>
+                    )}
+                    {d.state === "error" && (
+                      <button onClick={() => setGenDrafts((prev) => prev.filter((x) => x.key !== d.key))} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">Dismiss</button>
+                    )}
+                  </div>
+                  {previewKey === d.key && d.post && (
+                    <div className="border-t border-gray-100 bg-warm-white p-6 max-h-[420px] overflow-y-auto">
+                      <PostBody markdown={d.post.body_md} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </ModalShell>
+      )}
+
+      {/* ── Manual editor ────────────────────────────────────────────────────── */}
+      {modal === "write" && editor && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center p-0 sm:p-6 overflow-y-auto">
-          <div className="bg-gray-50 w-full sm:max-w-5xl sm:rounded-2xl shadow-2xl min-h-screen sm:min-h-0 sm:my-8">
+          <div className="bg-gray-50 w-full sm:max-w-5xl shadow-2xl min-h-screen sm:min-h-0 sm:my-8 sm:rounded-2xl">
             {/* Modal header */}
             <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-gray-200 bg-white/90 backdrop-blur px-5 py-3 sm:rounded-t-2xl">
               <div className="flex items-center gap-3">
@@ -294,7 +523,7 @@ export default function BlogDashboard({ initialData }: { initialData: BlogAdminD
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => { setEditor(null); setError(null); }} className="text-sm text-gray-500 hover:text-gray-800 px-3 py-1.5">Cancel</button>
+                <button onClick={closeModal} className="text-sm text-gray-500 hover:text-gray-800 px-3 py-1.5">Cancel</button>
                 <button disabled={busy} onClick={() => save("draft")} className="text-sm text-gray-700 hover:text-gray-900 border border-gray-300 rounded-full px-4 py-1.5 disabled:opacity-40">Save draft</button>
                 <button disabled={busy} onClick={() => save("published")} className="text-sm text-white bg-black hover:bg-gray-800 rounded-full px-4 py-1.5 disabled:opacity-40">
                   {editor.status === "published" ? "Update & keep live" : "Publish"}
@@ -306,66 +535,50 @@ export default function BlogDashboard({ initialData }: { initialData: BlogAdminD
               {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
               {tab === "write" ? (
-                <div className="grid gap-5 lg:grid-cols-3">
-                  {/* Main column */}
+                <div className="grid gap-6 lg:grid-cols-3">
+                  {/* Main column — title + body get the room */}
                   <div className="lg:col-span-2 space-y-4">
-                    {/* AI assist */}
-                    <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
-                      <div className="font-[family-name:var(--font-jetbrains)] text-[10px] font-medium text-indigo-500 uppercase tracking-[0.12em] mb-2">Draft with AI</div>
-                      <textarea
-                        value={aiPrompt}
-                        onChange={(e) => setAiPrompt(e.target.value)}
-                        rows={2}
-                        placeholder="Topic or outline, e.g. 'Why voice-first beats app-switching for daily planning' — Claude drafts the title, SEO meta, and full Markdown body."
-                        className={`${inputCls} resize-y bg-white`}
-                      />
-                      <div className="mt-2 flex items-center justify-between">
-                        <span className="text-[11px] text-indigo-400">Fills the fields below. Review before publishing.</span>
-                        <button disabled={aiBusy || !aiPrompt.trim()} onClick={draftWithAI} className="rounded-full bg-indigo-600 text-white text-xs px-4 py-1.5 disabled:opacity-40 hover:bg-indigo-700 transition-colors">
-                          {aiBusy ? "Drafting…" : "Generate draft"}
-                        </button>
-                      </div>
+                    <input
+                      value={editor.title}
+                      onChange={(e) => setEditor((s) => s && ({ ...s, title: e.target.value, slug: s.slugTouched ? s.slug : slugify(e.target.value) }))}
+                      className="w-full bg-transparent font-[family-name:var(--font-playfair)] text-3xl text-gray-900 placeholder:text-gray-300 focus:outline-none"
+                      placeholder="Post title"
+                    />
+                    <div className="flex items-center gap-2 text-xs text-gray-400">
+                      <span className="font-[family-name:var(--font-jetbrains)] uppercase tracking-wide">Markdown</span>
+                      <span>·</span>
+                      <span>Write or paste freely. Use the Preview tab to see it rendered.</span>
                     </div>
-
-                    <Field label="Title">
-                      <input
-                        value={editor.title}
-                        onChange={(e) => setEditor((s) => s && ({ ...s, title: e.target.value, slug: s.slugTouched ? s.slug : slugify(e.target.value) }))}
-                        className={`${inputCls} text-base`}
-                        placeholder="A specific, search-worthy headline"
-                      />
-                    </Field>
-
-                    <Field label="Body" hint="Markdown">
-                      <textarea
-                        value={editor.body_md}
-                        onChange={(e) => set("body_md", e.target.value)}
-                        rows={20}
-                        className={`${inputCls} font-[family-name:var(--font-jetbrains)] text-[13px] leading-relaxed resize-y`}
-                        placeholder={"Write in Markdown.\n\n## A heading\n\nA paragraph with **bold** and a [link](https://xyra.dev)."}
-                      />
-                    </Field>
+                    <textarea
+                      value={editor.body_md}
+                      onChange={(e) => set("body_md", e.target.value)}
+                      rows={24}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 font-[family-name:var(--font-jetbrains)] text-[13px] leading-relaxed text-gray-900 focus:border-gray-900 focus:outline-none resize-y"
+                      placeholder={"Start writing…\n\n## A heading\n\nA paragraph with **bold**, a [link](https://xyra.dev), and a list:\n\n- point one\n- point two"}
+                    />
                   </div>
 
-                  {/* Sidebar */}
+                  {/* Sidebar — everything else, tucked away */}
                   <div className="space-y-4">
-                    <Field label="Slug" hint="url">
-                      <input value={editor.slug} onChange={(e) => setEditor((s) => s && ({ ...s, slug: slugify(e.target.value), slugTouched: true }))} className={`${inputCls} font-mono text-xs`} placeholder="url-segment" />
-                    </Field>
-                    <Field label="Excerpt" hint="index + meta fallback">
-                      <textarea value={editor.excerpt} onChange={(e) => set("excerpt", e.target.value)} rows={3} className={`${inputCls} resize-y`} placeholder="One or two sentences." />
-                    </Field>
-                    <Field label="Tags" hint="comma-separated">
-                      <input value={editor.tags} onChange={(e) => set("tags", e.target.value)} className={inputCls} placeholder="productivity, ai, voice" />
-                    </Field>
-                    <Field label="Cover image URL">
-                      <input value={editor.cover_image} onChange={(e) => set("cover_image", e.target.value)} className={`${inputCls} text-xs`} placeholder="https://…" />
-                    </Field>
-                    <Field label="Author">
-                      <input value={editor.author} onChange={(e) => set("author", e.target.value)} className={inputCls} />
-                    </Field>
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4 space-y-4">
+                      <Field label="Slug" hint="url">
+                        <input value={editor.slug} onChange={(e) => setEditor((s) => s && ({ ...s, slug: slugify(e.target.value), slugTouched: true }))} className={`${inputCls} font-mono text-xs`} placeholder="url-segment" />
+                      </Field>
+                      <Field label="Excerpt" hint="index + meta fallback">
+                        <textarea value={editor.excerpt} onChange={(e) => set("excerpt", e.target.value)} rows={3} className={`${inputCls} resize-y`} placeholder="One or two sentences." />
+                      </Field>
+                      <Field label="Tags" hint="comma-separated">
+                        <input value={editor.tags} onChange={(e) => set("tags", e.target.value)} className={inputCls} placeholder="productivity, ai, voice" />
+                      </Field>
+                      <Field label="Cover image URL">
+                        <input value={editor.cover_image} onChange={(e) => set("cover_image", e.target.value)} className={`${inputCls} text-xs`} placeholder="https://…" />
+                      </Field>
+                      <Field label="Author">
+                        <input value={editor.author} onChange={(e) => set("author", e.target.value)} className={inputCls} />
+                      </Field>
+                    </div>
 
-                    <div className="pt-2 border-t border-gray-200">
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4">
                       <div className="font-[family-name:var(--font-jetbrains)] text-[10px] font-medium text-gray-400 uppercase tracking-[0.12em] mb-3">SEO</div>
                       <div className="space-y-4">
                         <Field label="SEO title" hint={`${editor.seo_title.length}/60`}>
@@ -397,6 +610,32 @@ export default function BlogDashboard({ initialData }: { initialData: BlogAdminD
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Reusable centered modal frame for the chooser + AI surfaces.
+function ModalShell({
+  title, onClose, children, widthClass = "sm:max-w-2xl", headerExtra,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  widthClass?: string;
+  headerExtra?: React.ReactNode;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-start sm:items-center justify-center p-0 sm:p-6 overflow-y-auto">
+      <div className={`bg-gray-50 w-full ${widthClass} shadow-2xl min-h-screen sm:min-h-0 sm:my-8 sm:rounded-2xl`}>
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-gray-200 bg-white/90 backdrop-blur px-5 py-3 sm:rounded-t-2xl">
+          <h3 className="font-[family-name:var(--font-playfair)] text-lg text-gray-900">{title}</h3>
+          <div className="flex items-center gap-2">
+            {headerExtra}
+            <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-800 px-3 py-1.5">Close</button>
+          </div>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
     </div>
   );
 }
