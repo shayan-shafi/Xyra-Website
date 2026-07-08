@@ -360,3 +360,55 @@ DROP TRIGGER IF EXISTS trg_blog_posts_updated_at ON blog_posts;
 CREATE TRIGGER trg_blog_posts_updated_at
   BEFORE UPDATE ON blog_posts
   FOR EACH ROW EXECUTE FUNCTION set_blog_posts_updated_at();
+
+
+-- ============================================================
+-- 12. Saved recipient groups  (Growth Email Ops — reusable send lists)
+--     Named, reusable groups of email recipients so a list (e.g. the first
+--     Alpha cohort) can be saved once and loaded into the Email Ops composer
+--     again later WITHOUT rebuilding it by hand. Loading a group only
+--     populates the composer — it never sends. The guarded real-send path
+--     (section 8) is unchanged and still requires dry-run + confirm.
+--
+--     ⚠ CONTAINS EMAILS (PII). Like the campaign-log tables (section 8), these
+--     are admin/service-role ONLY: RLS is enabled with NO policies, so the
+--     anon/public client can neither read nor write them. Every access goes
+--     through supabaseAdmin (service_role) behind the /admin auth gate.
+--
+--     Additive + idempotent. Safe to run multiple times.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS growth_recipient_groups (
+  id           BIGSERIAL PRIMARY KEY,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  created_by   TEXT,                      -- optional label; app has no per-admin identity
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Soft-delete: archived groups are hidden from the default list but never
+  -- destroyed, so a list can be retired without losing who was in it.
+  archived_at  TIMESTAMPTZ,
+  -- Set when a group is loaded into the composer, so "last used" is visible.
+  last_used_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS growth_recipient_group_members (
+  id          BIGSERIAL PRIMARY KEY,
+  group_id    BIGINT NOT NULL REFERENCES growth_recipient_groups(id) ON DELETE CASCADE,
+  email       TEXT NOT NULL,
+  name        TEXT,
+  notes       TEXT,
+  source      TEXT,                        -- e.g. 'manual', 'composer', 'campaign:<key>'
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One row per (group, lowercased email) — dedupe/idempotency guard. The app
+-- inserts lowercased emails and relies on this to keep a member unique per
+-- group even if the same address is pasted again.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_group_members_group_lower_email
+  ON growth_recipient_group_members (group_id, lower(email));
+CREATE INDEX IF NOT EXISTS idx_group_members_group ON growth_recipient_group_members (group_id);
+
+ALTER TABLE growth_recipient_groups        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE growth_recipient_group_members ENABLE ROW LEVEL SECURITY;
+-- No RLS policies: anon role has no access. service_role (supabaseAdmin) bypasses
+-- RLS and is the only accessor, behind the /admin auth gate.
