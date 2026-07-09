@@ -1,7 +1,7 @@
 import Hero from "@/components/Hero";
 import Explainer from "@/components/Explainer";
 import Navbar from "@/components/Navbar";
-import Waitlist from "@/components/Waitlist";
+import Bouncer from "@/components/Bouncer";
 import Footer from "@/components/Footer";
 
 export default function Home() {
@@ -10,7 +10,7 @@ export default function Home() {
       <Hero />
       <Explainer />
       <Navbar />
-      <Waitlist />
+      <Bouncer />
       <Footer />
     </div>
   );
