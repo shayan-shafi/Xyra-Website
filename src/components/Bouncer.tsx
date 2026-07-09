@@ -29,16 +29,14 @@ const OPENERS: string[][] = [
 
 const JAMMED_LINE = "door's jammed for a sec — say that again?";
 
+// Typing indicator — the app's exact chrome: "· · ·" in an assistant-style
+// bordered bubble (ChatPanel's typingDotsFooter), not generic bouncing dots.
 function TypingDots() {
   return (
-    <div className="flex items-center gap-1.5 px-4 py-3 bg-white/10 backdrop-blur-sm w-fit">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="w-1.5 h-1.5 bg-white/60 rounded-full animate-bounce"
-          style={{ animationDelay: `${i * 0.15}s`, animationDuration: "0.9s" }}
-        />
-      ))}
+    <div className="w-fit border border-[#2a2a2a] px-[18px] py-[14px]">
+      <span className="font-[family-name:var(--font-jetbrains)] text-base leading-4 tracking-[2px] text-[#a89e88] animate-pulse">
+        · · ·
+      </span>
     </div>
   );
 }
@@ -261,27 +259,35 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
               Xyra decides who gets early access. Make it count.
             </motion.p>
 
-            {/* The door — chat panel */}
+            {/* The door — a pixel-honest replica of the app's ChatPanel.
+                Phones get the app screen full-bleed; desktop gets it inside a
+                phone frame, like watching Xyra run. Colors/typography lifted
+                from mobile ChatPanel.tsx (bg #0a0a0a, assistant = transparent
+                + #2a2a2a hairline, user = solid white, mono 14px lowercase,
+                sharp corners). */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.6, delay: 0.6 }}
-              className="border border-white/15 bg-black/40 backdrop-blur-md"
+              className="bg-[#0a0a0a] overflow-hidden -mx-6 sm:mx-auto sm:max-w-[390px] sm:rounded-[2.75rem] sm:border sm:border-white/20 sm:shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
             >
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                <span className="font-[family-name:var(--font-jetbrains)] text-xs tracking-[0.2em] uppercase text-white/60">
-                  xyra — at the door
+              {/* Contact header — like opening a thread with her */}
+              <div className="relative flex flex-col items-center border-b border-[#1a1a1a] px-4 pt-5 pb-3 sm:pt-6">
+                <span className="font-[family-name:var(--font-jetbrains)] text-sm lowercase text-white">
+                  xyra
+                </span>
+                <span className="font-[family-name:var(--font-jetbrains)] text-[10px] lowercase text-[#666] mt-0.5">
+                  {doorState === "granted" ? "let you in" : doorState === "closed" ? "left the door" : "at the door"}
                 </span>
                 <span
-                  className={`w-2 h-2 rounded-full ${
+                  className={`absolute right-5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full ${
                     doorState === "granted" ? "bg-emerald-400" : doorState === "closed" ? "bg-red-400/80" : "bg-white/50 animate-pulse"
                   }`}
                 />
               </div>
 
-              {/* Messages */}
-              <div ref={scrollRef} className="h-[380px] overflow-y-auto px-4 py-4 space-y-2.5 scroll-smooth">
+              {/* Messages — the app's thread */}
+              <div ref={scrollRef} className="h-[62vh] max-h-[560px] sm:h-[520px] overflow-y-auto px-5 py-4 space-y-3.5 scroll-smooth">
                 {bubbles.map((b, i) =>
                   b.kind === "invite" ? (
                     <motion.div
@@ -289,9 +295,9 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
                       initial={{ opacity: 0, scale: 0.96 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ duration: 0.4 }}
-                      className="border border-white/30 border-dashed bg-white/5 p-5 text-center my-3"
+                      className="border border-dashed border-white/30 p-5 text-center my-3"
                     >
-                      <div className="font-[family-name:var(--font-jetbrains)] text-[10px] tracking-[0.3em] uppercase text-white/50 mb-2">
+                      <div className="font-[family-name:var(--font-jetbrains)] text-[10px] tracking-[0.3em] uppercase text-[#666] mb-2">
                         door&apos;s open
                       </div>
                       <div className="font-[family-name:var(--font-playfair)] text-2xl text-white mb-4">
@@ -315,10 +321,10 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
                       className={`flex ${b.role === "user" ? "justify-end" : "justify-start"}`}
                     >
                       <div
-                        className={`max-w-[80%] px-4 py-2.5 font-[family-name:var(--font-jetbrains)] text-sm leading-relaxed lowercase ${
+                        className={`max-w-[82%] px-[18px] py-[14px] font-[family-name:var(--font-jetbrains)] text-sm leading-5 lowercase ${
                           b.role === "user"
                             ? "bg-white text-black"
-                            : "bg-white/10 text-white backdrop-blur-sm"
+                            : "border border-[#2a2a2a] text-white"
                         }`}
                       >
                         {b.content}
@@ -329,33 +335,39 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
                 {typing && <TypingDots />}
               </div>
 
-              {/* Input */}
-              <form onSubmit={sendMessage} className="flex border-t border-white/10">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  autoCapitalize="none"
-                  autoComplete="off"
-                  maxLength={600}
-                  disabled={doorState !== "open"}
-                  placeholder={
-                    doorState === "granted"
-                      ? "you're in — see you inside."
-                      : doorState === "closed"
-                        ? "come back tomorrow."
-                        : "say something worth letting in…"
-                  }
-                  className="flex-1 bg-transparent px-4 py-3.5 font-[family-name:var(--font-jetbrains)] text-sm text-white placeholder:text-white/30 focus:outline-none disabled:opacity-50 lowercase"
-                />
-                <button
-                  type="submit"
-                  disabled={sending || !input.trim() || doorState !== "open"}
-                  className="px-5 font-[family-name:var(--font-jetbrains)] text-sm text-white/70 hover:text-white disabled:opacity-30 transition-colors"
-                  aria-label="Send"
-                >
-                  ↑
-                </button>
+              {/* Composer — the app's editorial text bar: underline input + circular send */}
+              <form onSubmit={sendMessage} className="flex items-center gap-3 border-t border-[#1a1a1a] px-5 py-4">
+                <div className="flex flex-1 items-center gap-2 border-b-2 border-white pb-2">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    maxLength={600}
+                    disabled={doorState !== "open"}
+                    placeholder={
+                      doorState === "granted"
+                        ? "you're in — see you inside."
+                        : doorState === "closed"
+                          ? "come back tomorrow."
+                          : sending
+                            ? "thinking…"
+                            : "type a message…"
+                    }
+                    className="flex-1 bg-transparent font-[family-name:var(--font-jetbrains)] text-sm text-white placeholder:text-[#555] focus:outline-none disabled:opacity-50 lowercase"
+                  />
+                  <button
+                    type="submit"
+                    disabled={sending || !input.trim() || doorState !== "open"}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-black disabled:opacity-30 transition-opacity"
+                    aria-label="Send"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 19V5M5 12l7-7 7 7" />
+                    </svg>
+                  </button>
+                </div>
               </form>
             </motion.div>
 
