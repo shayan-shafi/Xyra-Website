@@ -53,42 +53,34 @@ function generateRefCode(): string {
 const LINES = {
   rateLimited: "you've been at the door a lot today. sleep on it — come back tomorrow.",
   closed: "we've been at this all night. door's closed for now — come back tomorrow with the real pitch.",
-  alreadyIn: "you're already in. don't make me regret it.",
+  alreadyIn: "you're already on my list. i'll reach out soon.",
   jammed: "door's jammed for a sec — say that again?",
 };
 
-async function fetchInviteLink(): Promise<string | null> {
-  if (!supabaseAdmin) return null;
-  const { data } = await supabaseAdmin
-    .from("beta_config")
-    .select("value")
-    .eq("key", "beta_test_link")
-    .single();
-  return data?.value || null;
-}
-
-/** Flip (or create) the waitlist row the moment the bouncer lets them in. */
-async function grantOnWaitlist(email: string, name: string | null, visitorId: string | null) {
+/** The close: store them like a normal waitlist signup, marked bouncer-vetted
+ *  (alpha_status 'candidate' — Shayan selects + reaches out later; no invite,
+ *  no link, the app isn't open yet). Never downgrades an existing status. */
+async function closeOnWaitlist(email: string, name: string | null, visitorId: string | null) {
   if (!supabaseAdmin) return;
-  const now = new Date().toISOString();
   const { data: existing } = await supabaseAdmin
     .from("waitlist")
     .select("id, alpha_status")
     .eq("email", email)
     .single();
   if (existing) {
-    await supabaseAdmin
-      .from("waitlist")
-      .update({ alpha_status: "invited", alpha_invited_at: now })
-      .eq("email", email);
+    if (!existing.alpha_status) {
+      await supabaseAdmin
+        .from("waitlist")
+        .update({ alpha_status: "candidate" })
+        .eq("email", email);
+    }
   } else {
     await supabaseAdmin.from("waitlist").insert({
       name: name || email.split("@")[0],
       email,
       ref_code: generateRefCode(),
       visitor_id: visitorId,
-      alpha_status: "invited",
-      alpha_invited_at: now,
+      alpha_status: "candidate",
       admin_notes: "talked their way in — bouncer",
     });
   }
@@ -149,13 +141,11 @@ export async function POST(request: Request) {
 
     // ---- Deterministic short-circuits (no LLM) ----
     if (session.verdict === "convinced") {
-      const inviteLink = await fetchInviteLink();
       return NextResponse.json({
         sessionId: session.id,
         messages: [LINES.alreadyIn],
         verdict: "convinced",
         granted: true,
-        inviteLink,
       });
     }
     if (session.turn_count >= MAX_TURNS) {
@@ -253,11 +243,9 @@ export async function POST(request: Request) {
       })
       .eq("id", session.id);
 
-    // ---- The rope lifts ----
-    let inviteLink: string | null = null;
+    // ---- The close: she has their name + email now ----
     if (granted) {
-      await grantOnWaitlist(capturedEmail!, capturedName, safeVisitorId || session.visitor_id);
-      inviteLink = await fetchInviteLink();
+      await closeOnWaitlist(capturedEmail!, capturedName, safeVisitorId || session.visitor_id);
     }
 
     return NextResponse.json({
@@ -265,7 +253,6 @@ export async function POST(request: Request) {
       messages: reply.messages,
       verdict,
       granted,
-      ...(inviteLink ? { inviteLink } : {}),
     });
   } catch (err) {
     console.error("bouncer route error:", err);

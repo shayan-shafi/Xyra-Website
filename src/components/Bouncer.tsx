@@ -12,9 +12,10 @@ import { getVisitorId, track, trackOncePerSession } from "@/lib/analytics";
 // All state lives server-side in bouncer_sessions via /api/bouncer; the client
 // keeps only sessionId + rendered bubbles (localStorage, so a reload resumes).
 
-type Bubble =
-  | { kind: "bubble"; role: "user" | "assistant"; content: string }
-  | { kind: "invite"; link: string };
+// The close is pure conversation — she takes your name + email and says she'll
+// reach out. No ticket, no link (the app isn't open yet), so bubbles are all
+// there is.
+type Bubble = { kind: "bubble"; role: "user" | "assistant"; content: string };
 
 type DoorState = "open" | "granted" | "closed";
 
@@ -77,7 +78,8 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
       const saved = JSON.parse(raw);
       if (Array.isArray(saved?.bubbles) && saved.bubbles.length > 0) {
         sessionIdRef.current = typeof saved.sessionId === "string" ? saved.sessionId : null;
-        setBubbles(saved.bubbles);
+        // Older sessions may hold retired "invite" ticket entries — drop them.
+        setBubbles(saved.bubbles.filter((b: Bubble) => b?.kind === "bubble"));
         setDoorState(saved.doorState === "granted" || saved.doorState === "closed" ? saved.doorState : "open");
         openedRef.current = true;
       }
@@ -183,9 +185,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
         );
       }
 
-      if (data?.granted && data?.inviteLink) {
-        await new Promise((r) => setTimeout(r, 1200));
-        pushBubbles([{ kind: "invite", link: data.inviteLink }], "granted");
+      if (data?.granted) {
         track("bouncer_granted");
       }
     } catch {
@@ -258,7 +258,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
                   xyra
                 </span>
                 <span className="font-[family-name:var(--font-jetbrains)] text-[10px] lowercase text-[#666] mt-0.5">
-                  {doorState === "granted" ? "let you in" : doorState === "closed" ? "left the door" : "at the door"}
+                  {doorState === "granted" ? "has your number" : doorState === "closed" ? "left the door" : "at the door"}
                 </span>
                 <span
                   className={`absolute right-5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full ${
@@ -269,50 +269,25 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
 
               {/* Messages — the app's thread */}
               <div ref={scrollRef} className="h-[62vh] max-h-[560px] sm:h-[min(600px,64vh)] sm:max-h-none overflow-y-auto px-5 py-4 space-y-3.5 scroll-smooth">
-                {bubbles.map((b, i) =>
-                  b.kind === "invite" ? (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, scale: 0.96 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.4 }}
-                      className="border border-dashed border-white/30 p-5 text-center my-3"
+                {bubbles.map((b, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className={`flex ${b.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[82%] px-[18px] py-[14px] font-[family-name:var(--font-jetbrains)] text-sm leading-5 lowercase ${
+                        b.role === "user"
+                          ? "bg-white text-black"
+                          : "border border-[#2a2a2a] text-white"
+                      }`}
                     >
-                      <div className="font-[family-name:var(--font-jetbrains)] text-[10px] tracking-[0.3em] uppercase text-[#666] mb-2">
-                        door&apos;s open
-                      </div>
-                      <div className="font-[family-name:var(--font-playfair)] text-2xl text-white mb-4">
-                        You&apos;re in.
-                      </div>
-                      <a
-                        href={b.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block px-6 py-3 bg-white text-black font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-white/90 transition-colors"
-                      >
-                        Get Xyra on TestFlight →
-                      </a>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25 }}
-                      className={`flex ${b.role === "user" ? "justify-end" : "justify-start"}`}
-                    >
-                      <div
-                        className={`max-w-[82%] px-[18px] py-[14px] font-[family-name:var(--font-jetbrains)] text-sm leading-5 lowercase ${
-                          b.role === "user"
-                            ? "bg-white text-black"
-                            : "border border-[#2a2a2a] text-white"
-                        }`}
-                      >
-                        {b.content}
-                      </div>
-                    </motion.div>
-                  )
-                )}
+                      {b.content}
+                    </div>
+                  </motion.div>
+                ))}
                 {typing && <TypingDots />}
               </div>
 
@@ -329,7 +304,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
                     disabled={doorState !== "open"}
                     placeholder={
                       doorState === "granted"
-                        ? "you're in — see you inside."
+                        ? "she has your email — talk soon."
                         : doorState === "closed"
                           ? "come back tomorrow."
                           : sending
@@ -361,7 +336,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
             >
               <span className="font-[family-name:var(--font-jetbrains)] text-xs">No spam</span>
               <span className="font-[family-name:var(--font-jetbrains)] text-xs">Free beta</span>
-              <span className="font-[family-name:var(--font-jetbrains)] text-xs">Instant access if she likes you</span>
+              <span className="font-[family-name:var(--font-jetbrains)] text-xs">First in line if she likes you</span>
             </motion.div>
           </div>
         </div>
