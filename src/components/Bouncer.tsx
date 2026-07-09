@@ -240,25 +240,6 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
         {/* Middle */}
         <div className="flex-1 flex items-center justify-center py-10">
           <div className="max-w-xl w-full">
-            <motion.h2
-              initial={{ opacity: 0, y: 30 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
-              transition={{ duration: 0.8, delay: 0.3 }}
-              className="font-[family-name:var(--font-playfair)] text-4xl sm:text-5xl md:text-6xl font-medium text-white leading-[1.1] tracking-tight mb-3 text-center"
-            >
-              There&apos;s no form.
-              <br />
-              <span className="italic text-white/80">Talk your way in.</span>
-            </motion.h2>
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={isInView ? { opacity: 1 } : {}}
-              transition={{ duration: 0.8, delay: 0.5 }}
-              className="font-[family-name:var(--font-eb-garamond)] text-base sm:text-lg text-white/50 text-center mb-8"
-            >
-              Xyra decides who gets early access. Make it count.
-            </motion.p>
-
             {/* The door — a pixel-honest replica of the app's ChatPanel.
                 Phones get the app screen full-bleed; desktop gets it inside a
                 phone frame, like watching Xyra run. Colors/typography lifted
@@ -287,7 +268,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
               </div>
 
               {/* Messages — the app's thread */}
-              <div ref={scrollRef} className="h-[62vh] max-h-[560px] sm:h-[520px] overflow-y-auto px-5 py-4 space-y-3.5 scroll-smooth">
+              <div ref={scrollRef} className="h-[62vh] max-h-[560px] sm:h-[min(600px,64vh)] sm:max-h-none overflow-y-auto px-5 py-4 space-y-3.5 scroll-smooth">
                 {bubbles.map((b, i) =>
                   b.kind === "invite" ? (
                     <motion.div
