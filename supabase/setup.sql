@@ -412,3 +412,60 @@ ALTER TABLE growth_recipient_groups        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE growth_recipient_group_members ENABLE ROW LEVEL SECURITY;
 -- No RLS policies: anon role has no access. service_role (supabaseAdmin) bypasses
 -- RLS and is the only accessor, behind the /admin auth gate.
+
+
+-- ============================================================
+-- 13. Bouncer sessions  (the conversational waitlist — Xyra works the door)
+--     One row per visitor conversation with Bouncer Xyra on the landing page.
+--     The transcript is the intent signal for alpha selection AND the future
+--     first-launch pre-seed (wants_to_track → starter dashboards in the app).
+--
+--     Reads/Writes: service_role ONLY. The browser never touches this table —
+--     every turn goes through the /api/bouncer server route, which also
+--     enforces rate limits using ip_hash/visitor_id lookups here.
+--
+--     verdict lifecycle: 'vetting' → 'convinced' (granted_at set, waitlist row
+--     upserted with alpha_status='invited') | 'denied' (spam/abuse; can
+--     recover to 'vetting'). turn_count counts VISITOR messages only.
+--
+--     Safe to run multiple times (idempotent).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS bouncer_sessions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  visitor_id      UUID,                            -- analytics visitor (nullable)
+  ip_hash         TEXT,                            -- sha256(ip + salt), for rate limiting
+  name            TEXT,                            -- captured mid-conversation ("who's asking?")
+  email           TEXT,                            -- captured mid-conversation
+  transcript      JSONB NOT NULL DEFAULT '[]',     -- [{role:'user'|'assistant', content, ts}]
+  verdict         TEXT NOT NULL DEFAULT 'vetting', -- 'vetting' | 'convinced' | 'denied'
+  wants_to_track  TEXT[] NOT NULL DEFAULT '{}',    -- harvested life-areas (pre-seed signal)
+  turn_count      INTEGER NOT NULL DEFAULT 0,      -- visitor messages so far
+  granted_at      TIMESTAMPTZ,                     -- set once when verdict flips to convinced
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Rate-limit lookups: "sessions from this IP / visitor in the last N hours".
+CREATE INDEX IF NOT EXISTS idx_bouncer_sessions_ip_created
+  ON bouncer_sessions (ip_hash, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bouncer_sessions_visitor_created
+  ON bouncer_sessions (visitor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bouncer_sessions_email
+  ON bouncer_sessions (email);
+
+ALTER TABLE bouncer_sessions ENABLE ROW LEVEL SECURITY;
+-- No anon policies at all: service_role only, via the /api/bouncer route.
+
+-- Keep updated_at fresh on every write (reuses the blog trigger fn shape).
+CREATE OR REPLACE FUNCTION set_bouncer_sessions_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_bouncer_sessions_updated_at ON bouncer_sessions;
+CREATE TRIGGER trg_bouncer_sessions_updated_at
+  BEFORE UPDATE ON bouncer_sessions
+  FOR EACH ROW EXECUTE FUNCTION set_bouncer_sessions_updated_at();
