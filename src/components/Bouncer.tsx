@@ -200,12 +200,12 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
   return (
     <section
       id="waitlist"
-      className="relative min-h-screen w-full overflow-hidden bg-black z-[45]"
+      className="relative min-h-screen w-full overflow-hidden bg-[#0a0a0a] sm:bg-black z-[45]"
       style={overlapMode ? { marginTop: "-100vh" } : undefined}
       ref={sectionRef}
     >
-      {/* Video Background */}
-      <div className="absolute inset-0 z-0">
+      {/* Video Background — desktop only; on phones the section is pure black chat */}
+      <div className="hidden sm:block absolute inset-0 z-0">
         <video
           autoPlay
           loop
@@ -224,13 +224,13 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
       </div>
 
       {/* Content overlay */}
-      <div className="relative z-10 flex min-h-screen flex-col justify-between px-6 sm:px-12 lg:px-20 py-8">
+      <div className="relative z-10 flex min-h-[100svh] flex-col justify-between px-0 pt-20 pb-0 sm:px-12 lg:px-20 sm:py-8">
         {/* Top: Section label inside the black bar */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: isInView && isLoaded ? 1 : 0 }}
           transition={{ duration: 1, delay: 0.2 }}
-          className="flex items-center justify-center h-[8vh]"
+          className="hidden sm:flex items-center justify-center h-[8vh]"
         >
           <span className="font-[family-name:var(--font-jetbrains)] text-xs tracking-[0.3em] uppercase text-white/50">
             Early Access
@@ -238,7 +238,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
         </motion.div>
 
         {/* Middle */}
-        <div className="flex-1 flex items-center justify-center py-10">
+        <div className="flex-1 flex items-center justify-center py-0 sm:py-10">
           <div className="max-w-xl w-full">
             {/* The door — a pixel-honest replica of the app's ChatPanel.
                 Phones get the app screen full-bleed; desktop gets it inside a
@@ -250,25 +250,21 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
               initial={{ opacity: 0, y: 20 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.6, delay: 0.6 }}
-              className="bg-[#0a0a0a] overflow-hidden -mx-6 sm:mx-auto sm:max-w-[390px] sm:rounded-[2.75rem] sm:border sm:border-white/20 sm:shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+              className="bg-[#0a0a0a] overflow-hidden w-full sm:w-auto sm:mx-auto sm:max-w-[390px] sm:rounded-[2.75rem] sm:border sm:border-white/20 sm:shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
             >
-              {/* Contact header — like opening a thread with her */}
-              <div className="relative flex flex-col items-center border-b border-[#1a1a1a] px-4 pt-5 pb-3 sm:pt-6">
+              {/* Contact header — desktop phone-frame chrome only; on phones the
+                  site navbar (Xyra logo + menu) is the header. */}
+              <div className="hidden sm:flex flex-col items-center border-b border-[#1a1a1a] px-4 pt-5 pb-4 sm:pt-6">
                 <span className="font-[family-name:var(--font-jetbrains)] text-sm lowercase text-white">
                   xyra
                 </span>
-                <span className="font-[family-name:var(--font-jetbrains)] text-[10px] lowercase text-[#666] mt-0.5">
-                  {doorState === "granted" ? "has your number" : doorState === "closed" ? "left the door" : "at the door"}
-                </span>
-                <span
-                  className={`absolute right-5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full ${
-                    doorState === "granted" ? "bg-emerald-400" : doorState === "closed" ? "bg-red-400/80" : "bg-white/50 animate-pulse"
-                  }`}
-                />
               </div>
 
               {/* Messages — the app's thread */}
-              <div ref={scrollRef} className="h-[62vh] max-h-[560px] sm:h-[min(600px,64vh)] sm:max-h-none overflow-y-auto px-5 py-4 space-y-3.5 scroll-smooth">
+              <div
+                ref={scrollRef}
+                className="h-[calc(100svh-190px)] sm:h-[min(600px,64vh)] overflow-y-auto px-5 py-4 space-y-3.5 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
                 {bubbles.map((b, i) => (
                   <motion.div
                     key={i}
@@ -332,7 +328,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
               initial={{ opacity: 0 }}
               animate={isInView ? { opacity: 1 } : {}}
               transition={{ duration: 0.6, delay: 0.9 }}
-              className="mt-8 flex items-center justify-center gap-6 text-white/40"
+              className="mt-8 hidden sm:flex items-center justify-center gap-6 text-white/40"
             >
               <span className="font-[family-name:var(--font-jetbrains)] text-xs">No spam</span>
               <span className="font-[family-name:var(--font-jetbrains)] text-xs">Free beta</span>
@@ -341,8 +337,8 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
           </div>
         </div>
 
-        {/* Bottom spacer for the black bar */}
-        <div className="h-[8vh]" />
+        {/* Bottom spacer for the black bar (desktop only) */}
+        <div className="hidden sm:block h-[8vh]" />
       </div>
     </section>
   );
