@@ -184,7 +184,10 @@ export async function POST(request: Request) {
     const recentHistory = transcript
       .slice(-HISTORY_WINDOW)
       .map((t) => ({ role: t.role, content: t.content }));
-    const newTurnCount = (session.turn_count || 0) + 1;
+    // A returning visitor's replayed scripted opening is theater, not effort —
+    // it never burns a turn (reloads would otherwise farm the 14-turn cap shut).
+    const isReturnReplay = userMessage === SEED_USER && transcript.length > 0;
+    const newTurnCount = (session.turn_count || 0) + (isReturnReplay ? 0 : 1);
 
     // ---- One conversation beat from the app's bouncer fn ----
     let reply: {

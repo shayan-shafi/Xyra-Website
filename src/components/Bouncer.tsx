@@ -33,6 +33,13 @@ const SEED_REPLY = [
 
 const JAMMED_LINE = "door's jammed for a sec — say that again?";
 
+// Away this long → the thread visually resets on return and the scripted
+// question replays as a REAL turn on the SAME session: Xyra sees the déjà vu
+// in her transcript and gets to call it ("we're doing this again?") while
+// still knowing everything (name, email, their mess). Quick reloads under the
+// threshold restore the thread as-is — no LLM call, no burned turn.
+const RETURN_AFTER_MS = 30 * 60 * 1000;
+
 // Typing indicator — the app's exact chrome: "· · ·" in an assistant-style
 // bordered bubble (ChatPanel's typingDotsFooter), not generic bouncing dots.
 function TypingDots() {
@@ -68,21 +75,27 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
   const [input, setInput] = useState("");
   const sessionIdRef = useRef<string | null>(null);
   const openedRef = useRef(false);
+  const returningRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Resume a session across reloads.
+  // Resume a session across reloads — or, if they've been away a while, hand
+  // the returning session to the opener effect for the "we meet again" replay.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw);
-      if (Array.isArray(saved?.bubbles) && saved.bubbles.length > 0) {
-        sessionIdRef.current = typeof saved.sessionId === "string" ? saved.sessionId : null;
-        // Older sessions may hold retired "invite" ticket entries — drop them.
-        setBubbles(saved.bubbles.filter((b: Bubble) => b?.kind === "bubble"));
-        setDoorState(saved.doorState === "granted" || saved.doorState === "closed" ? saved.doorState : "open");
-        openedRef.current = true;
+      if (!Array.isArray(saved?.bubbles) || saved.bubbles.length === 0) return;
+      sessionIdRef.current = typeof saved.sessionId === "string" ? saved.sessionId : null;
+      const away = Date.now() - (typeof saved.lastActiveAt === "number" ? saved.lastActiveAt : 0);
+      if (sessionIdRef.current && away > RETURN_AFTER_MS) {
+        returningRef.current = true; // fresh screen, same session
+        return;
       }
+      // Older sessions may hold retired "invite" ticket entries — drop them.
+      setBubbles(saved.bubbles.filter((b: Bubble) => b?.kind === "bubble"));
+      setDoorState(saved.doorState === "granted" || saved.doorState === "closed" ? saved.doorState : "open");
+      openedRef.current = true;
     } catch {
       /* fresh door */
     }
@@ -92,7 +105,12 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
     try {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ sessionId: sessionIdRef.current, bubbles: next.slice(-60), doorState: state })
+        JSON.stringify({
+          sessionId: sessionIdRef.current,
+          bubbles: next.slice(-60),
+          doorState: state,
+          lastActiveAt: Date.now(),
+        })
       );
     } catch {
       /* storage unavailable — session just won't survive reload */
@@ -111,60 +129,11 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
     [persist, doorState]
   );
 
-  // The scripted opening plays on load (fresh sessions only; storage-resume
-  // sets openedRef): the visitor's question appears as a sent message, then
-  // Xyra's reply lands with the usual texting rhythm.
-  useEffect(() => {
-    if (openedRef.current) return;
-    openedRef.current = true;
-    let cancelled = false;
-    let spoke = false;
-    (async () => {
-      await new Promise((r) => setTimeout(r, 700));
-      if (cancelled) return;
-      spoke = true;
-      pushBubbles([{ kind: "bubble", role: "user", content: SEED_USER }]);
-      await new Promise((r) => setTimeout(r, 500));
-      if (cancelled) return;
-      setTyping(true);
-      for (let i = 0; i < SEED_REPLY.length; i++) {
-        await new Promise((r) => setTimeout(r, i === 0 ? 1100 : 1400));
-        if (cancelled) return;
-        pushBubbles([{ kind: "bubble", role: "assistant", content: SEED_REPLY[i] }]);
-      }
-      setTyping(false);
-    })();
-    return () => {
-      cancelled = true;
-      // React dev StrictMode double-mounts: if this run got cancelled before a
-      // single bubble landed, release the guard so the surviving run opens.
-      if (!spoke) {
-        openedRef.current = false;
-        setTyping(false);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Keep the newest bubble in view.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [bubbles, typing]);
-
-  const sendMessage = async (e: FormEvent) => {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || sending || doorState !== "open") return;
-
-    setInput("");
+  // One real turn against /api/bouncer: dots, fetch, replies with the texting
+  // rhythm, door-state updates. Shared by typed messages and the return replay.
+  const postTurn = async (text: string) => {
     setSending(true);
-    pushBubbles([{ kind: "bubble", role: "user", content: text }]);
-    track("bouncer_message_sent");
-
-    // Let the send land before the dots appear — texting rhythm.
     setTimeout(() => setTyping(true), 350);
-
     try {
       const res = await fetch("/api/bouncer", {
         method: "POST",
@@ -207,6 +176,63 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
       setTyping(false);
       setSending(false);
     }
+  };
+
+  // The scripted opening plays on load. Fresh visitor → canned exchange (zero
+  // LLM). Returning visitor (30+ min away, session on file) → the same
+  // question replays as a REAL turn so Xyra can call the déjà vu with
+  // everything she already knows.
+  useEffect(() => {
+    if (openedRef.current) return;
+    openedRef.current = true;
+    let cancelled = false;
+    let spoke = false;
+    (async () => {
+      await new Promise((r) => setTimeout(r, 700));
+      if (cancelled) return;
+      spoke = true;
+      pushBubbles([{ kind: "bubble", role: "user", content: SEED_USER }]);
+      if (returningRef.current) {
+        void postTurn(SEED_USER);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 500));
+      if (cancelled) return;
+      setTyping(true);
+      for (let i = 0; i < SEED_REPLY.length; i++) {
+        await new Promise((r) => setTimeout(r, i === 0 ? 1100 : 1400));
+        if (cancelled) return;
+        pushBubbles([{ kind: "bubble", role: "assistant", content: SEED_REPLY[i] }]);
+      }
+      setTyping(false);
+    })();
+    return () => {
+      cancelled = true;
+      // React dev StrictMode double-mounts: if this run got cancelled before a
+      // single bubble landed, release the guard so the surviving run opens.
+      if (!spoke) {
+        openedRef.current = false;
+        setTyping(false);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the newest bubble in view.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [bubbles, typing]);
+
+  const sendMessage = async (e: FormEvent) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || sending || doorState !== "open") return;
+
+    setInput("");
+    pushBubbles([{ kind: "bubble", role: "user", content: text }]);
+    track("bouncer_message_sent");
+    await postTurn(text);
   };
 
   return (
