@@ -21,11 +21,14 @@ type DoorState = "open" | "granted" | "closed";
 
 const STORAGE_KEY = "xyra:bouncer";
 
-// Canned openers — deterministic, no LLM. One is picked per fresh session.
-const OPENERS: string[][] = [
-  ["i'm xyra. i work the door.", "everyone inside told me what they're actually building toward. so — why do you want in?"],
-  ["so you found the door.", "there's no form. you're talking to me. what would you even track if i let you in?"],
-  ["this is the waitlist. it's a conversation.", "convince me. what's the mess in your life that got you here?"],
+// Scripted opening — a pre-loaded USER message and Xyra's reply, deterministic,
+// no LLM. MUST match the seed in /api/bouncer/route.ts (SEED_USER/SEED_REPLY):
+// the server writes the same exchange into every new session's transcript so
+// the model has this context from the first real turn. Keep the twins in sync.
+const SEED_USER = "who are you and can you send me access?";
+const SEED_REPLY = [
+  "i'm xyra. i run this place.",
+  "and access isn't sent — it's earned. what's the mess in your life that brought you here?",
 ];
 
 const JAMMED_LINE = "door's jammed for a sec — say that again?";
@@ -108,23 +111,26 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
     [persist, doorState]
   );
 
-  // Xyra opens the conversation on load — the door is the front page, so the
-  // opener plays on mount (a fresh session only; storage-resume sets openedRef).
+  // The scripted opening plays on load (fresh sessions only; storage-resume
+  // sets openedRef): the visitor's question appears as a sent message, then
+  // Xyra's reply lands with the usual texting rhythm.
   useEffect(() => {
     if (openedRef.current) return;
     openedRef.current = true;
-    const opener = OPENERS[Math.floor(Math.random() * OPENERS.length)];
     let cancelled = false;
     let spoke = false;
     (async () => {
-      await new Promise((r) => setTimeout(r, 900));
+      await new Promise((r) => setTimeout(r, 700));
+      if (cancelled) return;
+      spoke = true;
+      pushBubbles([{ kind: "bubble", role: "user", content: SEED_USER }]);
+      await new Promise((r) => setTimeout(r, 500));
       if (cancelled) return;
       setTyping(true);
-      for (let i = 0; i < opener.length; i++) {
+      for (let i = 0; i < SEED_REPLY.length; i++) {
         await new Promise((r) => setTimeout(r, i === 0 ? 1100 : 1400));
         if (cancelled) return;
-        spoke = true;
-        pushBubbles([{ kind: "bubble", role: "assistant", content: opener[i] }]);
+        pushBubbles([{ kind: "bubble", role: "assistant", content: SEED_REPLY[i] }]);
       }
       setTyping(false);
     })();

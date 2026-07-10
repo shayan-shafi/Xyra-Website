@@ -49,6 +49,15 @@ function generateRefCode(): string {
   return code;
 }
 
+// Scripted opening — the SAME exchange Bouncer.tsx displays on load
+// (SEED_USER/SEED_REPLY twins, keep in sync). Seeded into every new session's
+// transcript so the model has the opening context from the first real turn.
+const SEED_USER = "who are you and can you send me access?";
+const SEED_REPLY = [
+  "i'm xyra. i run this place.",
+  "and access isn't sent — it's earned. what's the mess in your life that brought you here?",
+];
+
 /** The door never breaks character — canned in-voice beats for non-LLM paths. */
 const LINES = {
   rateLimited: "you've been at the door a lot today. sleep on it — come back tomorrow.",
@@ -127,9 +136,19 @@ export async function POST(request: Request) {
           { status: 429 }
         );
       }
+      const seedTs = new Date().toISOString();
       const { data: created, error } = await supabaseAdmin
         .from("bouncer_sessions")
-        .insert({ visitor_id: safeVisitorId, ip_hash: iph })
+        .insert({
+          visitor_id: safeVisitorId,
+          ip_hash: iph,
+          // The scripted opening the visitor already saw on screen — turn_count
+          // stays 0 (it counts only messages they actually typed).
+          transcript: [
+            { role: "user", content: SEED_USER, ts: seedTs },
+            ...SEED_REPLY.map((content) => ({ role: "assistant", content, ts: seedTs })),
+          ],
+        })
         .select("*")
         .single();
       if (error || !created) {
