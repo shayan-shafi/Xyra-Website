@@ -36,12 +36,12 @@ const JAMMED_LINE = "door's jammed for a sec — say that again?";
 // threshold restore the thread as-is — no LLM call, no burned turn.
 const RETURN_AFTER_MS = 30 * 60 * 1000;
 
-// Typing indicator — the app's exact chrome: "· · ·" in an assistant-style
-// bordered bubble (ChatPanel's typingDotsFooter), not generic bouncing dots.
+// Typing indicator — the app's chrome ("· · ·" in an assistant-style bordered
+// bubble) at the door's tighter scale: a sliver, not a slab.
 function TypingDots() {
   return (
-    <div className="w-fit border border-[#2a2a2a] px-[18px] py-[14px]">
-      <span className="font-[family-name:var(--font-jetbrains)] text-base leading-4 tracking-[2px] text-[#a89e88] animate-pulse">
+    <div className="w-fit border border-[#2a2a2a] px-[12px] py-[7px]">
+      <span className="font-[family-name:var(--font-jetbrains)] text-[13px] leading-[13px] tracking-[2px] text-[#a89e88] animate-pulse">
         · · ·
       </span>
     </div>
@@ -233,21 +233,25 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
         {/* Middle */}
         <div className="flex-1 flex items-center justify-center py-0 sm:py-10">
           <div className="max-w-xl w-full">
-            {/* The door — a pixel-honest replica of the app's ChatPanel.
-                Phones get the app screen full-bleed; desktop gets it inside a
-                phone frame, like watching Xyra run. Colors/typography lifted
-                from mobile ChatPanel.tsx (bg #0a0a0a, assistant = transparent
-                + #2a2a2a hairline, user = solid white, mono 14px lowercase,
-                sharp corners). */}
+            {/* The door — the app's ChatPanel language (bg #0a0a0a, assistant =
+                transparent + #2a2a2a hairline, user = solid white, mono
+                lowercase, sharp corners) at a deliberately TIGHTER scale than
+                the app's 18/14 bubble padding: at web size those metrics read
+                as cards, not texts (Shayan, 2026-07-10). Phones get the screen
+                full-bleed; desktop gets it inside a phone frame. */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.6 }}
-              className="bg-[#0a0a0a] overflow-hidden w-full sm:w-auto sm:mx-auto sm:max-w-[390px] sm:rounded-[2.75rem] sm:border sm:border-white/20 sm:shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+              className="relative w-full sm:mx-auto sm:h-[78vh] sm:max-h-[760px] sm:w-auto sm:aspect-[574/1146]"
             >
+              {/* The chat screen. Phones: full-bleed. Desktop: absolutely inset to
+                  the transparent screen of the iPhone frame image that overlays it
+                  below (insets measured from the PNG: 6.62% sides, ~2.9% top/bot). */}
+              <div className="bg-[#0a0a0a] overflow-hidden w-full sm:w-auto sm:absolute sm:left-[6.62%] sm:right-[6.62%] sm:top-[2.88%] sm:bottom-[2.97%] sm:flex sm:flex-col sm:rounded-[1.6rem]">
               {/* Contact header — desktop phone-frame chrome only; on phones the
-                  site navbar (Xyra logo + menu) is the header. */}
-              <div className="hidden sm:flex flex-col items-center border-b border-[#1a1a1a] px-4 pt-5 pb-4 sm:pt-6">
+                  site navbar (Xyra logo + menu) is the header. pt clears the notch. */}
+              <div className="hidden sm:flex flex-col items-center border-b border-[#1a1a1a] px-4 pt-9 pb-4">
                 <span className="font-[family-name:var(--font-jetbrains)] text-sm lowercase text-white">
                   xyra
                 </span>
@@ -256,7 +260,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
               {/* Messages — the app's thread */}
               <div
                 ref={scrollRef}
-                className="h-[calc(100svh-190px)] sm:h-[min(600px,64vh)] overflow-y-auto px-5 py-4 space-y-3.5 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="h-[calc(100svh-190px)] sm:h-auto sm:flex-1 sm:min-h-0 overflow-y-auto px-5 py-4 space-y-2.5 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
                 {bubbles.map((b, i) => (
                   <motion.div
@@ -267,7 +271,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
                     className={`flex ${b.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      className={`max-w-[82%] px-[18px] py-[14px] font-[family-name:var(--font-jetbrains)] text-sm leading-5 lowercase ${
+                      className={`max-w-[78%] px-[12px] py-[8px] font-[family-name:var(--font-jetbrains)] text-[13px] leading-[19px] lowercase ${
                         b.role === "user"
                           ? "bg-white text-black"
                           : "border border-[#2a2a2a] text-white"
@@ -281,7 +285,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
               </div>
 
               {/* Composer — the app's editorial text bar: underline input + circular send */}
-              <form onSubmit={sendMessage} className="flex items-center gap-3 border-t border-[#1a1a1a] px-5 py-4">
+              <form onSubmit={sendMessage} className="flex items-center gap-3 border-t border-[#1a1a1a] px-5 py-3">
                 <div className="flex flex-1 items-center gap-2 border-b-2 border-white pb-2">
                   <input
                     type="text"
@@ -325,6 +329,17 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
                   </button>
                 </div>
               </form>
+              </div>
+
+              {/* The real iPhone frame — desktop only. Sits ON TOP; its screen is
+                  transparent so the chat shows through, and pointer-events-none so
+                  it never eats a tap on the input. drop-shadow hugs the phone. */}
+              <img
+                src="/assets/iphone-frame.png"
+                alt=""
+                aria-hidden
+                className="hidden sm:block pointer-events-none select-none absolute inset-0 h-full w-full drop-shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+              />
             </motion.div>
 
             {/* Trust signals */}
