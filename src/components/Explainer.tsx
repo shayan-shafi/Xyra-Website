@@ -184,13 +184,18 @@ export default function Explainer() {
   const explainerRef = useSectionView<HTMLDivElement>("explainer");
   const worldRef = useSectionView<HTMLElement>("world");
 
+  // The Brain / "Your World" section is hidden until the 3D graph is real.
+  // Flip back to true to restore the whole section.
+  const SHOW_WORLD = false;
+
   return (
     <div ref={explainerRef} className="bg-white">
       {/* ── Section 1: We Build ─────────────────────────────────── */}
       <section className="px-6 sm:px-12 lg:px-20 py-24 md:py-32 max-w-6xl mx-auto">
-        <Section>
-          <div className="max-w-3xl">
-            <h2 className="font-[family-name:var(--font-playfair)] text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-medium text-black tracking-tight leading-[1.05]">
+        <Section className="flex flex-col md:flex-row md:items-center gap-12 md:gap-10">
+          {/* Copy — left */}
+          <div className="flex-1">
+            <h2 className="font-[family-name:var(--font-playfair)] text-5xl sm:text-6xl md:text-6xl lg:text-7xl font-medium text-black tracking-tight leading-[1.05]">
               We don&apos;t assist.
               <br />
               <span className="italic">We build.</span>
@@ -200,6 +205,18 @@ export default function Explainer() {
               Xyra actually builds the dashboards, trackers, and systems
               you need to see progress in everything you care about.
             </p>
+          </div>
+
+          {/* Phones — right */}
+          <div className="w-full md:w-[44%] shrink-0">
+            <Image
+              src="/assets/xyra-phones-trio.png"
+              alt="Xyra running across a dashboard, tasks, and a fitness tracker"
+              width={764}
+              height={856}
+              priority
+              className="w-full h-auto"
+            />
           </div>
         </Section>
       </section>
@@ -247,7 +264,7 @@ export default function Explainer() {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-12 md:gap-20">
             <Section className="flex-1 order-2 md:order-1">
-              <IPhoneFrame src="/assets/xyra-chat-real.png" alt="Texting Xyra in the app" />
+              <IPhoneFrame src="/assets/xyra-chat-companion.png" alt="Texting Xyra in the app" />
             </Section>
 
             <Section className="flex-1 order-1 md:order-2">
@@ -260,16 +277,18 @@ export default function Explainer() {
                 <span className="italic text-black/60">Text Xyra.</span>
               </h3>
               <p className="font-[family-name:var(--font-eb-garamond)] text-lg md:text-xl text-black/50 mt-5 max-w-md leading-relaxed">
-                Don&apos;t even need to open the app. Text Xyra what you need and it logs everything
-                into your dashboards. Tasks, workouts, notes, anything.
-                It even congratulates you on your PRs.
+                Instead of texting yourself reminders you&apos;ll never open again,
+                just tell Xyra &mdash; by voice or text. It files every thought into
+                the right dashboard: tasks, workouts, notes, anything.
+                It even celebrates your PRs.
               </p>
             </Section>
           </div>
         </div>
       </section>
 
-      {/* ── Section 4: Your World ───────────────────────────────── */}
+      {/* ── Section 4: Your World — HIDDEN until the Brain ships ── */}
+      {SHOW_WORLD && (
       <section ref={worldRef} className="px-6 sm:px-12 lg:px-20 py-20 md:py-28 bg-black/[0.02]">
         <div className="max-w-6xl mx-auto">
           <Section>
@@ -293,6 +312,7 @@ export default function Explainer() {
           <WorldCards />
         </div>
       </section>
+      )}
     </div>
   );
 }

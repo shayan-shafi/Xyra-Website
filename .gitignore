@@ -46,3 +46,4 @@ public/assets/xyra-day-in-life-2.mov
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+supabase/.temp/

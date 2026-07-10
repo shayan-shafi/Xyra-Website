@@ -78,7 +78,7 @@ export default function Hero() {
             transition={{ duration: 0.8, delay: 0.55 }}
             className="font-[family-name:var(--font-playfair)] text-2xl text-black/40 mt-4 leading-tight tracking-tight text-center"
           >
-            Frictionless.
+            start actually getting things done.
           </motion.p>
 
           <motion.div
@@ -147,7 +147,7 @@ export default function Hero() {
             transition={{ duration: 0.8, delay: 0.55 }}
             className="font-[family-name:var(--font-playfair)] text-3xl lg:text-4xl text-black/40 mt-5 ml-1 max-w-lg leading-tight tracking-tight"
           >
-            Frictionless.
+            start actually getting things done.
           </motion.p>
 
           <motion.div
