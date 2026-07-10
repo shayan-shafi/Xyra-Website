@@ -21,15 +21,11 @@ type DoorState = "open" | "granted" | "closed";
 
 const STORAGE_KEY = "xyra:bouncer";
 
-// Scripted opening — a pre-loaded USER message and Xyra's reply, deterministic,
-// no LLM. MUST match the seed in /api/bouncer/route.ts (SEED_USER/SEED_REPLY):
-// the server writes the same exchange into every new session's transcript so
-// the model has this context from the first real turn. Keep the twins in sync.
+// The opener sits PRE-FILLED in the composer — the visitor sends it themselves
+// as a real first turn (no auto-play, no canned reply; Xyra answers live).
+// Twin of SEED_USER in /api/bouncer/route.ts, which uses it to recognize
+// return replays. Keep in sync.
 const SEED_USER = "who are you and can you send me access?";
-const SEED_REPLY = [
-  "i'm xyra. i run this place.",
-  "and access isn't sent — it's earned. what's the mess in your life that brought you here?",
-];
 
 const JAMMED_LINE = "door's jammed for a sec — say that again?";
 
@@ -72,14 +68,15 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
   const [typing, setTyping] = useState(false);
   const [sending, setSending] = useState(false);
   const [doorState, setDoorState] = useState<DoorState>("open");
-  const [input, setInput] = useState("");
+  // The composer opens pre-filled with the question — sending it is the
+  // visitor's first move. (Resume clears it when restoring a live thread.)
+  const [input, setInput] = useState(SEED_USER);
   const sessionIdRef = useRef<string | null>(null);
-  const openedRef = useRef(false);
-  const returningRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Resume a session across reloads — or, if they've been away a while, hand
-  // the returning session to the opener effect for the "we meet again" replay.
+  // Resume a session across reloads. Away 30+ min → fresh screen, SAME
+  // session, composer pre-filled again: they send the same question and Xyra
+  // gets to call the déjà vu with everything still on file.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -89,13 +86,12 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
       sessionIdRef.current = typeof saved.sessionId === "string" ? saved.sessionId : null;
       const away = Date.now() - (typeof saved.lastActiveAt === "number" ? saved.lastActiveAt : 0);
       if (sessionIdRef.current && away > RETURN_AFTER_MS) {
-        returningRef.current = true; // fresh screen, same session
-        return;
+        return; // fresh screen, same session, input stays pre-filled
       }
       // Older sessions may hold retired "invite" ticket entries — drop them.
       setBubbles(saved.bubbles.filter((b: Bubble) => b?.kind === "bubble"));
       setDoorState(saved.doorState === "granted" || saved.doorState === "closed" ? saved.doorState : "open");
-      openedRef.current = true;
+      setInput(""); // mid-thread — no pre-fill
     } catch {
       /* fresh door */
     }
@@ -177,46 +173,6 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
       setSending(false);
     }
   };
-
-  // The scripted opening plays on load. Fresh visitor → canned exchange (zero
-  // LLM). Returning visitor (30+ min away, session on file) → the same
-  // question replays as a REAL turn so Xyra can call the déjà vu with
-  // everything she already knows.
-  useEffect(() => {
-    if (openedRef.current) return;
-    openedRef.current = true;
-    let cancelled = false;
-    let spoke = false;
-    (async () => {
-      await new Promise((r) => setTimeout(r, 700));
-      if (cancelled) return;
-      spoke = true;
-      pushBubbles([{ kind: "bubble", role: "user", content: SEED_USER }]);
-      if (returningRef.current) {
-        void postTurn(SEED_USER);
-        return;
-      }
-      await new Promise((r) => setTimeout(r, 500));
-      if (cancelled) return;
-      setTyping(true);
-      for (let i = 0; i < SEED_REPLY.length; i++) {
-        await new Promise((r) => setTimeout(r, i === 0 ? 1100 : 1400));
-        if (cancelled) return;
-        pushBubbles([{ kind: "bubble", role: "assistant", content: SEED_REPLY[i] }]);
-      }
-      setTyping(false);
-    })();
-    return () => {
-      cancelled = true;
-      // React dev StrictMode double-mounts: if this run got cancelled before a
-      // single bubble landed, release the guard so the surviving run opens.
-      if (!spoke) {
-        openedRef.current = false;
-        setTyping(false);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Keep the newest bubble in view.
   useEffect(() => {
@@ -348,7 +304,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
                     }}
                     placeholder={
                       doorState === "granted"
-                        ? "she has your email — talk soon."
+                        ? "xyra has your email — talk soon."
                         : doorState === "closed"
                           ? "come back tomorrow."
                           : sending
@@ -380,7 +336,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
             >
               <span className="font-[family-name:var(--font-jetbrains)] text-xs">No spam</span>
               <span className="font-[family-name:var(--font-jetbrains)] text-xs">Free beta</span>
-              <span className="font-[family-name:var(--font-jetbrains)] text-xs">First in line if she likes you</span>
+              <span className="font-[family-name:var(--font-jetbrains)] text-xs">First in line if xyra likes you</span>
             </motion.div>
           </div>
         </div>
