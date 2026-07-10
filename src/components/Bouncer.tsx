@@ -309,6 +309,17 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
                     autoComplete="off"
                     maxLength={600}
                     disabled={doorState !== "open"}
+                    onFocus={(e) => {
+                      // iOS keyboard: once it finishes sliding up, re-pin the
+                      // thread to the newest message and keep the composer in
+                      // view instead of letting Safari pan the page apart.
+                      const input = e.currentTarget;
+                      setTimeout(() => {
+                        const el = scrollRef.current;
+                        if (el) el.scrollTop = el.scrollHeight;
+                        input.scrollIntoView({ block: "center", behavior: "smooth" });
+                      }, 300);
+                    }}
                     placeholder={
                       doorState === "granted"
                         ? "she has your email — talk soon."
@@ -318,7 +329,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
                             ? "thinking…"
                             : "type a message…"
                     }
-                    className="flex-1 bg-transparent font-[family-name:var(--font-jetbrains)] text-sm text-white placeholder:text-[#555] focus:outline-none disabled:opacity-50 lowercase"
+                    className="flex-1 bg-transparent font-[family-name:var(--font-jetbrains)] text-[16px] sm:text-sm text-white placeholder:text-[#555] focus:outline-none disabled:opacity-50 lowercase"
                   />
                   <button
                     type="submit"

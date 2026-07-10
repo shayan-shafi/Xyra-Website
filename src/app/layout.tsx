@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Playfair_Display, EB_Garamond, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
@@ -23,6 +23,16 @@ const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
   display: "swap",
 });
+
+// maximumScale: 1 stops iOS Safari's forced zoom-in when focusing an input —
+// the bouncer composer was blowing the whole layout apart on phones. Since
+// iOS 10, Safari ignores maximum-scale for USER pinch-zoom (accessibility),
+// so this only suppresses the auto-zoom heuristic.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
