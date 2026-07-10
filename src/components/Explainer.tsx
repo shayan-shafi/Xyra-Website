@@ -247,7 +247,7 @@ export default function Explainer() {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-12 md:gap-20">
             <Section className="flex-1 order-2 md:order-1">
-              <IPhoneFrame src="/assets/screenshot-text.png" alt="Texting Xyra via iMessage" />
+              <IPhoneFrame src="/assets/xyra-chat-real.png" alt="Texting Xyra in the app" />
             </Section>
 
             <Section className="flex-1 order-1 md:order-2">
