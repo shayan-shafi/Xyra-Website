@@ -58,9 +58,16 @@ const SEED_USER = "who are you and can you send me access?";
 const LINES = {
   rateLimited: "you've been at the door a lot today. sleep on it — come back tomorrow.",
   closed: "we've been at this all night. door's closed for now — come back tomorrow with the real pitch.",
+  // The cap line when they already made the list — never send someone home
+  // with "come back with the real pitch" after telling them they're in.
+  closedConvinced: "we've been at this all night — closing up. you're on my list; i'll be in touch when it's ready.",
   alreadyIn: "you're already on my list. i'll reach out soon.",
   jammed: "door's jammed for a sec — say that again?",
   needName: "hold on — before you're on my list, who am i reaching out to? what's your name?",
+  // The model voiced the close without an email (charter forbids it, but
+  // prompts lose to determinism) — replace the premature "you're in" bubbles
+  // so the conversation never promises contact it can't make.
+  needEmail: "almost — before you're on my list for real, where do i reach you when it's ready? drop your email.",
 };
 
 /** The close: store them like a normal waitlist signup, marked bouncer-vetted
@@ -157,7 +164,10 @@ export async function POST(request: Request) {
     if (session.turn_count >= MAX_TURNS) {
       return NextResponse.json({
         sessionId: session.id,
-        messages: [LINES.closed],
+        // Verdict-aware send-off (defensive: convinced sessions short-circuit
+        // to alreadyIn above, but the cap must never tell someone who made
+        // the list to "come back with the real pitch").
+        messages: [session.verdict === "convinced" ? LINES.closedConvinced : LINES.closed],
         verdict: session.verdict,
         granted: false,
         closed: true,
@@ -229,11 +239,15 @@ export async function POST(request: Request) {
       (!capturedEmail || !capturedName || newTurnCount < MIN_TURNS_TO_GRANT)
     ) {
       verdict = "vetting"; // the model got charmed early — the door has standards
-      // The model tried to close without a name (charter says never, but
-      // prompts lose to determinism): replace its "you're in" bubbles with the
-      // name ask so the conversation never lies about the door state.
+      // The model tried to close without a name or email (charter says never,
+      // but prompts lose to determinism): replace its "you're in" bubbles with
+      // the missing ask so the conversation never lies about the door state —
+      // "you're on my list, i'll reach out" with no email is a promise the
+      // door physically cannot keep.
       if (capturedEmail && !capturedName) {
         outMessages = [LINES.needName];
+      } else if (!capturedEmail) {
+        outMessages = [LINES.needEmail];
       }
     }
     const granted = verdict === "convinced";
