@@ -64,6 +64,7 @@ const LINES = {
   closed: "we've been at this all night. door's closed for now — come back tomorrow with the real pitch.",
   alreadyIn: "you're already on my list. i'll reach out soon.",
   jammed: "door's jammed for a sec — say that again?",
+  needName: "hold on — before you're on my list, who am i reaching out to? what's your name?",
 };
 
 /** The close: store them like a normal waitlist signup, marked bouncer-vetted
@@ -233,8 +234,18 @@ export async function POST(request: Request) {
         ? reply.email.toLowerCase().trim()
         : session.email || null;
     let verdict = reply.verdict;
-    if (verdict === "convinced" && (!capturedEmail || newTurnCount < MIN_TURNS_TO_GRANT)) {
+    let outMessages = reply.messages;
+    if (
+      verdict === "convinced" &&
+      (!capturedEmail || !capturedName || newTurnCount < MIN_TURNS_TO_GRANT)
+    ) {
       verdict = "vetting"; // the model got charmed early — the door has standards
+      // The model tried to close without a name (charter says never, but
+      // prompts lose to determinism): replace its "you're in" bubbles with the
+      // name ask so the conversation never lies about the door state.
+      if (capturedEmail && !capturedName) {
+        outMessages = [LINES.needName];
+      }
     }
     const granted = verdict === "convinced";
 
@@ -247,7 +258,7 @@ export async function POST(request: Request) {
     const newTranscript: TranscriptEntry[] = [
       ...transcript,
       { role: "user", content: userMessage, ts },
-      ...reply.messages.map((m) => ({ role: "assistant" as const, content: m, ts })),
+      ...outMessages.map((m) => ({ role: "assistant" as const, content: m, ts })),
     ];
     await supabaseAdmin
       .from("bouncer_sessions")
@@ -269,7 +280,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       sessionId: session.id,
-      messages: reply.messages,
+      messages: outMessages,
       verdict,
       granted,
     });
