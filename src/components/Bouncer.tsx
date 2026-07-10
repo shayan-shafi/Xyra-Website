@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useInView } from "framer-motion";
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState, FormEvent } from "react";
 import { getVisitorId, track, trackOncePerSession } from "@/lib/analytics";
 
@@ -43,8 +43,9 @@ function TypingDots() {
 }
 
 export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean }) {
-  const sectionRef = useRef(null);
-  const isInView = useInView(sectionRef, { once: true, margin: "-50px" });
+  // The door is the FRONT PAGE now — everything fires on mount, no scroll
+  // trigger. (The old useInView gate left the hero invisible until the first
+  // scroll event, which a landing visitor hasn't made yet.)
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -52,14 +53,10 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
     return () => clearTimeout(timer);
   }, []);
 
-  const viewTrackedRef = useRef(false);
   useEffect(() => {
-    if (isInView && !viewTrackedRef.current) {
-      viewTrackedRef.current = true;
-      track("bouncer_view");
-      trackOncePerSession("section:waitlist", "section_view", { section_name: "waitlist" });
-    }
-  }, [isInView]);
+    track("bouncer_view");
+    trackOncePerSession("section:waitlist", "section_view", { section_name: "waitlist" });
+  }, []);
 
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [typing, setTyping] = useState(false);
@@ -111,12 +108,14 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
     [persist, doorState]
   );
 
-  // Xyra opens when the section scrolls into view on a fresh session.
+  // Xyra opens the conversation on load — the door is the front page, so the
+  // opener plays on mount (a fresh session only; storage-resume sets openedRef).
   useEffect(() => {
-    if (!isInView || openedRef.current) return;
+    if (openedRef.current) return;
     openedRef.current = true;
     const opener = OPENERS[Math.floor(Math.random() * OPENERS.length)];
     let cancelled = false;
+    let spoke = false;
     (async () => {
       await new Promise((r) => setTimeout(r, 900));
       if (cancelled) return;
@@ -124,15 +123,22 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
       for (let i = 0; i < opener.length; i++) {
         await new Promise((r) => setTimeout(r, i === 0 ? 1100 : 1400));
         if (cancelled) return;
+        spoke = true;
         pushBubbles([{ kind: "bubble", role: "assistant", content: opener[i] }]);
       }
       setTyping(false);
     })();
     return () => {
       cancelled = true;
+      // React dev StrictMode double-mounts: if this run got cancelled before a
+      // single bubble landed, release the guard so the surviving run opens.
+      if (!spoke) {
+        openedRef.current = false;
+        setTyping(false);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInView]);
+  }, []);
 
   // Keep the newest bubble in view.
   useEffect(() => {
@@ -202,7 +208,6 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
       id="waitlist"
       className="relative min-h-screen w-full overflow-hidden bg-[#0a0a0a] sm:bg-black z-[45]"
       style={overlapMode ? { marginTop: "-100vh" } : undefined}
-      ref={sectionRef}
     >
       {/* Video Background — desktop only; on phones the section is pure black chat */}
       <div className="hidden sm:block absolute inset-0 z-0">
@@ -228,7 +233,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
         {/* Top: Section label inside the black bar */}
         <motion.div
           initial={{ opacity: 0 }}
-          animate={{ opacity: isInView && isLoaded ? 1 : 0 }}
+          animate={{ opacity: isLoaded ? 1 : 0 }}
           transition={{ duration: 1, delay: 0.2 }}
           className="hidden sm:flex items-center justify-center h-[8vh]"
         >
@@ -248,7 +253,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
                 sharp corners). */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
-              animate={isInView ? { opacity: 1, y: 0 } : {}}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.6 }}
               className="bg-[#0a0a0a] overflow-hidden w-full sm:w-auto sm:mx-auto sm:max-w-[390px] sm:rounded-[2.75rem] sm:border sm:border-white/20 sm:shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
             >
@@ -326,7 +331,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
             {/* Trust signals */}
             <motion.div
               initial={{ opacity: 0 }}
-              animate={isInView ? { opacity: 1 } : {}}
+              animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 0.9 }}
               className="mt-8 hidden sm:flex items-center justify-center gap-6 text-white/40"
             >
