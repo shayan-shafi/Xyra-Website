@@ -39,10 +39,10 @@ export default function Navbar() {
       <div className="mx-auto px-6 sm:px-8 lg:px-12">
         <div className="flex h-16 sm:h-20 items-center justify-between">
           {/* Logo — the door is the front page now; the logo is the way INTO
-              the rest of the site (the story sections below the bouncer). */}
+              the rest of the site (the explainer that follows the bouncer). */}
           <a
-            href="#story"
-            onClick={() => track("cta_click", { cta_location: "navbar", button_label: "logo_to_story" })}
+            href="#learn"
+            onClick={() => track("cta_click", { cta_location: "navbar", button_label: "logo_to_learn" })}
             className="flex items-center gap-2.5"
           >
             <Image

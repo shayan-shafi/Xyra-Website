@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
+import ScrollCue from "@/components/ScrollCue";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -219,10 +220,11 @@ export default function Explainer() {
             />
           </div>
         </Section>
+        <ScrollCue targetId="how" label="see how it works" />
       </section>
 
       {/* ── Section 2: Brain Dump → Dashboard ───────────────────── */}
-      <section className="px-6 sm:px-12 lg:px-20 py-20 md:py-28 bg-black/[0.02]">
+      <section id="how" className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-20 md:py-28 bg-black/[0.02]">
         <div className="max-w-6xl mx-auto">
           <Section>
             <div className="text-center mb-12 md:mb-16">
@@ -256,11 +258,12 @@ export default function Explainer() {
               </p>
             </div>
           </Section>
+          <ScrollCue targetId="text-xyra" label="keep going" />
         </div>
       </section>
 
       {/* ── Section 3: Text Xyra ────────────────────────────────── */}
-      <section className="px-6 sm:px-12 lg:px-20 py-20 md:py-28">
+      <section id="text-xyra" className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-20 md:py-28">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-12 md:gap-20">
             <Section className="flex-1 order-2 md:order-1">
@@ -284,6 +287,7 @@ export default function Explainer() {
               </p>
             </Section>
           </div>
+          <ScrollCue targetId="story" label="ready when you are" />
         </div>
       </section>
 

@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
 import RotatingWord from "./RotatingWord";
+import ScrollCue from "./ScrollCue";
 
 const BrainCanvas = dynamic(() => import("./showcase/BrainCanvas"), {
   ssr: false,
@@ -189,6 +190,15 @@ export default function Hero() {
             </div>
           </motion.div>
         </div>
+
+        {/* Last screen — loop back to the door at the top. Pinned to the bottom
+            of the full-height hero, shown on mobile + desktop. */}
+        <ScrollCue
+          targetId="waitlist"
+          label="back to the top"
+          up
+          wrapperClassName="absolute inset-x-0 bottom-6 z-10 flex justify-center"
+        />
       </section>
 
       {/* Video modal */}

@@ -74,6 +74,15 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
   const sessionIdRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // The door stays CLOSED — an intro (what Xyra is + two CTAs) sits over the
+  // video until the visitor clicks Join Beta. Landing straight in a live chat
+  // wasn't clear (Shayan 2026-07-11). Returning mid-thread visitors skip it.
+  const [opened, setOpened] = useState(false);
+  const openDoor = useCallback(() => {
+    setOpened(true);
+    track("bouncer_open");
+  }, []);
+
   // Resume a session across reloads. Away 30+ min → fresh screen, SAME
   // session, composer pre-filled again: they send the same question and Xyra
   // gets to call the déjà vu with everything still on file.
@@ -92,6 +101,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
       setBubbles(saved.bubbles.filter((b: Bubble) => b?.kind === "bubble"));
       setDoorState(saved.doorState === "granted" || saved.doorState === "closed" ? saved.doorState : "open");
       setInput(""); // mid-thread — no pre-fill
+      setOpened(true); // returning mid-thread → straight back into the chat
     } catch {
       /* fresh door */
     }
@@ -129,7 +139,9 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
   // rhythm, door-state updates. Shared by typed messages and the return replay.
   const postTurn = async (text: string) => {
     setSending(true);
-    setTimeout(() => setTyping(true), 350);
+    // Dots appear almost immediately — an instant "on it" signal while the
+    // model thinks (that latency is the real wait; don't pad it further).
+    setTimeout(() => setTyping(true), 120);
     try {
       const res = await fetch("/api/bouncer", {
         method: "POST",
@@ -152,9 +164,13 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
           ? "closed"
           : "open";
 
-      // Reveal bubbles one at a time, dots between beats.
+      // Reveal bubbles one at a time. The FIRST lands as soon as the reply is
+      // ready (just enough for the dots to register); later bubbles get a short
+      // read-gap scaled to the previous bubble's length — the texting rhythm
+      // without the drag (was a flat 1100/1400ms stacked on top of LLM latency).
       for (let i = 0; i < replies.length; i++) {
-        await new Promise((r) => setTimeout(r, i === 0 ? 1100 : 1400));
+        const gap = i === 0 ? 280 : Math.min(260 + replies[i - 1].length * 9, 750);
+        await new Promise((r) => setTimeout(r, gap));
         const isLast = i === replies.length - 1;
         pushBubbles(
           [{ kind: "bubble", role: "assistant", content: replies[i] }],
@@ -232,6 +248,49 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
 
         {/* Middle */}
         <div className="flex-1 flex items-center justify-center py-0 sm:py-10">
+          {!opened ? (
+            /* INTRO over the video: what Xyra is + the two CTAs. The chat only
+               opens on Join Beta — landing straight in a live thread wasn't
+               clear what to do (Shayan 2026-07-11). */
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+              className="mx-auto w-full max-w-2xl px-6 text-center"
+            >
+              <span className="font-[family-name:var(--font-jetbrains)] text-xs tracking-[0.3em] uppercase text-white/50">
+                The waitlist is a conversation
+              </span>
+              <h1 className="mt-6 font-[family-name:var(--font-playfair)] text-4xl sm:text-5xl md:text-6xl font-medium text-white leading-[1.05]">
+                Meet Xyra.
+              </h1>
+              <p className="mx-auto mt-5 max-w-md font-[family-name:var(--font-eb-garamond)] text-lg sm:text-xl text-white/60 leading-relaxed">
+                Text Xyra your life — tasks, workouts, plans, whatever&apos;s in your
+                head — and it builds the dashboards to run everything. Getting in
+                is a conversation.
+              </p>
+              <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button
+                  onClick={openDoor}
+                  className="w-full sm:w-auto rounded-full bg-white px-9 py-3.5 font-[family-name:var(--font-jetbrains)] text-sm tracking-[0.1em] uppercase text-black transition-transform hover:scale-[1.03] active:scale-95"
+                >
+                  Join Beta
+                </button>
+                <a
+                  href="#learn"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document
+                      .getElementById("learn")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className="font-[family-name:var(--font-jetbrains)] text-sm text-white/60 underline-offset-8 transition-colors hover:text-white hover:underline"
+                >
+                  or click here to learn what Xyra is ↓
+                </a>
+              </div>
+            </motion.div>
+          ) : (
           <div className="max-w-xl w-full">
             {/* The door — the app's ChatPanel language (bg #0a0a0a, assistant =
                 transparent + #2a2a2a hairline, user = solid white, mono
@@ -340,6 +399,40 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
                 aria-hidden
                 className="hidden sm:block pointer-events-none select-none absolute inset-0 h-full w-full drop-shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
               />
+
+              {/* First-run hint (desktop) — the composer opens pre-filled with
+                  Xyra's question; a bouncing arrow at the send button makes it
+                  obvious it's theirs to send. Gone the moment they send. */}
+              {doorState === "open" && bubbles.length === 0 && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1, duration: 0.5 }}
+                  className="pointer-events-none absolute hidden select-none items-center gap-2 whitespace-nowrap sm:flex"
+                  style={{ left: "calc(100% + 14px)", bottom: "3.5%" }}
+                >
+                  <motion.svg
+                    animate={{ x: [0, -5, 0] }}
+                    transition={{ repeat: Infinity, duration: 1.1, ease: "easeInOut" }}
+                    width="36"
+                    height="20"
+                    viewBox="0 0 36 20"
+                    fill="none"
+                    className="text-white/70"
+                  >
+                    <path
+                      d="M35 10 H4 M11 3 L4 10 L11 17"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </motion.svg>
+                  <span className="font-[family-name:var(--font-jetbrains)] text-sm text-white/80">
+                    click send to start
+                  </span>
+                </motion.div>
+              )}
             </motion.div>
 
             {/* Trust signals */}
@@ -354,6 +447,7 @@ export default function Bouncer({ overlapMode = false }: { overlapMode?: boolean
               <span className="font-[family-name:var(--font-jetbrains)] text-xs">First in line if xyra likes you</span>
             </motion.div>
           </div>
+          )}
         </div>
 
         {/* Bottom spacer for the black bar (desktop only) */}
