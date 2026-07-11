@@ -72,20 +72,37 @@ const LINES = {
 
 /** The close: store them like a normal waitlist signup, marked bouncer-vetted
  *  (alpha_status 'candidate' — Shayan selects + reaches out later; no invite,
- *  no link, the app isn't open yet). Never downgrades an existing status. */
-async function closeOnWaitlist(email: string, name: string | null, visitorId: string | null) {
+ *  no link, the app isn't open yet). The CONTEXT they gave — the life-areas
+ *  they said they'd track (`wants`) — is surfaced in admin_notes so it's
+ *  visible on the waitlist table, not just buried in bouncer_sessions. (Lives
+ *  in admin_notes rather than a dedicated column so no migration is required;
+ *  the full transcript stays in bouncer_sessions, keyed by email.)
+ *  Never downgrades an existing status; never clobbers a human's admin note. */
+async function closeOnWaitlist(
+  email: string,
+  name: string | null,
+  visitorId: string | null,
+  wants: string[],
+) {
   if (!supabaseAdmin) return;
+  const note = wants.length
+    ? `bouncer — wants to track: ${wants.join(", ")}`
+    : "bouncer — talked their way in";
+
   const { data: existing } = await supabaseAdmin
     .from("waitlist")
-    .select("id, alpha_status")
+    .select("id, alpha_status, admin_notes")
     .eq("email", email)
     .single();
   if (existing) {
-    if (!existing.alpha_status) {
-      await supabaseAdmin
-        .from("waitlist")
-        .update({ alpha_status: "candidate" })
-        .eq("email", email);
+    const update: Record<string, unknown> = {};
+    if (!existing.alpha_status) update.alpha_status = "candidate";
+    // Refresh the note only when it's empty or our own auto-note — never
+    // overwrite something a human typed in the admin UI.
+    const cur = (existing.admin_notes as string | null)?.trim();
+    if (!cur || /^bouncer\b/i.test(cur)) update.admin_notes = note;
+    if (Object.keys(update).length) {
+      await supabaseAdmin.from("waitlist").update(update).eq("email", email);
     }
   } else {
     await supabaseAdmin.from("waitlist").insert({
@@ -94,7 +111,7 @@ async function closeOnWaitlist(email: string, name: string | null, visitorId: st
       ref_code: generateRefCode(),
       visitor_id: visitorId,
       alpha_status: "candidate",
-      admin_notes: "talked their way in — bouncer",
+      admin_notes: note,
     });
   }
 }
@@ -276,9 +293,9 @@ export async function POST(request: Request) {
       })
       .eq("id", session.id);
 
-    // ---- The close: she has their name + email now ----
+    // ---- The close: name + email captured — store with the tracking context ----
     if (granted) {
-      await closeOnWaitlist(capturedEmail!, capturedName, safeVisitorId || session.visitor_id);
+      await closeOnWaitlist(capturedEmail!, capturedName, safeVisitorId || session.visitor_id, wants);
     }
 
     return NextResponse.json({

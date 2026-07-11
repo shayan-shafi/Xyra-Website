@@ -196,6 +196,15 @@ ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS alpha_status     TEXT;
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS alpha_invited_at TIMESTAMPTZ;
 ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS admin_notes      TEXT;
 
+-- BOUNCER CONTEXT ON THE WAITLIST (2026-07-11): when someone talks their way in
+-- via Bouncer Xyra, the life-areas they said they'd track are written into
+-- admin_notes as "bouncer — wants to track: <a, b, c>" (see /api/bouncer
+-- closeOnWaitlist). This surfaces the intent right on the waitlist table without
+-- a migration; the FULL transcript stays in bouncer_sessions, keyed by email.
+-- OPTIONAL upgrade to a structured column (then update closeOnWaitlist to write
+-- it + backfill from bouncer_sessions):
+--   ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS wants_to_track TEXT[];
+
 -- Optional hardening (commented out — uncomment to make the DB reject
 -- unexpected status values):
 -- ALTER TABLE waitlist
