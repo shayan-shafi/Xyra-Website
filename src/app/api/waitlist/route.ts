@@ -59,13 +59,6 @@ export async function POST(request: Request) {
 
     const { name, email, referredBy, visitor_id, first_touch } = await request.json();
 
-    if (!name || typeof name !== "string") {
-      return NextResponse.json(
-        { error: "Name is required" },
-        { status: 400 }
-      );
-    }
-
     if (!email || typeof email !== "string") {
       return NextResponse.json(
         { error: "Email is required" },
@@ -74,7 +67,12 @@ export async function POST(request: Request) {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const trimmedName = name.trim();
+    // Name is optional (the desktop hero form is email-only) — fall back to
+    // the email's local part so downstream emails still have something to say.
+    const trimmedName =
+      typeof name === "string" && name.trim()
+        ? name.trim()
+        : normalizedEmail.split("@")[0];
 
     // Check if email already exists
     const { data: existing } = await supabase
