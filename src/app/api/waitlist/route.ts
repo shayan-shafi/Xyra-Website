@@ -1,8 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { resend } from "@/lib/resend";
 import { NextResponse } from "next/server";
-
-const POSITION_OFFSET = 250;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -155,41 +152,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // Calculate position
-    let position = POSITION_OFFSET;
-    const { count } = await supabase
-      .from("waitlist")
-      .select("*", { count: "exact", head: true });
-    if (count !== null) {
-      position = POSITION_OFFSET + count;
-    }
-
-    // Send welcome email via Resend template
-    if (resend) {
-      const firstName = trimmedName.split(" ")[0];
-      try {
-        const { data, error: sendError } = await resend.emails.send({
-          from: "Shayan from Xyra <shayan@xyra.dev>",
-          to: normalizedEmail,
-          subject: "You're in. Here's what happens next.",
-          template: {
-            id: "065b2a5f-d73b-462c-8875-d3d4393e0317",
-            variables: {
-              firstName,
-              position,
-              code: refCode,
-            },
-          },
-        } as Parameters<typeof resend.emails.send>[0]);
-        if (sendError) {
-          console.error("Resend send error:", sendError);
-        } else {
-          console.log("Resend send ok:", data?.id);
-        }
-      } catch (err) {
-        console.error("Resend threw:", err);
-      }
-    }
+    // Welcome email intentionally disabled (2026-08-13) — no automatic send
+    // on signup. To re-enable: import { resend } from "@/lib/resend", compute
+    // position (250 offset + waitlist count), and restore the
+    // resend.emails.send block (template 065b2a5f-d73b-462c-8875-d3d4393e0317,
+    // vars: firstName, position, code) — see git history of this file.
 
     return NextResponse.json(
       { message: "You're on the list!" },
