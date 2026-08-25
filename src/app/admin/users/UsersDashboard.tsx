@@ -87,11 +87,38 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
   const [busy, setBusy] = useState(false);
   const [groupName, setGroupName] = useState("");
 
+  const q = search.trim().toLowerCase();
+  const seg = SEGMENTS.find((s) => s.key === segment);
+  const matchesSearch = useCallback(
+    (u: AlphaUser) => !q || `${u.name ?? ""} ${u.email} ${u.source ?? ""} ${u.alphaStatus ?? ""}`.toLowerCase().includes(q),
+    [q],
+  );
+
+  // Counts shown on the pills are CONTEXTUAL: a status pill counts people
+  // matching that status AND the active segment/search, and vice versa — so a
+  // combination that would yield nobody reads "0" before you click it.
+  const statusCounts = useMemo(() => {
+    const c: Record<UserStatus, number> = { active: 0, cooling: 0, dormant: 0, idle: 0, invited: 0, waitlist: 0 };
+    for (const u of users) if (matchesSearch(u) && (!seg || seg.match(u))) c[u.status] += 1;
+    return c;
+  }, [users, matchesSearch, seg]);
+  const segmentCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const sg of SEGMENTS) c[sg.key] = users.filter((u) => matchesSearch(u) && (!statusFilter || u.status === statusFilter) && sg.match(u)).length;
+    return c;
+  }, [users, matchesSearch, statusFilter]);
+  const allCount = useMemo(() => users.filter((u) => matchesSearch(u) && (!seg || seg.match(u))).length, [users, matchesSearch, seg]);
+
+  const activeFilters = [
+    statusFilter ? { key: "status", label: `Status: ${STATUS_META[statusFilter].label}`, clear: () => setStatusFilter("") } : null,
+    seg ? { key: "segment", label: `Segment: ${seg.label}`, clear: () => setSegment("") } : null,
+    q ? { key: "search", label: `Search: “${search.trim()}”`, clear: () => setSearch("") } : null,
+  ].filter((f): f is { key: string; label: string; clear: () => void } => f !== null);
+  const clearAll = () => { setStatusFilter(""); setSegment(""); setSearch(""); };
+
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const seg = SEGMENTS.find((s) => s.key === segment);
     const list = users.filter((u) => {
-      if (q && !`${u.name ?? ""} ${u.email} ${u.source ?? ""} ${u.alphaStatus ?? ""}`.toLowerCase().includes(q)) return false;
+      if (!matchesSearch(u)) return false;
       if (statusFilter && u.status !== statusFilter) return false;
       if (seg && !seg.match(u)) return false;
       return true;
@@ -108,7 +135,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
       }
     });
     return list;
-  }, [users, search, statusFilter, segment, sortKey]);
+  }, [users, matchesSearch, statusFilter, seg, sortKey]);
 
   // What actions operate on: the checked rows, else everything currently shown.
   const targets = useMemo(
@@ -188,8 +215,8 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
     <div className="space-y-6">
       {/* Funnel */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <StatCard label="Waitlist" value={funnel.waitlist} sub={`${funnel.invited} invited`} />
-        <StatCard label="Accounts" value={funnel.accounts} sub="created an account" />
+        <StatCard label="Waitlist" value={funnel.waitlist} sub={`${funnel.invited} invited`} onClick={() => { setStatusFilter("waitlist"); setSegment(""); }} active={statusFilter === "waitlist" && !segment} />
+        <StatCard label="Accounts" value={funnel.accounts} sub="created an account" onClick={() => { setSegment("all-accounts"); setStatusFilter(""); }} active={segment === "all-accounts" && !statusFilter} />
         <StatCard label="Activated" value={funnel.activated} sub={`${activationPct}% of accounts`} />
         <StatCard label="Active 7d" value={funnel.active7} sub="used this week" onClick={() => { setStatusFilter("active"); setSegment(""); }} active={statusFilter === "active"} />
         <StatCard label="Active 30d" value={funnel.active30} sub="used this month" />
@@ -200,13 +227,13 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
       <div className="bg-white rounded-2xl border border-gray-200 p-4">
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={() => setStatusFilter("")} className={`px-3 py-1 rounded-full text-xs font-medium border ${statusFilter === "" ? "bg-black text-white border-black" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}`}>
-            All <span className="opacity-60 tabular-nums">{users.length}</span>
+            All <span className="opacity-60 tabular-nums">{allCount}</span>
           </button>
           {STATUS_ORDER.map((s) => (
             <button key={s} type="button" onClick={() => setStatusFilter(statusFilter === s ? "" : s)} title={STATUS_META[s].hint}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${statusFilter === s ? "bg-black text-white border-black" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${STATUS_META[s].dot}`} />
-              {STATUS_META[s].label} <span className="opacity-60 tabular-nums">{byStatus[s]}</span>
+              {STATUS_META[s].label} <span className="opacity-60 tabular-nums">{statusCounts[s]}</span>
             </button>
           ))}
         </div>
@@ -215,10 +242,22 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
           {SEGMENTS.map((s) => (
             <button key={s.key} type="button" onClick={() => setSegment(segment === s.key ? "" : s.key)} title={s.hint}
               className={`px-3 py-1 rounded-full text-xs font-medium border ${segment === s.key ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}`}>
-              {s.label} <span className="opacity-60 tabular-nums">{users.filter(s.match).length}</span>
+              {s.label} <span className="opacity-60 tabular-nums">{segmentCounts[s.key]}</span>
             </button>
           ))}
         </div>
+        {activeFilters.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+            <span className={`${LABEL} mr-1`}>Showing</span>
+            {activeFilters.map((f) => (
+              <button key={f.key} type="button" onClick={f.clear} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-gray-100 text-gray-700 hover:bg-gray-200" title="Remove this filter">
+                {f.label} <span aria-hidden="true" className="text-gray-400">×</span>
+              </button>
+            ))}
+            {activeFilters.length > 1 && <span className="text-[11px] text-gray-400">(all must match)</span>}
+            <button type="button" onClick={clearAll} className="ml-auto text-xs text-gray-500 underline underline-offset-2 hover:text-gray-900">Clear all</button>
+          </div>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -255,7 +294,15 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
       {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4 overflow-x-auto">
         {filtered.length === 0 ? (
-          <p className="text-sm text-gray-400 italic">No one matches.</p>
+          <div className="text-sm text-gray-500">
+            <p>
+              No one matches{activeFilters.length > 0 ? ` ${activeFilters.map((f) => f.label.toLowerCase()).join(" + ")}` : ""}.
+              {activeFilters.length > 1 && " Those filters combine — remove one above."}
+            </p>
+            {activeFilters.length > 0 && (
+              <button type="button" onClick={clearAll} className="mt-2 text-xs text-gray-700 underline underline-offset-2">Clear all filters</button>
+            )}
+          </div>
         ) : (
           <table className="w-full min-w-[980px]">
             <thead>
