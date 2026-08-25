@@ -5,11 +5,12 @@ import LogoutButton from "./LogoutButton";
 // Branded admin header + section nav. Server-rendered, reused by
 // /admin/analytics, /admin/growth, and /admin/growth/email. The admin auth
 // cookie is path-scoped to /admin, so all three sit behind the same gate.
-type AdminSection = "analytics" | "growth" | "email" | "feedback" | "blog";
+type AdminSection = "analytics" | "growth" | "users" | "email" | "feedback" | "blog";
 
 const LINKS: { key: AdminSection; label: string; href: string }[] = [
   { key: "analytics", label: "Analytics", href: "/admin/analytics" },
   { key: "growth", label: "Growth", href: "/admin/growth" },
+  { key: "users", label: "Users", href: "/admin/users" },
   { key: "email", label: "Email Ops", href: "/admin/growth/email" },
   { key: "feedback", label: "Feedback", href: "/admin/feedback" },
   { key: "blog", label: "Blog", href: "/admin/blog" },
