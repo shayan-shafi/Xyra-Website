@@ -188,11 +188,13 @@ function Nav() {
       </div>
 
       <a
-        href="#join"
-        onClick={() => track("cta_click", { cta_location: "hero_nav", button_label: "join beta" })}
+        href="https://docs.google.com/forms/d/e/1FAIpQLSeV8Eky5rWqVz9LWXd9bTVzm-Pei3F7HxikHe4EC7iqUbFN_A/viewform?usp=header"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => track("cta_click", { cta_location: "hero_nav", button_label: "apply to test it" })}
         className="font-[family-name:var(--font-jetbrains)] text-xs text-black underline underline-offset-4 decoration-black/30 hover:decoration-black transition-all"
       >
-        join the beta
+        apply to test it
       </a>
     </div>
   );
