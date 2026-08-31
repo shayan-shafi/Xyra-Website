@@ -170,6 +170,9 @@ function Chip({ children }: { children: ReactNode }) {
 
 /* ── nav ────────────────────────────────────────────────────────────────── */
 
+const TEST_FORM_URL =
+  "https://docs.google.com/forms/d/e/1FAIpQLSeV8Eky5rWqVz9LWXd9bTVzm-Pei3F7HxikHe4EC7iqUbFN_A/viewform?usp=header";
+
 function Nav() {
   return (
     <div className="absolute top-0 inset-x-0 z-[70] flex items-center justify-between px-5 sm:px-8 h-12">
@@ -188,7 +191,7 @@ function Nav() {
       </div>
 
       <a
-        href="https://docs.google.com/forms/d/e/1FAIpQLSeV8Eky5rWqVz9LWXd9bTVzm-Pei3F7HxikHe4EC7iqUbFN_A/viewform?usp=header"
+        href={TEST_FORM_URL}
         target="_blank"
         rel="noopener noreferrer"
         onClick={() => track("cta_click", { cta_location: "hero_nav", button_label: "apply to test it" })}
@@ -499,9 +502,15 @@ export default function DesktopHero() {
           className="mt-8 w-full flex flex-col items-center scroll-mt-24"
         >
           <EmailForm />
-          <p className="font-[family-name:var(--font-jetbrains)] text-[11px] text-black/40 mt-4">
-            free beta · no spam · early access
-          </p>
+          <a
+            href={TEST_FORM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => track("cta_click", { cta_location: "hero_form", button_label: "wanna test it" })}
+            className="pointer-events-auto font-[family-name:var(--font-jetbrains)] text-[11px] text-black/40 hover:text-black mt-4 underline underline-offset-4 decoration-black/20 hover:decoration-black transition-all"
+          >
+            wanna test it?
+          </a>
         </motion.div>
 
         {/* ── the demo, as a rich message card from xyra ── */}
