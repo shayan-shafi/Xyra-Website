@@ -6,15 +6,22 @@
 // but the metaphor here is Xyra's own — this is NOT a mac desktop. Everything
 // floating on the canvas is a real product artifact: lowercase chat bubbles,
 // receipt chips, phone-framed screen recordings, a hold-to-talk mic pill, a
-// typing indicator. Center stack = wordmark → one-liner → email-only waitlist
-// pill. The demo sits at the bottom as a rich message card from xyra.
+// typing indicator. Center stack = wordmark → one-liner → THE PHONE: a
+// center-stage iPhone running the app's chat surface. That phone is the stage
+// running the scripted loop in hero/PhoneScene.tsx (greet → braindump →
+// routing preview → receipt → dashboards → To-Do → Workout; the brain beat is
+// next). The screen renders at the app's native 390pt width and is scaled to
+// fit, so everything inside uses the app's real pixel values. The demo video lives in
+// the "a day with xyra" floater (click → plays big, with sound).
 // Xyra design language: Playfair display, EB Garamond prose, JetBrains Mono
 // chips, black/white, rounded-soft.
 
-import { useEffect, useRef, useState, FormEvent, ReactNode } from "react";
+import { useEffect, useRef, useState, CSSProperties, FormEvent, ReactNode } from "react";
 import { motion } from "framer-motion";
 import { getFirstTouch, getVisitorId, track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
+import PhoneScene, { SCREEN_W, SCREEN_H } from "./hero/PhoneScene";
+import { TornSticker } from "./hero/TornSticker";
 
 // faint "+" builder grid — reads as a canvas being built on, not graph paper
 const PLUS_GRID =
@@ -74,6 +81,94 @@ function PhoneFrame({ children }: { children: ReactNode }) {
   );
 }
 
+/* ── the center-stage phone ─────────────────────────────────────────────── */
+
+// The app's logical iPhone canvas (SCREEN_W × SCREEN_H, from PhoneScene) is
+// authored at the app's 390pt width and scaled to whatever the frame's screen
+// cutout measures; the height follows the frame image's screen aspect (358:761).
+
+// /assets/iphone-15-frame.png — a real iPhone 15 Pro render (Shayan's pick,
+// 2026-09-12) with the screen cut to transparent and the drop shadow turned
+// into alpha so it composites on the warm canvas. Measured in image px:
+//   image 598×917 · phone body 394×798 at (0,0) · screen 358×761 at (19,17)
+// The container is the phone BODY box (the shadow overflows right + bottom);
+// the screen content sits in a cutout-aligned div underneath the PNG, padded
+// PAD px outward so it also sits under the bezel's anti-aliased inner edge.
+const FRAME = {
+  src: "/assets/iphone-15-frame.png",
+  img: { w: 598, h: 917 },
+  body: { w: 394, h: 798 },
+  screen: { x: 19, y: 17, w: 358, h: 761 },
+};
+const PAD = 2;
+const pct = (n: number, d: number) => `${(n / d) * 100}%`;
+
+function HeroPhone({ children }: { children: ReactNode }) {
+  const screenRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.7);
+
+  useEffect(() => {
+    const el = screenRef.current;
+    if (!el) return;
+    const update = () => setScale(el.clientWidth / SCREEN_W);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const { body, screen, img } = FRAME;
+  const outerW = screen.w + PAD * 2;
+  const outerH = screen.h + PAD * 2;
+  // CSS px per frame-image px. The cutout's corner radius measures ~45 image
+  // px and the body's outer corner ~60; rounding the content rect at 40 keeps
+  // its corners under the bezel while still covering the whole cutout.
+  const imgPx = (scale * SCREEN_W) / screen.w;
+
+  return (
+    <div className="relative h-[min(680px,66vh)]" style={{ aspectRatio: `${body.w} / ${body.h}` }}>
+      {/* screen content — under the frame, aligned to its cutout */}
+      <div
+        className="absolute overflow-hidden bg-black"
+        style={{
+          left: pct(screen.x - PAD, body.w),
+          top: pct(screen.y - PAD, body.h),
+          width: pct(outerW, body.w),
+          height: pct(outerH, body.h),
+          borderRadius: 40 * imgPx,
+        }}
+      >
+        <div
+          ref={screenRef}
+          className="absolute"
+          style={{
+            left: pct(PAD, outerW),
+            top: pct(PAD, outerH),
+            width: pct(screen.w, outerW),
+            height: pct(screen.h, outerH),
+          }}
+        >
+          <div
+            className="absolute top-0 left-0 origin-top-left"
+            style={{ width: SCREEN_W, height: SCREEN_H, transform: `scale(${scale})` }}
+          >
+            {children}
+          </div>
+        </div>
+      </div>
+      {/* the frame on top — bezel, dynamic island, buttons, shadow */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={FRAME.src}
+        alt=""
+        draggable={false}
+        className="absolute top-0 left-0 max-w-none pointer-events-none select-none"
+        style={{ width: pct(img.w, body.w), height: pct(img.h, body.h) }}
+      />
+    </div>
+  );
+}
+
 // Video that plays while its floater is active, pauses otherwise.
 function HoverVideo({ src, active }: { src: string; active: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -107,12 +202,14 @@ function HoverVideo({ src, active }: { src: string; active: boolean }) {
 function Decor({
   id,
   className = "",
+  style,
   tilt = 0,
   activeId,
   children,
 }: {
   id: string;
   className?: string;
+  style?: CSSProperties; // at-rest left/top when they come from data, not a class
   tilt?: number; // degrees — inner div so framer's drag transform doesn't clobber it
   activeId: string | null;
   children: ReactNode;
@@ -125,6 +222,7 @@ function Decor({
       animate={{ opacity: isDimmed ? 0.05 : 1 }}
       transition={{ duration: 0.35 }}
       className={`absolute z-10 select-none cursor-grab active:cursor-grabbing ${className}`}
+      style={style}
     >
       <div style={tilt ? { transform: `rotate(${tilt}deg)` } : undefined}>{children}</div>
     </motion.div>
@@ -168,6 +266,18 @@ function Chip({ children }: { children: ReactNode }) {
   );
 }
 
+// Connectors, torn into four scraps (Shayan's crops, 2026-09-12), laid in a
+// row at rest: "coming soon" text · wearables + microsoft · school + google +
+// health · notion + bank + luma + contacts. Each scrap is its own draggable
+// decor item so they can be pulled apart one at a time. w/h fit each image's
+// aspect with a 7px paper margin.
+const CONNECTOR_SCRAPS = [
+  { src: "/assets/connectors-1.png", alt: "connectors coming soon", seed: 7, w: 74, h: 61, rotate: -5, left: "3%", top: "42.5%" },
+  { src: "/assets/connectors-2.png", alt: "oura, whoop, outlook, teams", seed: 19, w: 62, h: 75, rotate: 4, left: "8%", top: "41%" },
+  { src: "/assets/connectors-3.png", alt: "canvas, google calendar, apple health, google drive", seed: 29, w: 58, h: 77, rotate: -3, left: "12.3%", top: "41.8%" },
+  { src: "/assets/connectors-4.png", alt: "notion, bank of america, luma, contacts", seed: 43, w: 72, h: 67, rotate: 5, left: "16.3%", top: "41.6%" },
+];
+
 /* ── nav ────────────────────────────────────────────────────────────────── */
 
 const TEST_FORM_URL =
@@ -207,6 +317,8 @@ function Nav() {
 
 type FormStatus = "idle" | "loading" | "done" | "exists" | "error";
 
+// Parked: the waitlist pill is off the hero for now (the phone took center
+// stage). Kept intact so it can come back with one line.
 function EmailForm() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<FormStatus>("idle");
@@ -291,45 +403,38 @@ function EmailForm() {
 }
 
 /* ── the hero ───────────────────────────────────────────────────────────── */
+// At-rest positions = Shayan's hand-dragged arrangement (2026-09-12), read off
+// a 1600px-wide viewport: left/right in % of width, top in % of the section.
+// Left-side items anchor left, right-side items anchor right, so the canvas
+// spreads symmetrically around the center phone on wider screens.
 
 export default function DesktopHero() {
   const sectionRef = useSectionView<HTMLElement>("desktop_hero");
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [demoPlaying, setDemoPlaying] = useState(false);
   const [lightbox, setLightbox] = useState<{ kind: "video" | "image"; src: string } | null>(null);
-  const demoRef = useRef<HTMLVideoElement>(null);
 
   const openLightbox = (kind: "video" | "image", src: string, label: string) => {
     track("cta_click", { cta_location: "desktop_hero", button_label: `floater_open_${label}` });
     setLightbox({ kind, src });
   };
 
-  const playDemo = () => {
-    const v = demoRef.current;
-    if (!v) return;
-    track("cta_click", { cta_location: "desktop_hero", button_label: "play demo" });
-    v.muted = false;
-    v.play().catch(() => {});
-    setDemoPlaying(true);
-  };
-
   return (
     <section
       ref={sectionRef}
       id="waitlist"
-      className="relative w-full overflow-hidden bg-[#fbfaf8]"
+      className="relative w-full min-h-screen overflow-hidden bg-[#fbfaf8]"
       style={{ backgroundImage: PLUS_GRID, backgroundSize: "30px 30px" }}
     >
       <Nav />
 
       {/* ── floating phone screens (desktop only) ── */}
 
-      {/* braindump recording — upper left. Landscape video, so it gets the
+      {/* braindump recording — left, above the dump bubble. Landscape, so it gets the
           video-message card (a phone frame reads wrong on landscape). */}
       <Floater
         id="braindump"
         caption="the 2am braindump"
-        className="hidden md:block left-[4%] top-[8%] w-[190px] lg:w-[210px]"
+        className="hidden md:block left-[4%] top-[15.5%] w-[190px] lg:w-[210px]"
         activeId={activeId}
         setActiveId={setActiveId}
         onOpen={() => openLightbox("video", "/assets/braindump-demo.mp4", "braindump")}
@@ -339,24 +444,27 @@ export default function DesktopHero() {
         </div>
       </Floater>
 
-      {/* day in the life — landscape, framed as a video message from xyra */}
+      {/* a day with xyra — this IS the demo now. Hover previews the light
+          day-in-life clip; click plays the full demo big, with sound (it used
+          to sit under the wordmark as a message card). */}
       <Floater
         id="dayinlife"
         caption="a day with xyra"
-        className="hidden md:block right-[8%] top-[10.5%] w-[195px] lg:w-[220px]"
+        className="hidden md:block right-[4.8%] top-[35%] w-[195px] lg:w-[220px]"
         activeId={activeId}
         setActiveId={setActiveId}
+        onOpen={() => openLightbox("video", "/assets/xyra-demo-compressed.mp4", "day_with_xyra")}
       >
         <div className="w-full rounded-2xl rounded-tr-md overflow-hidden border border-black/10 bg-black shadow-[0_12px_32px_rgba(0,0,0,0.10)]">
           <HoverVideo src="/assets/xyra-day-in-life-2-compressed.mp4" active={activeId === "dayinlife"} />
         </div>
       </Floater>
 
-      {/* self insights — right edge, between the video message and the tasks phone */}
+      {/* self insights — top right */}
       <Floater
         id="learn-urself"
         caption="learn about urself"
-        className="hidden lg:block right-[3.5%] top-[29%] w-[105px]"
+        className="hidden lg:block right-[16.4%] top-[6.2%] w-[105px]"
         activeId={activeId}
         setActiveId={setActiveId}
       >
@@ -365,11 +473,11 @@ export default function DesktopHero() {
         </PhoneFrame>
       </Floater>
 
-      {/* second brain — lower left, flanking the demo */}
+      {/* second brain — left of the center phone */}
       <Floater
         id="brain"
         caption="your second brain"
-        className="hidden lg:block left-[3%] top-[46%] w-[150px]"
+        className="hidden lg:block left-[23.8%] top-[31.4%] w-[150px]"
         activeId={activeId}
         setActiveId={setActiveId}
       >
@@ -378,11 +486,11 @@ export default function DesktopHero() {
         </PhoneFrame>
       </Floater>
 
-      {/* tasks screen — lower right, flanking the demo */}
+      {/* tasks screen — lower right of the center phone */}
       <Floater
         id="tasks"
         caption="it tracks everything"
-        className="hidden lg:block right-[13%] top-[48%] w-[135px]"
+        className="hidden lg:block right-[20.8%] top-[58.7%] w-[135px]"
         activeId={activeId}
         setActiveId={setActiveId}
       >
@@ -395,7 +503,7 @@ export default function DesktopHero() {
       <Floater
         id="camera-roll"
         caption="camera roll"
-        className="hidden md:block left-[20%] top-[6%]"
+        className="hidden md:block left-[26.8%] top-[10.4%]"
         activeId={activeId}
         setActiveId={setActiveId}
         onOpen={() => openLightbox("image", "/assets/xyra-camera-roll.jpg", "camera_roll")}
@@ -406,7 +514,7 @@ export default function DesktopHero() {
       {/* ── decor: the conversation, scattered (desktop only) ── */}
 
       {/* you, dumping your week */}
-      <Decor id="dump-bubble" className="hidden md:block left-[5.5%] top-[29%]" tilt={-3} activeId={activeId}>
+      <Decor id="dump-bubble" className="hidden md:block left-[2.2%] top-[67%]" tilt={-3} activeId={activeId}>
         <div className="w-[195px]">
           <div className="bg-black text-white rounded-2xl rounded-br-md px-3.5 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
             <p className="font-[family-name:var(--font-jetbrains)] text-[11px] leading-relaxed lowercase">
@@ -422,7 +530,7 @@ export default function DesktopHero() {
       </Decor>
 
       {/* xyra, replying */}
-      <Decor id="reply-bubble" className="hidden md:block right-[26.5%] top-[14%]" tilt={2} activeId={activeId}>
+      <Decor id="reply-bubble" className="hidden md:block right-[32.7%] top-[6.2%]" tilt={2} activeId={activeId}>
         <div className="w-[150px] bg-white border border-black/12 rounded-2xl rounded-bl-md px-3.5 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
           <p className="font-[family-name:var(--font-jetbrains)] text-[11px] leading-relaxed text-black/75 lowercase">
             on it. built your week.
@@ -431,7 +539,7 @@ export default function DesktopHero() {
       </Decor>
 
       {/* xyra is typing… */}
-      <Decor id="typing" className="hidden lg:block left-[24%] top-[34%]" activeId={activeId}>
+      <Decor id="typing" className="hidden lg:block right-[9.1%] top-[69%]" activeId={activeId}>
         <div className="flex items-center gap-1.5 bg-white border border-black/12 rounded-full px-3.5 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
           <span className="xyra-typing-dot w-1.5 h-1.5 rounded-full bg-black/40" />
           <span className="xyra-typing-dot w-1.5 h-1.5 rounded-full bg-black/40" style={{ animationDelay: "0.15s" }} />
@@ -440,7 +548,7 @@ export default function DesktopHero() {
       </Decor>
 
       {/* hold-to-talk mic pill — the wispr pill energy */}
-      <Decor id="mic" className="hidden lg:block left-[26%] top-[16%]" tilt={-2} activeId={activeId}>
+      <Decor id="mic" className="hidden lg:block left-[26.8%] top-[79%]" tilt={-2} activeId={activeId}>
         <div className="flex items-center gap-2.5 bg-black text-white rounded-full pl-3.5 pr-4 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
           <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 14a3 3 0 003-3V5a3 3 0 10-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.92V21h2v-3.08A7 7 0 0019 11h-2z" />
@@ -457,14 +565,20 @@ export default function DesktopHero() {
         </div>
       </Decor>
 
-      {/* logo sticker */}
-      <Decor id="logo-sticker" className="hidden lg:block left-[16%] top-[53%]" tilt={8} activeId={activeId}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/assets/xyra-logo-square.png" alt="" className="w-9 h-9 opacity-80" />
-      </Decor>
+      {/* connectors — coming soon, as four small ripped scraps. One Decor each
+          so every scrap drags on its own; multiply-blend drops each crop's
+          white into the paper. Positions come from CONNECTOR_SCRAPS. */}
+      {CONNECTOR_SCRAPS.map((c) => (
+        <Decor key={c.src} id={`connector-${c.seed}`} className="hidden lg:block" style={{ left: c.left, top: c.top }} activeId={activeId}>
+          <TornSticker seed={c.seed} jx={9} jy={9} rotate={c.rotate} style={{ width: c.w, height: c.h }} innerStyle={{ padding: 7 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={c.src} alt={c.alt} className="block w-full h-auto" style={{ mixBlendMode: "multiply" }} draggable={false} />
+          </TornSticker>
+        </Decor>
+      ))}
 
       {/* stray receipt chips — dashboards being born */}
-      <Decor id="chips" className="hidden lg:block right-[25%] top-[30%]" tilt={3} activeId={activeId}>
+      <Decor id="chips" className="hidden lg:block right-[27.2%] top-[36.2%]" tilt={3} activeId={activeId}>
         <div className="flex flex-col items-start gap-1.5">
           <Chip>→ finances</Chip>
           <Chip>→ workouts</Chip>
@@ -475,7 +589,10 @@ export default function DesktopHero() {
       {/* ── center stack ── */}
       {/* pointer-events-none so the full-width column doesn't block hover/drag
           on the floaters behind it; re-enabled per interactive child. */}
-      <div className="relative z-30 flex flex-col items-center px-6 pt-24 md:pt-28 pointer-events-none">
+      <div
+        id="join"
+        className="relative z-30 flex flex-col items-center px-6 pt-14 md:pt-16 pb-10 pointer-events-none scroll-mt-24"
+      >
         <motion.h1
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
@@ -489,81 +606,32 @@ export default function DesktopHero() {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.12 }}
-          className="font-[family-name:var(--font-eb-garamond)] text-lg sm:text-xl text-black/60 mt-4 text-center max-w-md"
+          className="font-[family-name:var(--font-eb-garamond)] text-lg sm:text-xl text-black/60 mt-3 text-center max-w-md"
         >
           the outlet for your ambitious mind
         </motion.p>
 
-        <motion.div
-          id="join"
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.24 }}
-          className="mt-8 w-full flex flex-col items-center scroll-mt-24"
-        >
-          <EmailForm />
-          <a
-            href={TEST_FORM_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => track("cta_click", { cta_location: "hero_form", button_label: "wanna test it" })}
-            className="pointer-events-auto font-[family-name:var(--font-jetbrains)] text-[11px] text-black/40 hover:text-black mt-4 underline underline-offset-4 decoration-black/20 hover:decoration-black transition-all"
-          >
-            wanna test it?
-          </a>
-        </motion.div>
-
-        {/* ── the demo, as a rich message card from xyra ── */}
+        {/* ── the phone — xyra lives here ── */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-          className="relative z-30 w-full max-w-3xl mt-12 md:mt-16 mb-[-1px] pointer-events-auto"
+          transition={{ duration: 0.8, delay: 0.24 }}
+          className="mt-6 pointer-events-auto"
         >
-          <div className="rounded-t-3xl border border-b-0 border-black/12 bg-white shadow-[0_-12px_40px_rgba(0,0,0,0.08)] overflow-hidden">
-            {/* sender row — a text from xyra */}
-            <div className="flex items-center gap-2.5 px-4 py-3">
-              <span className="w-7 h-7 rounded-full border border-black/10 bg-white flex items-center justify-center overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/assets/xyra-logo-square.png" alt="" className="w-[18px] h-[18px]" />
-              </span>
-              <span className="font-[family-name:var(--font-jetbrains)] text-xs text-black">xyra</span>
-              <span className="font-[family-name:var(--font-jetbrains)] text-[11px] text-black/35">now</span>
-              <span className="ml-auto font-[family-name:var(--font-jetbrains)] text-[11px] text-black/45 lowercase">
-                watch what happens when you text me your day
-              </span>
-            </div>
-            <div className="relative bg-black mx-1.5 mb-1.5 rounded-2xl overflow-hidden">
-              <video
-                ref={demoRef}
-                loop
-                playsInline
-                muted
-                controls={demoPlaying}
-                preload="metadata"
-                poster="/assets/xyra-demo-poster.jpg"
-                className="block w-full h-auto"
-                onClick={() => !demoPlaying && playDemo()}
-              >
-                <source src="/assets/xyra-demo-compressed.mp4" type="video/mp4" />
-              </video>
-              {!demoPlaying && (
-                <button
-                  onClick={playDemo}
-                  className="absolute inset-0 flex items-center justify-center group cursor-pointer"
-                  aria-label="Play demo video"
-                >
-                  <span className="flex items-center gap-2.5 px-6 py-3 rounded-full bg-black/70 backdrop-blur-sm text-white font-[family-name:var(--font-jetbrains)] text-sm group-hover:bg-black/85 group-hover:scale-105 transition-all duration-300">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                    play the demo
-                  </span>
-                </button>
-              )}
-            </div>
-          </div>
+          <HeroPhone>
+            <PhoneScene />
+          </HeroPhone>
         </motion.div>
+
+        <a
+          href={TEST_FORM_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => track("cta_click", { cta_location: "hero_form", button_label: "wanna test it" })}
+          className="pointer-events-auto font-[family-name:var(--font-jetbrains)] text-[11px] text-black/40 hover:text-black mt-5 underline underline-offset-4 decoration-black/20 hover:decoration-black transition-all"
+        >
+          wanna test it?
+        </a>
       </div>
 
       {/* credit where it's due */}

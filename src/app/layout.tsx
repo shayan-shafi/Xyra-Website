@@ -9,6 +9,8 @@ import { SITE_URL } from "@/lib/site";
 const playfair = Playfair_Display({
   variable: "--font-playfair",
   subsets: ["latin"],
+  // italic: the app's preview card + dashboard tiles use PlayfairDisplay_400Regular_Italic
+  style: ["normal", "italic"],
   display: "swap",
 });
 
@@ -23,6 +25,7 @@ const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
   display: "swap",
 });
+
 
 // maximumScale: 1 stops iOS Safari's forced zoom-in when focusing an input —
 // the bouncer composer was blowing the whole layout apart on phones. Since

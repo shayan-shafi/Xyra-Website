@@ -145,3 +145,13 @@ body {
   height: 4px;
   animation: xyraWave 0.9s ease-in-out infinite;
 }
+
+/* RecordingWave bars inside the hero phone (app: 3px → 22px, 90ms retarget) */
+@keyframes xyraRecBar {
+  0%, 100% { height: 4px; }
+  50% { height: 19px; }
+}
+
+.xyra-rec-bar {
+  animation: xyraRecBar 0.8s ease-in-out infinite;
+}
