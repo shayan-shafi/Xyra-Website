@@ -111,11 +111,10 @@ const TIMELINE = [
   ["swipe_up", 22700],
   ["tap_node", 25300],
   ["insights", 25600],
-  ["advisor", 27100],
-  ["end", 29600],
+  ["end", 29000],
 ] as const;
 type Beat = (typeof TIMELINE)[number][0];
-const LOOP_MS = 30400;
+const LOOP_MS = 29800;
 const ORDER = TIMELINE.map(([b]) => b) as readonly Beat[];
 const isBeat = (s: string | null): s is Beat => !!s && (ORDER as readonly string[]).includes(s);
 
@@ -191,25 +190,28 @@ function TapRipple({ beat, canvasRef, hold = false }: { beat: Beat; canvasRef: R
 
 /* ── shared chrome ───────────────────────────────────────────────────────── */
 
-function StatusBar() {
+function StatusBar({ color = T.fg }: { color?: string }) {
   return (
-    <div className="absolute left-0 right-0 flex items-center justify-between pointer-events-none" style={{ top: 14, padding: "0 32px", height: 22, fontFamily: SYSTEM, fontSize: 15, fontWeight: 600, color: T.fg }}>
+    <div className="absolute left-0 right-0 flex items-center justify-between pointer-events-none" style={{ top: 14, padding: "0 32px", height: 22, fontFamily: SYSTEM, fontSize: 15, fontWeight: 600, color }}>
       <span>9:41</span>
       <span className="flex items-center" style={{ gap: 6 }}>
-        <svg width="17" height="11" viewBox="0 0 17 11" fill={T.fg}><rect x="0" y="7" width="3" height="4" rx=".6" /><rect x="4.5" y="5" width="3" height="6" rx=".6" /><rect x="9" y="2.5" width="3" height="8.5" rx=".6" /><rect x="13.5" y="0" width="3" height="11" rx=".6" /></svg>
-        <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x=".5" y=".5" width="21" height="11" rx="3" stroke={T.fg} strokeOpacity=".4" /><rect x="2" y="2" width="18" height="8" rx="1.5" fill={T.fg} /><path d="M23 4v4a2 2 0 000-4z" fill={T.fg} fillOpacity=".4" /></svg>
+        <svg width="17" height="11" viewBox="0 0 17 11" fill={color}><rect x="0" y="7" width="3" height="4" rx=".6" /><rect x="4.5" y="5" width="3" height="6" rx=".6" /><rect x="9" y="2.5" width="3" height="8.5" rx=".6" /><rect x="13.5" y="0" width="3" height="11" rx=".6" /></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x=".5" y=".5" width="21" height="11" rx="3" stroke={color} strokeOpacity=".4" /><rect x="2" y="2" width="18" height="8" rx="1.5" fill={color} /><path d="M23 4v4a2 2 0 000-4z" fill={color} fillOpacity=".4" /></svg>
       </span>
     </div>
   );
 }
 
+const SunIcon = ({ size = 22, color = "#000" }: IconProps) =>
+  svg(size, <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></>, { stroke: color, strokeWidth: 1.6 });
+
 // [slug].tsx header: back 40×40 · serif 18/600 title · ellipsis 40×40, paddingVertical 12.
-function BoardHeader({ title }: { title: string }) {
+function BoardHeader({ title, fg = T.fg }: { title: string; fg?: string }) {
   return (
     <div className="flex items-center" style={{ paddingTop: SAFE_TOP + 12, paddingBottom: 12, paddingLeft: 16, paddingRight: 16 }}>
-      <span data-tap="back" className="flex items-center justify-center" style={{ width: 40, height: 40 }}><ArrowBackIcon /></span>
-      <span className="flex-1 text-center truncate" style={{ fontFamily: GEORGIA, fontSize: 18, fontWeight: 600, color: T.fg }}>{title}</span>
-      <span className="flex items-center justify-center" style={{ width: 40, height: 40 }}><EllipsisIcon /></span>
+      <span data-tap="back" className="flex items-center justify-center" style={{ width: 40, height: 40 }}><ArrowBackIcon color={fg} /></span>
+      <span className="flex-1 text-center truncate" style={{ fontFamily: GEORGIA, fontSize: 18, fontWeight: 600, color: fg }}>{title}</span>
+      <span className="flex items-center justify-center" style={{ width: 40, height: 40 }}><EllipsisIcon color={fg} /></span>
     </div>
   );
 }
@@ -657,18 +659,18 @@ function WorkoutScreen() {
 
 /* ── screen 5: the brain — "Your World" (BrainSheet.tsx + brain/BrainWorld.tsx) ── */
 
-// BrainWorld's fixed camera as a 2D projection: cam (0, 10, 20) looking at the
-// origin (the header comment's camera — it gives the ring the vertical spread
-// of Shayan's screenshot), vertical FOV 45. Nucleus r1.5 solid fg; category
-// globes r0.66 wireframe (fg @45%); spokes fg @18%; time-based spin 0.16 rad/s;
-// depth fade to 0.4. RING is 4 instead of the app's 6 so all five nodes stay
-// on the 390pt screen (the app lets side nodes clip past the edges).
-const CAM = { y: 10, z: 20 };
+// BrainWorld's world as a 2D projection. The camera is pitched steeper than the
+// app's constant (0,4.5,24) — Shayan's reference shows the orbit as a tall
+// ellipse with big globes, so this looks down at ~49° like that shot. Vertical
+// FOV 45. Nucleus r1.5 solid; category globes r0.55 wireframe; spokes @12%;
+// time-based spin 0.16 rad/s; depth fade. RING 4.6 (app: 6) — the extreme side
+// node can kiss the screen edge, exactly like the reference.
+const CAM = { y: 16, z: 14 };
 const CAM_D = Math.hypot(CAM.y, CAM.z);
 const FWD = { y: -CAM.y / CAM_D, z: -CAM.z / CAM_D };
 const UP = { y: -FWD.z, z: FWD.y };
 const FOCAL = SCREEN_H / 2 / Math.tan((45 / 2) * (Math.PI / 180));
-const RING = 4;
+const RING = 4.6;
 const SPIN_SPEED = 0.00016; // rad/ms
 function project(x: number, y: number, z: number) {
   const qy = y - CAM.y;
@@ -678,27 +680,38 @@ function project(x: number, y: number, z: number) {
   return { sx: SCREEN_W / 2 + (FOCAL * x) / depth, sy: SCREEN_H / 2 - (FOCAL * yc) / depth, depth };
 }
 
-// brainGraph CATEGORY_META labels; order picks who's out front when Finance gets tapped.
+// brainGraph CATEGORY_META labels; order picks who's out front when Finance gets
+// tapped. `lift` bobs each globe off the orbital plane so the world reads as a
+// 3D scatter (the reference's moons sit at different heights), not a flat ring.
 const BRAIN_NODES = [
-  { key: "people", label: "People" },
-  { key: "finance", label: "Finance" },
-  { key: "health", label: "Health" },
-  { key: "work", label: "Work" },
-  { key: "personal", label: "Personal" },
+  { key: "people", label: "People", lift: 1.1 },
+  { key: "finance", label: "Finance", lift: -0.5 },
+  { key: "health", label: "Health", lift: 0.5 },
+  { key: "work", label: "Work", lift: -1.0 },
+  { key: "personal", label: "Personal", lift: 1.6 },
 ];
 const RING_OFFSET = -0.48; // radians — with 2.6s of spin after opening, Finance sits front-right at tap time
 
+// Light palette for the brain + insights (the app's light theme, which is what
+// Shayan's reference shows): white page, black ink, charcoal nucleus.
+const L = { bg: "#ffffff", fg: "#000000", muted: "#4d4d4d", nucleus: "#2b2b2b", hairline: "rgba(0,0,0,0.10)" };
+const PITCH = Math.atan2(CAM.y, CAM.z); // how far the camera looks down → parallels open into ellipses
+
+// A wireframe globe like BrainWorld's EdgesGeometry sphere: outline + 6 meridians
+// + 7 parallels, thin gray lines over a white fill so it reads light and airy.
 function Globe({ sx, sy, r, o, active }: { sx: number; sy: number; r: number; o: number; active: boolean }) {
-  const stroke = T.fg;
-  const so = active ? 0.9 : 0.45;
+  const so = active ? 0.75 : 0.42;
+  const sw = active ? 0.9 : 0.65;
+  const meridians = [0, 30, 60, 90, 120, 150].map((deg) => Math.abs(Math.cos((deg * Math.PI) / 180)) * r);
+  const parallels = [-68, -45, -20, 0, 20, 45, 68].map((deg) => {
+    const t = (deg * Math.PI) / 180;
+    return { cy: sy - r * Math.sin(t) * Math.cos(PITCH), rx: r * Math.cos(t), ry: r * Math.cos(t) * Math.sin(PITCH) };
+  });
   return (
-    <g opacity={o}>
-      <circle cx={sx} cy={sy} r={r} fill={T.bg} stroke={stroke} strokeOpacity={so} strokeWidth={1} />
-      <ellipse cx={sx} cy={sy} rx={r} ry={r * 0.32} fill="none" stroke={stroke} strokeOpacity={so} strokeWidth={0.8} />
-      <ellipse cx={sx} cy={sy} rx={r} ry={r * 0.72} fill="none" stroke={stroke} strokeOpacity={so * 0.7} strokeWidth={0.7} />
-      <ellipse cx={sx} cy={sy} rx={r * 0.32} ry={r} fill="none" stroke={stroke} strokeOpacity={so} strokeWidth={0.8} />
-      <ellipse cx={sx} cy={sy} rx={r * 0.72} ry={r} fill="none" stroke={stroke} strokeOpacity={so * 0.7} strokeWidth={0.7} />
-      <line x1={sx - r} y1={sy} x2={sx + r} y2={sy} stroke={stroke} strokeOpacity={so * 0.6} strokeWidth={0.7} />
+    <g opacity={o} stroke={L.fg} strokeOpacity={so} strokeWidth={sw} fill="none">
+      <circle cx={sx} cy={sy} r={r} fill={L.bg} />
+      {meridians.map((rx, i) => (rx < 0.5 ? <line key={i} x1={sx} y1={sy - r} x2={sx} y2={sy + r} /> : <ellipse key={i} cx={sx} cy={sy} rx={rx} ry={r} />))}
+      {parallels.map((p, i) => <ellipse key={`p${i}`} cx={sx} cy={p.cy} rx={p.rx} ry={Math.max(p.ry, 0.3)} />)}
     </g>
   );
 }
@@ -728,41 +741,42 @@ function BrainSheet({ open, selected }: { open: boolean; selected: string | null
   const nucR = (1.5 / nucleus.depth) * FOCAL;
   const nodes = BRAIN_NODES.map((n, i) => {
     const a = (i / BRAIN_NODES.length) * Math.PI * 2 + RING_OFFSET + spin;
-    const p = project(Math.cos(a) * RING, 0, Math.sin(a) * RING);
-    return { ...n, ...p, r: (0.66 / p.depth) * FOCAL, o: Math.max(0.4, Math.min(1, 1 - (p.depth - 16) / 30)) };
+    const p = project(Math.cos(a) * RING, n.lift, Math.sin(a) * RING);
+    return { ...n, ...p, r: (0.55 / p.depth) * FOCAL, o: Math.max(0.45, Math.min(1, 1 - (p.depth - 17) / 26)) };
   });
   const back = nodes.filter((n) => n.depth >= nucleus.depth).sort((a, b) => b.depth - a.depth);
   const front = nodes.filter((n) => n.depth < nucleus.depth).sort((a, b) => b.depth - a.depth);
 
   return (
-    <div className="absolute inset-0 overflow-hidden" style={{ background: T.bg, color: T.fg }}>
-      <StatusBar />
+    <div className="absolute inset-0 overflow-hidden" style={{ background: L.bg, color: L.fg }}>
+      <StatusBar color={L.fg} />
       <svg className="absolute inset-0" width={SCREEN_W} height={SCREEN_H} viewBox={`0 0 ${SCREEN_W} ${SCREEN_H}`}>
         {nodes.map((n) => (
-          <line key={`spoke-${n.key}`} x1={nucleus.sx} y1={nucleus.sy} x2={n.sx} y2={n.sy} stroke={T.fg} strokeOpacity={0.18} strokeWidth={1} />
+          <line key={`spoke-${n.key}`} x1={nucleus.sx} y1={nucleus.sy} x2={n.sx} y2={n.sy} stroke={L.fg} strokeOpacity={0.12} strokeWidth={1} />
         ))}
         {back.map((n) => <Globe key={n.key} sx={n.sx} sy={n.sy} r={n.r} o={n.o} active={selected === n.key} />)}
-        <circle cx={nucleus.sx} cy={nucleus.sy} r={nucR} fill={T.fg} />
+        <circle cx={nucleus.sx} cy={nucleus.sy} r={nucR} fill={L.nucleus} />
         {front.map((n) => <Globe key={n.key} sx={n.sx} sy={n.sy} r={n.r} o={n.o} active={selected === n.key} />)}
       </svg>
 
-      {/* labels: nucleus serifBold 22 sits 52 above its anchor, categories serif 15 sit 24 above */}
-      <div className="absolute text-center pointer-events-none" style={{ left: nucleus.sx - 75, top: nucleus.sy - 52, width: 150, fontFamily: SERIF, fontWeight: 700, fontSize: 22, letterSpacing: -0.2, textShadow: `0 0 5px ${T.bg}` }}>Shayan</div>
+      {/* labels: nucleus serifBold 24 over the top of the orb, categories serif 15 sit 24 above */}
+      <div className="absolute text-center pointer-events-none" style={{ left: nucleus.sx - 75, top: nucleus.sy - 56, width: 150, fontFamily: SERIF, fontWeight: 700, fontSize: 24, letterSpacing: -0.3, textShadow: `0 0 4px ${L.bg}` }}>Shayan</div>
       {nodes.map((n) => (
         <div key={`lbl-${n.key}`} className="absolute" style={{ left: n.sx, top: n.sy, width: 0, height: 0, opacity: n.o }}>
           <span data-tap={`node-${n.key}`} className="absolute rounded-full" style={{ left: -26, top: -26, width: 52, height: 52 }} />
-          <div className="absolute text-center whitespace-nowrap" style={{ left: -75, top: -24 - (selected === n.key ? 17 : 15) / 2, width: 150, fontFamily: SERIF, fontSize: selected === n.key ? 17 : 15, letterSpacing: -0.2, textShadow: `0 0 5px ${T.bg}` }}>{n.label}</div>
+          {/* label stays on screen even when its globe rides past the edge */}
+          <div className="absolute text-center whitespace-nowrap" style={{ left: Math.min(Math.max(n.sx, 44), SCREEN_W - 44) - n.sx - 75, top: -n.r - 20, width: 150, fontFamily: SERIF, fontSize: selected === n.key ? 17 : 15, letterSpacing: -0.2, textShadow: `0 0 4px ${L.bg}` }}>{n.label}</div>
         </div>
       ))}
 
-      {/* header floats over the world: serif 28 / serif-italic 15, inset 24, top safe+10 */}
+      {/* header floats over the world: serif title / serif-italic subtitle, inset 24, top safe+10 */}
       <div className="absolute left-0 right-0" style={{ top: SAFE_TOP + 10, padding: "0 24px 8px" }}>
-        <div style={{ fontFamily: SERIF, fontSize: 28, letterSpacing: -0.3, lineHeight: "34px" }}>Your World</div>
-        <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 15, color: T.muted, marginTop: 2 }}>Your universe, mapped by Xyra.</div>
+        <div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: -0.5, lineHeight: "40px" }}>Your World</div>
+        <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 15, color: L.muted, marginTop: 2 }}>Your universe, mapped by Xyra.</div>
       </div>
-      <span className="absolute" style={{ right: 20, top: SAFE_TOP + 21 }}><MoonIcon /></span>
+      <span className="absolute" style={{ right: 20, top: SAFE_TOP + 24 }}><SunIcon /></span>
 
-      <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center rounded-full" style={{ bottom: 80, width: 64, height: 64, background: T.fg, boxShadow: "0 4px 12px rgba(0,0,0,0.18)" }}><MicIcon size={26} /></div>
+      <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center rounded-full" style={{ bottom: 80, width: 64, height: 64, background: L.fg, boxShadow: "0 4px 12px rgba(0,0,0,0.18)" }}><MicIcon size={26} color="#fff" /></div>
     </div>
   );
 }
@@ -783,66 +797,61 @@ const ACTIVITY: [string, string, string?][] = [
   ["Uber", "-$18"],
 ];
 
-function InsightsScreen({ advisor }: { advisor: boolean }) {
-  const cell = { border: `1px solid ${T.hairline}`, padding: 8 } as const;
-  const label = { fontFamily: MONO, fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase" as const, color: T.muted };
+function InsightsScreen() {
+  const cell = { border: `1px solid ${L.hairline}`, padding: 8 } as const;
+  const label = { fontFamily: MONO, fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase" as const, color: "rgba(0,0,0,0.4)" };
   return (
-    <div className="absolute inset-0 overflow-hidden" style={{ background: T.bg, color: T.fg }}>
-      <StatusBar />
-      <BoardHeader title="Finances" />
+    <div className="absolute inset-0 overflow-hidden" style={{ background: L.bg, color: L.fg }}>
+      <StatusBar color={L.fg} />
+      <BoardHeader title="Finances" fg={L.fg} />
       <div className="flex flex-col" style={{ padding: "0 20px 0", gap: 8 }}>
-        <div style={{ borderBottom: `1px solid ${T.hairline}`, paddingBottom: 8 }}>
+        <div style={{ borderBottom: `1px solid ${L.hairline}`, paddingBottom: 8 }}>
           <div style={{ fontFamily: SERIF, fontSize: 22, lineHeight: "26px" }}>Finances</div>
-          <div style={{ fontFamily: MONO, fontSize: 11, color: T.muted, marginTop: 3 }}>Node insights powered by Xyra</div>
+          <div style={{ fontFamily: MONO, fontSize: 11, color: "rgba(0,0,0,0.4)", marginTop: 3 }}>Node insights powered by Xyra</div>
         </div>
 
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {INSIGHT_STATS.map(([k, v, c]) => (
             <div key={k} style={cell}>
               <div style={label}>{k}</div>
-              <div style={{ fontFamily: SYSTEM, fontWeight: 700, fontSize: 18, lineHeight: "22px", marginTop: 2, color: c ?? T.fg }}>{v}</div>
+              <div style={{ fontFamily: SYSTEM, fontWeight: 700, fontSize: 18, lineHeight: "22px", marginTop: 2, color: c ?? L.fg }}>{v}</div>
             </div>
           ))}
         </div>
 
         <div style={cell}>
           <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
-            <span style={{ fontFamily: MONO, fontSize: 11, color: T.muted }}>Savings Goal</span>
+            <span style={{ fontFamily: MONO, fontSize: 11, color: "rgba(0,0,0,0.4)" }}>Savings Goal</span>
             <span style={{ fontFamily: MONO, fontSize: 11, color: EMERALD }}>78%</span>
           </div>
-          <div className="rounded-full overflow-hidden" style={{ height: 5, background: "rgba(255,255,255,0.08)" }}>
+          <div className="rounded-full overflow-hidden" style={{ height: 5, background: "rgba(0,0,0,0.05)" }}>
             <motion.div className="h-full rounded-full" style={{ background: EMERALD }} initial={{ width: 0 }} animate={{ width: "78%" }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.35 }} />
           </div>
-          <div style={{ fontFamily: MONO, fontSize: 9, color: T.muted, marginTop: 5 }}>$2,340 of $3,000 goal</div>
+          <div style={{ fontFamily: MONO, fontSize: 9, color: "rgba(0,0,0,0.3)", marginTop: 5 }}>$2,340 of $3,000 goal</div>
         </div>
 
-        {/* the site's black insight block, inverted for the dark app theme */}
-        <div style={{ background: T.fg, color: "#000", padding: 10 }}>
+        <div style={{ background: "#000", color: "#fff", padding: 10 }}>
           <div className="flex items-center" style={{ gap: 8, marginBottom: 5 }}>
-            <span className="flex items-center justify-center rounded-full shrink-0" style={{ width: 18, height: 18, background: "#000", color: T.fg, fontFamily: SERIF, fontWeight: 700, fontSize: 9 }}>X</span>
-            <span style={{ fontFamily: MONO, fontSize: 10, color: "rgba(0,0,0,0.6)" }}>Xyra Insight</span>
+            <span className="flex items-center justify-center rounded-full shrink-0" style={{ width: 18, height: 18, background: "#fff", color: "#000", fontFamily: SERIF, fontWeight: 700, fontSize: 9 }}>X</span>
+            <span style={{ fontFamily: MONO, fontSize: 10, color: "rgba(255,255,255,0.6)" }}>Xyra Insight</span>
           </div>
-          <div style={{ fontFamily: MONO, fontSize: 11, lineHeight: "16px", color: "rgba(0,0,0,0.9)" }}>You&apos;ve cut dining out by 32% this month. Your savings rate is up 15% since you started tracking. Keep it up!</div>
+          <div style={{ fontFamily: MONO, fontSize: 11, lineHeight: "16px", color: "rgba(255,255,255,0.9)" }}>You&apos;ve cut dining out by 32% this month. Your savings rate is up 15% since you started tracking. Keep it up!</div>
         </div>
 
         <div>
           <div style={{ ...label, fontSize: 10, marginBottom: 2 }}>Recent Activity</div>
           {ACTIVITY.map(([k, v, c]) => (
-            <div key={k} className="flex items-center justify-between" style={{ padding: "5px 0", borderBottom: `1px solid rgba(255,255,255,0.06)`, fontFamily: MONO, fontSize: 12 }}>
+            <div key={k} className="flex items-center justify-between" style={{ padding: "5px 0", borderBottom: `1px solid rgba(0,0,0,0.05)`, fontFamily: MONO, fontSize: 12 }}>
               <span>{k}</span>
-              <span style={{ color: c ?? T.muted }}>{v}</span>
+              <span style={{ color: c ?? "rgba(0,0,0,0.6)" }}>{v}</span>
             </div>
           ))}
         </div>
 
         <div className="flex items-center" style={{ gap: 8 }}>
-          <div className="flex-1" style={{ border: `1px solid ${T.hairline}`, padding: "8px 12px", fontFamily: MONO, fontSize: 12, color: "rgba(237,233,220,0.35)" }}>Ask about your finances...</div>
-          <span className="flex items-center justify-center rounded-full shrink-0" style={{ width: 36, height: 36, background: T.fg }}><MicIcon size={18} /></span>
+          <div className="flex-1" style={{ border: `1px solid rgba(0,0,0,0.15)`, padding: "8px 12px", fontFamily: MONO, fontSize: 12, color: "rgba(0,0,0,0.3)" }}>Ask about your finances...</div>
+          <span className="flex items-center justify-center rounded-full shrink-0" style={{ width: 36, height: 36, background: "#000" }}><MicIcon size={18} color="#fff" /></span>
         </div>
-
-        {advisor && (
-          <Bubble role="xyra">oh yeah, i also act as your advisor for everything you do. got you with recommendations, feedback, or tips.</Bubble>
-        )}
       </div>
     </div>
   );
@@ -865,11 +874,11 @@ function SwipeHint({ show }: { show: boolean }) {
 /* ── the scene ───────────────────────────────────────────────────────────── */
 
 // A board pushed on the router stack — iOS slide from the right.
-function Pushed({ children }: { children: ReactNode }) {
+function Pushed({ bg = T.bg, children }: { bg?: string; children: ReactNode }) {
   return (
     <motion.div
       className="absolute inset-0 z-20"
-      style={{ background: T.bg, boxShadow: "-8px 0 24px rgba(0,0,0,0.5)" }}
+      style={{ background: bg, boxShadow: "-8px 0 24px rgba(0,0,0,0.5)" }}
       initial={{ x: SCREEN_W }}
       animate={{ x: 0 }}
       exit={{ x: SCREEN_W }}
@@ -924,7 +933,7 @@ export default function PhoneScene() {
       <AnimatePresence>
         {todoOpen && <Pushed key="todo"><TodoScreen /></Pushed>}
         {workoutOpen && <Pushed key="workout"><WorkoutScreen /></Pushed>}
-        {insightsOpen && <Pushed key="insights"><InsightsScreen advisor={at("advisor")} /></Pushed>}
+        {insightsOpen && <Pushed key="insights" bg={L.bg}><InsightsScreen /></Pushed>}
       </AnimatePresence>
 
       <SwipeHint show={beat === "swipe_up"} />
