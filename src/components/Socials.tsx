@@ -173,10 +173,9 @@ export default function Socials() {
 
   return (
     <section id="socials" ref={ref} className="scroll-mt-20 py-20 md:py-28">
-      <div className="px-6 sm:px-12 lg:px-20 max-w-6xl mx-auto mb-8 md:mb-12">
-        <h2 className="font-[family-name:var(--font-playfair)] text-5xl sm:text-6xl lg:text-7xl font-medium text-black tracking-tight leading-[1.05]">
-          out in the wild.
-        </h2>
+      {/* what people said leads the section, then the reels */}
+      <div className="mb-14 md:mb-20">
+        <FeedbackTicker quotes={FEEDBACK_QUOTES} />
       </div>
 
       <div
@@ -195,13 +194,6 @@ export default function Socials() {
         })}
       </div>
 
-      {/* what people said */}
-      <div className="mt-20 md:mt-28">
-        <div className="flex justify-center mb-8 md:mb-10">
-          <span className="font-[family-name:var(--font-jetbrains)] text-[10px] tracking-[0.2em] uppercase text-black/50 border border-black/15 rounded-full px-3 py-1.5">feedback</span>
-        </div>
-        <FeedbackTicker quotes={FEEDBACK_QUOTES} />
-      </div>
     </section>
   );
 }
