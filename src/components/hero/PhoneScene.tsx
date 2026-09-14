@@ -716,9 +716,9 @@ function InsightsScreen() {
       <StatusBar />
       <BoardHeader title="Finances" />
       <div className="flex flex-col" style={{ padding: "0 20px 0", gap: 8 }}>
-        <div className="flex flex-col items-center" style={{ marginTop: -6 }}>
-          <SpinningNode size={76} dark />
-          <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: 1.2, color: T.muted, marginTop: -4 }}>Node insights powered by Xyra</div>
+        <div className="flex flex-col items-center" style={{ marginTop: -14 }}>
+          <SpinningNode size={116} dark />
+          <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: 1.2, color: T.muted, marginTop: -10 }}>Node insights powered by Xyra</div>
         </div>
 
         <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>
