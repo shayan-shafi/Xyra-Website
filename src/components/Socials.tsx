@@ -172,7 +172,16 @@ export default function Socials() {
   const h = (unit * 16) / 9;
 
   return (
-    <section id="socials" ref={ref} className="scroll-mt-20 py-20 md:py-28">
+    <section id="socials" ref={ref} className="relative scroll-mt-20 py-20 md:py-28">
+      {/* pinned over the end of the ticker: the "verified reviews" note */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/assets/verified-reviews-note.png"
+        alt="verified reviews"
+        draggable={false}
+        className="hidden md:block absolute z-20 right-[4%] top-[2%] w-[190px] lg:w-[220px] rotate-[6deg] pointer-events-none select-none"
+      />
+
       {/* what people said leads the section, then the reels */}
       <div className="mb-14 md:mb-20">
         <FeedbackTicker quotes={FEEDBACK_QUOTES} />
