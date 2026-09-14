@@ -256,8 +256,9 @@ function PhotosIcon() {
   );
 }
 
-// Destination chip — the app's receipt chips, verbatim energy.
-function Chip({ children }: { children: ReactNode }) {
+// Destination chip — the app's receipt chips, verbatim energy. (Shared with the
+// vent section's stickers.)
+export function Chip({ children }: { children: ReactNode }) {
   return (
     <span className="font-[family-name:var(--font-jetbrains)] text-[10px] leading-none text-black/60 bg-white border border-black/15 rounded-full px-2 py-1">
       {children}

@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
+import VentStickers from "@/components/hero/VentStickers";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -227,14 +228,17 @@ export default function Explainer() {
   return (
     <div ref={explainerRef}>
       {/* ── Section 1: just vent ────────────────────────────────── */}
-      <section className="px-6 sm:px-12 lg:px-20 py-24 md:py-32 max-w-6xl mx-auto">
-        <Section className="flex flex-col gap-6 md:gap-8">
-          <h2 className="font-[family-name:var(--font-playfair)] text-5xl sm:text-6xl lg:text-7xl font-medium text-black tracking-tight leading-[1.05]">
-            just vent.
-          </h2>
-          <VentVideo />
-        </Section>
-      </section>
+      <div className="relative">
+        <VentStickers />
+        <section className="px-6 sm:px-12 lg:px-20 py-24 md:py-32 max-w-6xl mx-auto">
+          <Section className="flex flex-col gap-6 md:gap-8">
+            <h2 className="font-[family-name:var(--font-playfair)] text-5xl sm:text-6xl lg:text-7xl font-medium text-black tracking-tight leading-[1.05]">
+              just vent.
+            </h2>
+            <VentVideo />
+          </Section>
+        </section>
+      </div>
 
       {/* ── Section 2: Brain Dump → Dashboard ───────────────────── */}
       <section id="how" className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-20 md:py-28">
