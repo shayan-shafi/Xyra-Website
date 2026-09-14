@@ -12,6 +12,42 @@ const fadeUp = {
   visible: { opacity: 1, y: 0 },
 };
 
+// Sheza's cut (2026-09-14). Plays muted on a loop; tapping it turns the sound
+// on — that's the whole UI.
+function VentVideo() {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [sound, setSound] = useState(false);
+  const toggle = () => {
+    const v = ref.current;
+    if (!v) return;
+    v.muted = sound;
+    setSound(!sound);
+    if (v.paused) v.play().catch(() => {});
+    track("cta_click", { cta_location: "explainer_vent", button_label: sound ? "mute" : "unmute" });
+  };
+  return (
+    <div>
+      <button type="button" onClick={toggle} aria-label={sound ? "Mute" : "Unmute"} className="block w-full cursor-pointer">
+        <video
+          ref={ref}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          poster="/assets/sheza-vent-poster.jpg"
+          className="block w-full h-auto rounded-2xl border border-black/10 bg-black"
+        >
+          <source src="/assets/sheza-vent.mp4" type="video/mp4" />
+        </video>
+      </button>
+      <p className="font-[family-name:var(--font-jetbrains)] text-[11px] text-black/40 mt-3">
+        {sound ? "sound on" : "tap for sound"}
+      </p>
+    </div>
+  );
+}
+
 function IPhoneFrame({ src, alt }: { src: string; alt: string }) {
   return (
     <div className="relative mx-auto w-[260px] sm:w-[280px] md:w-[300px]">
@@ -191,34 +227,13 @@ export default function Explainer() {
 
   return (
     <div ref={explainerRef}>
-      {/* ── Section 1: We Build ─────────────────────────────────── */}
+      {/* ── Section 1: just vent ────────────────────────────────── */}
       <section className="px-6 sm:px-12 lg:px-20 py-24 md:py-32 max-w-6xl mx-auto">
-        <Section className="flex flex-col md:flex-row md:items-center gap-12 md:gap-10">
-          {/* Copy — left */}
-          <div className="flex-1">
-            <h2 className="font-[family-name:var(--font-playfair)] text-5xl sm:text-6xl md:text-6xl lg:text-7xl font-medium text-black tracking-tight leading-[1.05]">
-              We don&apos;t assist.
-              <br />
-              <span className="italic">We build.</span>
-            </h2>
-            <p className="font-[family-name:var(--font-eb-garamond)] text-lg sm:text-xl md:text-2xl text-black/50 mt-6 md:mt-8 max-w-xl leading-relaxed">
-              Other apps give you AI helpers, copilots, assistants.
-              Xyra actually builds the dashboards, trackers, and systems
-              you need to see progress in everything you care about.
-            </p>
-          </div>
-
-          {/* Phones — right */}
-          <div className="w-full md:w-[44%] shrink-0">
-            <Image
-              src="/assets/xyra-phones-trio.png"
-              alt="Xyra running across a dashboard, tasks, and a fitness tracker"
-              width={764}
-              height={856}
-              priority
-              className="w-full h-auto"
-            />
-          </div>
+        <Section className="flex flex-col gap-6 md:gap-8">
+          <h2 className="font-[family-name:var(--font-playfair)] text-5xl sm:text-6xl lg:text-7xl font-medium text-black tracking-tight leading-[1.05]">
+            just vent.
+          </h2>
+          <VentVideo />
         </Section>
         <ScrollCue targetId="how" label="see how it works" />
       </section>
