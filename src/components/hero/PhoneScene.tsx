@@ -15,6 +15,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, ReactNode, RefObject } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import BrainWorldCanvas, { type BrainCategory } from "./BrainWorldCanvas";
+import SpinningNode from "./SpinningNode";
 
 export const SCREEN_W = 390;
 export const SCREEN_H = 829;
@@ -668,9 +669,6 @@ const BRAIN_CATEGORIES: BrainCategory[] = [
   { key: "personal", label: "Personal", children: ["Prayer", "Gym", "Schedule"] },
 ];
 
-// Light palette for the node-insights screen (the site's panel is light).
-const L = { bg: "#ffffff", fg: "#000000", hairline: "rgba(0,0,0,0.10)" };
-
 // The sheet: the Three.js world fills it (dark), the header floats on top
 // (serif 28 / serif-italic 15, inset 24, top safe+10), theme toggle, home mic.
 // `mounted` warms the GL world up a beat before the swipe so the spring isn't
@@ -707,60 +705,64 @@ const ACTIVITY: [string, string, string?][] = [
   ["Uber", "-$18"],
 ];
 
+// The Finance node itself turns slowly up top (FinanceNode.tsx), then the
+// panel: stats 2×2 · savings bar · Xyra Insight (inverted for the dark theme)
+// · recent activity · ask row.
 function InsightsScreen() {
-  const cell = { border: `1px solid ${L.hairline}`, padding: 8 } as const;
-  const label = { fontFamily: MONO, fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase" as const, color: "rgba(0,0,0,0.4)" };
+  const cell = { border: `1px solid ${T.hairline}`, padding: 8 } as const;
+  const label = { fontFamily: MONO, fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase" as const, color: T.muted };
   return (
-    <div className="absolute inset-0 overflow-hidden" style={{ background: L.bg, color: L.fg }}>
-      <StatusBar color={L.fg} />
-      <BoardHeader title="Finances" fg={L.fg} />
+    <div className="absolute inset-0 overflow-hidden" style={{ background: T.bg, color: T.fg }}>
+      <StatusBar />
+      <BoardHeader title="Finances" />
       <div className="flex flex-col" style={{ padding: "0 20px 0", gap: 8 }}>
-        <div style={{ borderBottom: `1px solid ${L.hairline}`, paddingBottom: 8 }}>
-          <div style={{ fontFamily: SERIF, fontSize: 22, lineHeight: "26px" }}>Finances</div>
-          <div style={{ fontFamily: MONO, fontSize: 11, color: "rgba(0,0,0,0.4)", marginTop: 3 }}>Node insights powered by Xyra</div>
+        <div className="flex flex-col items-center" style={{ marginTop: -6 }}>
+          <SpinningNode size={76} dark />
+          <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: 1.2, color: T.muted, marginTop: -4 }}>Node insights powered by Xyra</div>
         </div>
 
-        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>
           {INSIGHT_STATS.map(([k, v, c]) => (
             <div key={k} style={cell}>
               <div style={label}>{k}</div>
-              <div style={{ fontFamily: SYSTEM, fontWeight: 700, fontSize: 18, lineHeight: "22px", marginTop: 2, color: c ?? L.fg }}>{v}</div>
+              <div style={{ fontFamily: SYSTEM, fontWeight: 700, fontSize: 18, lineHeight: "22px", marginTop: 2, color: c ?? T.fg }}>{v}</div>
             </div>
           ))}
         </div>
 
         <div style={cell}>
           <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
-            <span style={{ fontFamily: MONO, fontSize: 11, color: "rgba(0,0,0,0.4)" }}>Savings Goal</span>
+            <span style={{ fontFamily: MONO, fontSize: 11, color: T.muted }}>Savings Goal</span>
             <span style={{ fontFamily: MONO, fontSize: 11, color: EMERALD }}>78%</span>
           </div>
-          <div className="rounded-full overflow-hidden" style={{ height: 5, background: "rgba(0,0,0,0.05)" }}>
+          <div className="rounded-full overflow-hidden" style={{ height: 5, background: "rgba(255,255,255,0.08)" }}>
             <motion.div className="h-full rounded-full" style={{ background: EMERALD }} initial={{ width: 0 }} animate={{ width: "78%" }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.35 }} />
           </div>
-          <div style={{ fontFamily: MONO, fontSize: 9, color: "rgba(0,0,0,0.3)", marginTop: 5 }}>$2,340 of $3,000 goal</div>
+          <div style={{ fontFamily: MONO, fontSize: 9, color: T.muted, marginTop: 5 }}>$2,340 of $3,000 goal</div>
         </div>
 
-        <div style={{ background: "#000", color: "#fff", padding: 10 }}>
+        {/* the site's black insight block, inverted for the dark theme */}
+        <div style={{ background: T.fg, color: "#000", padding: 10 }}>
           <div className="flex items-center" style={{ gap: 8, marginBottom: 5 }}>
-            <span className="flex items-center justify-center rounded-full shrink-0" style={{ width: 18, height: 18, background: "#fff", color: "#000", fontFamily: SERIF, fontWeight: 700, fontSize: 9 }}>X</span>
-            <span style={{ fontFamily: MONO, fontSize: 10, color: "rgba(255,255,255,0.6)" }}>Xyra Insight</span>
+            <span className="flex items-center justify-center rounded-full shrink-0" style={{ width: 18, height: 18, background: "#000", color: T.fg, fontFamily: SERIF, fontWeight: 700, fontSize: 9 }}>X</span>
+            <span style={{ fontFamily: MONO, fontSize: 10, color: "rgba(0,0,0,0.6)" }}>Xyra Insight</span>
           </div>
-          <div style={{ fontFamily: MONO, fontSize: 11, lineHeight: "16px", color: "rgba(255,255,255,0.9)" }}>You&apos;ve cut dining out by 32% this month. Your savings rate is up 15% since you started tracking. Keep it up!</div>
+          <div style={{ fontFamily: MONO, fontSize: 11, lineHeight: "16px", color: "rgba(0,0,0,0.9)" }}>You&apos;ve cut dining out by 32% this month. Your savings rate is up 15% since you started tracking. Keep it up!</div>
         </div>
 
         <div>
           <div style={{ ...label, fontSize: 10, marginBottom: 2 }}>Recent Activity</div>
           {ACTIVITY.map(([k, v, c]) => (
-            <div key={k} className="flex items-center justify-between" style={{ padding: "5px 0", borderBottom: `1px solid rgba(0,0,0,0.05)`, fontFamily: MONO, fontSize: 12 }}>
+            <div key={k} className="flex items-center justify-between" style={{ padding: "5px 0", borderBottom: `1px solid rgba(255,255,255,0.06)`, fontFamily: MONO, fontSize: 12 }}>
               <span>{k}</span>
-              <span style={{ color: c ?? "rgba(0,0,0,0.6)" }}>{v}</span>
+              <span style={{ color: c ?? T.muted }}>{v}</span>
             </div>
           ))}
         </div>
 
         <div className="flex items-center" style={{ gap: 8 }}>
-          <div className="flex-1" style={{ border: `1px solid rgba(0,0,0,0.15)`, padding: "8px 12px", fontFamily: MONO, fontSize: 12, color: "rgba(0,0,0,0.3)" }}>Ask about your finances...</div>
-          <span className="flex items-center justify-center rounded-full shrink-0" style={{ width: 36, height: 36, background: "#000" }}><MicIcon size={18} color="#fff" /></span>
+          <div className="flex-1" style={{ border: `1px solid ${T.hairline}`, padding: "8px 12px", fontFamily: MONO, fontSize: 12, color: "rgba(237,233,220,0.35)" }}>Ask about your finances...</div>
+          <span className="flex items-center justify-center rounded-full shrink-0" style={{ width: 36, height: 36, background: T.fg }}><MicIcon size={18} /></span>
         </div>
       </div>
     </div>
@@ -843,7 +845,7 @@ export default function PhoneScene() {
       <AnimatePresence>
         {todoOpen && <Pushed key="todo"><TodoScreen /></Pushed>}
         {workoutOpen && <Pushed key="workout"><WorkoutScreen /></Pushed>}
-        {insightsOpen && <Pushed key="insights" bg={L.bg}><InsightsScreen /></Pushed>}
+        {insightsOpen && <Pushed key="insights"><InsightsScreen /></Pushed>}
       </AnimatePresence>
 
       <SwipeHint show={beat === "swipe_up"} />
