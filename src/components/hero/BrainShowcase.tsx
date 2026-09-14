@@ -108,7 +108,7 @@ export default function BrainShowcase({ active }: { active: boolean }) {
         <div className="absolute left-[1.5%] top-[64%]"><ConnectorScrapsRow scale={0.8} /></div>
         <div className="absolute left-[17%] top-[61%] -rotate-[26deg] origin-left"><HandArrow width={118} bow={-10} /></div>
 
-        <div className="absolute right-[11%] top-[43%]"><HandArrow width={140} bow={4} /></div>
+        <div className="absolute right-[9%] top-[43%]"><HandArrow width={140} bow={4} /></div>
         <div className="absolute right-[3.5%] top-[32%] flex flex-col gap-5">
           <AgentTile name="claude" />
           <AgentTile name="chatgpt" />
