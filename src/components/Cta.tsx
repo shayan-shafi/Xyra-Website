@@ -10,7 +10,8 @@ import { motion } from "framer-motion";
 import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
 import { Chip, TEST_FORM_URL } from "@/components/DesktopHero";
-import { HandArrow, RecordingPillSticker } from "@/components/hero/stickers";
+import { TornSticker } from "@/components/hero/TornSticker";
+import { RecordingPillSticker } from "@/components/hero/stickers";
 
 // "I Know You Want Me (Calle Ocho)"
 const TRACK_EMBED = "https://open.spotify.com/embed/track/5RzFJd6W40SDTyZkX6xx45?utm_source=generator&theme=0";
@@ -23,58 +24,13 @@ function Sticker({ className = "", tilt = 0, children }: { className?: string; t
   );
 }
 
-// ── new kinds, for this corner of the page ──
-
-// "now playing" — a black pill with live bars, like the app's recorder but for the song
-function NowPlaying() {
+// Shayan's paper cutouts (2026-09-14): white knocked out, draggable like the rest.
+function Cutout({ src, alt, className = "", width }: { src: string; alt: string; className?: string; width: number }) {
   return (
-    <div className="flex items-center gap-2.5 bg-black text-white rounded-full pl-3.5 pr-4 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
-      <span className="flex items-end gap-[2.5px] h-3.5">
-        {[0, 0.2, 0.1, 0.3, 0.05].map((d, i) => (
-          <span key={i} className="xyra-rec-bar w-[2.5px] rounded-full bg-white/85" style={{ animationDelay: `${d}s`, animationDuration: `${0.7 + i * 0.08}s` }} />
-        ))}
-      </span>
-      <span className="font-[family-name:var(--font-jetbrains)] text-[10px] text-white/70 lowercase">now playing · calle ocho</span>
-    </div>
-  );
-}
-
-// a ticket stub: two halves, a perforation, notches punched out of the edge
-function TicketStub() {
-  return (
-    <div className="relative flex bg-white border border-black/15 shadow-[0_4px_14px_rgba(0,0,0,0.08)]" style={{ borderRadius: 6 }}>
-      <div className="px-3.5 py-2.5 font-[family-name:var(--font-jetbrains)] text-[10px] tracking-[0.18em] uppercase text-black/80 whitespace-nowrap">admit one</div>
-      <div className="relative w-px self-stretch border-l border-dashed border-black/25">
-        <span className="absolute -top-[6px] -left-[6px] w-3 h-3 rounded-full bg-[#fbfaf8] border-b border-black/15" />
-        <span className="absolute -bottom-[6px] -left-[6px] w-3 h-3 rounded-full bg-[#fbfaf8] border-t border-black/15" />
-      </div>
-      <div className="px-3.5 py-2.5 font-[family-name:var(--font-jetbrains)] text-[10px] tracking-[0.18em] uppercase text-black/45 whitespace-nowrap">xyra alpha · 2026</div>
-    </div>
-  );
-}
-
-// a rubber stamp: ring text + a check, inked at 75%
-function Stamp() {
-  return (
-    <svg width="104" height="104" viewBox="0 0 104 104" className="block" style={{ opacity: 0.78 }}>
-      <defs><path id="stamp-ring" d="M52 52 m-38 0 a38 38 0 1 1 76 0 a38 38 0 1 1 -76 0" /></defs>
-      <circle cx="52" cy="52" r="48" fill="none" stroke="#111" strokeWidth="2.5" strokeDasharray="3 1.5" />
-      <circle cx="52" cy="52" r="28" fill="none" stroke="#111" strokeWidth="1.5" />
-      <text className="font-[family-name:var(--font-jetbrains)]" fontSize="10" letterSpacing="2.4" fill="#111" fontWeight="600">
-        <textPath href="#stamp-ring" startOffset="0">TESTED · APPROVED · TESTED ·</textPath>
-      </text>
-      <path d="M40 53 l8 8 l16 -18" fill="none" stroke="#111" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-// a post-it: sticky-note yellow, a lifted corner, one word
-function PostIt({ children }: { children: ReactNode }) {
-  return (
-    <div className="relative w-[112px] h-[104px] shadow-[0_6px_16px_rgba(0,0,0,0.12)]" style={{ background: "linear-gradient(160deg, #fff1a8 0%, #fde68a 70%, #f5d76e 100%)" }}>
-      <span className="absolute bottom-0 right-0 w-5 h-5" style={{ background: "linear-gradient(315deg, #fbfaf8 50%, #e6cf6a 50%)" }} />
-      <div className="absolute inset-0 flex items-center justify-center font-[family-name:var(--font-playfair)] italic text-[22px] text-black/80">{children}</div>
-    </div>
+    <Sticker className={className}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={alt} width={width} className="block h-auto" draggable={false} style={{ filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.10))" }} />
+    </Sticker>
   );
 }
 
@@ -93,7 +49,6 @@ function Stickers() {
         <div className="w-[170px] bg-black text-white rounded-2xl rounded-br-md px-3.5 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
           <p className="font-[family-name:var(--font-jetbrains)] text-[11px] leading-relaxed lowercase">ok fine. where do i sign up</p>
         </div>
-        <p className="font-[family-name:var(--font-jetbrains)] text-[9px] text-black/35 text-right mt-1 mr-1 lowercase">delivered</p>
       </Sticker>
 
       {/* xyra is typing… */}
@@ -110,9 +65,11 @@ function Stickers() {
         <RecordingPillSticker />
       </Sticker>
 
-      {/* a rubber stamp, lower left */}
-      <Sticker className="left-[11%] top-[64%]" tilt={-12}>
-        <Stamp />
+      {/* the sign-off, on a torn scrap */}
+      <Sticker className="left-[22%] top-[24%]" tilt={6}>
+        <TornSticker seed={73} jx={9} jy={10} style={{ width: 96, height: 56 }}>
+          <div className="w-full h-full flex items-center justify-center font-[family-name:var(--font-jetbrains)] text-[11px] text-black/70 lowercase">dale.</div>
+        </TornSticker>
       </Sticker>
 
       {/* where this lands */}
@@ -140,28 +97,14 @@ function Stickers() {
         </div>
       </Sticker>
 
-      {/* the sign-off, on a post-it */}
-      <Sticker className="left-[22%] top-[20%]" tilt={6}>
-        <PostIt>dale.</PostIt>
-      </Sticker>
-
-      {/* now playing, above the player */}
-      <Sticker className="left-[35%] top-[24%]" tilt={-2}>
-        <NowPlaying />
-      </Sticker>
-
-      {/* a ticket stub, upper right */}
-      <Sticker className="right-[22%] top-[8%]" tilt={4}>
-        <TicketStub />
-      </Sticker>
-
-      {/* "here" — an arrow at the button */}
-      <Sticker className="left-[58%] top-[60%]">
-        <div className="flex items-center gap-2">
-          <div className="rotate-180"><HandArrow width={110} bow={-8} /></div>
-          <span className="font-[family-name:var(--font-jetbrains)] text-[11px] text-black/60 lowercase -rotate-6">here.</span>
-        </div>
-      </Sticker>
+      {/* ── the paper cutouts, placed like the mock ── */}
+      <Cutout src="/assets/stk-bolts.png" alt="" width={120} className="left-[30%] top-[3%]" />
+      <Cutout src="/assets/stk-stars.png" alt="" width={130} className="right-[24%] top-[3%]" />
+      <Cutout src="/assets/stk-hearts.png" alt="" width={80} className="left-[19%] top-[46%]" />
+      <Cutout src="/assets/stk-lines-left.png" alt="" width={88} className="left-1/2 -ml-[218px] top-[50%]" />
+      <Cutout src="/assets/stk-lines-right.png" alt="" width={88} className="left-1/2 ml-[128px] top-[50%]" />
+      <Cutout src="/assets/stk-chevron.png" alt="" width={100} className="left-[66.5%] top-[55%]" />
+      <Cutout src="/assets/stk-squiggle.png" alt="" width={104} className="left-1/2 -ml-[56px] top-[66%]" />
     </div>
   );
 }
