@@ -170,8 +170,20 @@ body {
   100% { transform: rotate(0deg); }
 }
 
+/* …then it never quite sits still: a slow wander inside the green */
+@keyframes xyraNeedleIdle {
+  0% { transform: rotate(0deg); }
+  22% { transform: rotate(8deg); }
+  48% { transform: rotate(-7deg); }
+  70% { transform: rotate(5deg); }
+  86% { transform: rotate(-3deg); }
+  100% { transform: rotate(0deg); }
+}
+
 .xyra-needle {
-  animation: xyraNeedle 2.8s cubic-bezier(0.22, 1, 0.36, 1) 0.8s both;
+  animation:
+    xyraNeedle 2.8s cubic-bezier(0.22, 1, 0.36, 1) 0.8s both,
+    xyraNeedleIdle 4.2s ease-in-out 3.6s infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
