@@ -22,6 +22,9 @@ export default function BrainShowcase({ active }: { active: boolean }) {
   // true from the first frame of the zoom-in until the zoom-out is nearly home:
   // the diagram around the world steps aside while the camera is in close
   const [focused, setFocused] = useState(false);
+  // progress bars under the two lines — filled from the frame loop, no re-renders
+  const contextBar = useRef<HTMLSpanElement>(null);
+  const insightsBar = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (!active) return;
@@ -48,6 +51,10 @@ export default function BrainShowcase({ active }: { active: boolean }) {
         wasFocused = isFocused;
         setFocused(isFocused);
       }
+      // each line's bar fills across its own stretch of the cycle
+      const p = isFocused ? (t - IDLE) / (CYCLE - 500 - IDLE) : t < IDLE ? t / IDLE : 1;
+      const bar = isFocused ? insightsBar.current : contextBar.current;
+      if (bar) bar.style.transform = `scaleX(${Math.min(1, Math.max(0, p)).toFixed(4)})`;
     };
     raf = requestAnimationFrame(tick);
     return () => {
@@ -93,6 +100,9 @@ export default function BrainShowcase({ active }: { active: boolean }) {
               style={{ textShadow: "0 0 18px #fbfaf8, 0 0 8px #fbfaf8, 0 0 3px #fbfaf8" }}
             >
               seamless context for agents.
+              <span className="block mt-3 h-[2px] w-full bg-black/10 overflow-hidden">
+                <span ref={contextBar} className="block h-full bg-black origin-left" style={{ transform: "scaleX(0)" }} />
+              </span>
             </motion.h3>
           )}
         </AnimatePresence>
@@ -110,6 +120,9 @@ export default function BrainShowcase({ active }: { active: boolean }) {
               style={{ textShadow: "0 0 18px #fbfaf8, 0 0 8px #fbfaf8, 0 0 3px #fbfaf8" }}
             >
               simple insights for you.
+              <span className="block mt-3 h-[2px] w-full bg-black/10 overflow-hidden">
+                <span ref={insightsBar} className="block h-full bg-black origin-left" style={{ transform: "scaleX(0)" }} />
+              </span>
             </motion.h3>
           )}
         </AnimatePresence>
