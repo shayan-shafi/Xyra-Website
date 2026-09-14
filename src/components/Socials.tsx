@@ -2,12 +2,14 @@
 
 // ─── Socials ─────────────────────────────────────────────────────────────────
 // The reels as a coverflow: the active one big in the middle, its neighbours
-// stepping down in size and fading toward the edges, five in view. Advances
-// every two seconds, pauses on hover; a side card click brings it to the
-// middle, the middle card opens the post. Content: src/content/socials.ts.
+// stepping down in size and fading toward the edges, five in view. Every card
+// with a clip plays it (muted, looping) while the section is on screen; the
+// carousel advances every five seconds and pauses on hover; a side card click
+// brings it to the middle, the middle card opens the post. Content:
+// src/content/socials.ts.
 
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useInView } from "framer-motion";
 import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
 import { REELS, type Reel } from "@/content/socials";
@@ -21,23 +23,21 @@ const RING = [
   { scale: 0.34, x: 2.4, opacity: 0 },
 ];
 
-function ReelCard({ r, d, unit, onPick }: { r: Reel; d: number; unit: number; onPick: () => void }) {
+function ReelCard({ r, d, unit, playing, onPick }: { r: Reel; d: number; unit: number; playing: boolean; onPick: () => void }) {
   const ad = Math.min(Math.abs(d), 3);
   const ring = RING[ad];
   const active = d === 0;
   const h = (unit * 16) / 9;
   const videoRef = useRef<HTMLVideoElement>(null);
-  // the middle card plays (muted, from the top); everyone else holds their poster
+  // every visible clip runs while the section is on screen; the two hidden
+  // (fully faded) cards rest so the browser isn't decoding nine streams for five
+  const shouldPlay = playing && ad <= 2;
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (active) {
-      v.currentTime = 0;
-      v.play().catch(() => {});
-    } else {
-      v.pause();
-    }
-  }, [active]);
+    if (shouldPlay) v.play().catch(() => {});
+    else v.pause();
+  }, [shouldPlay]);
   return (
     <motion.a
       href={r.url}
@@ -66,7 +66,7 @@ function ReelCard({ r, d, unit, onPick }: { r: Reel; d: number; unit: number; on
           muted
           loop
           playsInline
-          preload={ad <= 1 ? "auto" : "none"}
+          preload="metadata"
           className="absolute inset-0 w-full h-full object-cover"
         />
       ) : (
@@ -93,6 +93,7 @@ export default function Socials() {
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   const [unit, setUnit] = useState(300); // the center card's width, from the stage width
+  const onScreen = useInView(stageRef, { margin: "120px" });
 
   useEffect(() => {
     const el = stageRef.current;
@@ -133,7 +134,7 @@ export default function Socials() {
           let d = i - active;
           if (d > n / 2) d -= n;
           if (d < -n / 2) d += n;
-          return <ReelCard key={r.id} r={r} d={d} unit={unit} onPick={() => setActive(i)} />;
+          return <ReelCard key={r.id} r={r} d={d} unit={unit} playing={onScreen} onPick={() => setActive(i)} />;
         })}
       </div>
     </section>
