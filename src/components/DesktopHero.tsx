@@ -395,6 +395,27 @@ function EmailForm() {
   );
 }
 
+/* ── loop countdown — replaces the link under the phone ─────────────────── */
+
+// Seconds left in the phone's current loop. The scene hands over each loop's
+// start time; this ticks on its own so nothing else re-renders per second.
+function LoopCountdown({ loop }: { loop: { start: number; ms: number } | null }) {
+  const [left, setLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!loop) return;
+    const tick = () => setLeft(Math.max(0, Math.ceil((loop.ms - (performance.now() - loop.start)) / 1000)));
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [loop]);
+  if (left === null) return null;
+  return (
+    <span className="font-[family-name:var(--font-jetbrains)] text-[11px] text-black/40 tabular-nums mt-5 lowercase" aria-live="off">
+      {left}s left
+    </span>
+  );
+}
+
 /* ── the hero ───────────────────────────────────────────────────────────── */
 // At-rest positions = Shayan's hand-dragged arrangement (2026-09-12), read off
 // a 1600px-wide viewport: left/right in % of width, top in % of the section.
@@ -405,6 +426,7 @@ export default function DesktopHero() {
   const sectionRef = useSectionView<HTMLElement>("desktop_hero");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ kind: "video" | "image"; src: string } | null>(null);
+  const [loop, setLoop] = useState<{ start: number; ms: number } | null>(null);
 
   const openLightbox = (kind: "video" | "image", src: string, label: string) => {
     track("cta_click", { cta_location: "desktop_hero", button_label: `floater_open_${label}` });
@@ -613,19 +635,11 @@ export default function DesktopHero() {
           className="mt-6 pointer-events-auto"
         >
           <HeroPhone>
-            <PhoneScene />
+            <PhoneScene onLoopStart={(start, ms) => setLoop({ start, ms })} />
           </HeroPhone>
         </motion.div>
 
-        <a
-          href={TEST_FORM_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => track("cta_click", { cta_location: "hero_form", button_label: "wanna test it" })}
-          className="pointer-events-auto font-[family-name:var(--font-jetbrains)] text-[11px] text-black/40 hover:text-black mt-5 underline underline-offset-4 decoration-black/20 hover:decoration-black transition-all"
-        >
-          wanna test it?
-        </a>
+        <LoopCountdown loop={loop} />
       </div>
 
       {/* credit where it's due */}

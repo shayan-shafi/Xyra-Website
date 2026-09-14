@@ -132,10 +132,12 @@ const TAP: Partial<Record<Beat, string>> = {
   tap_node: "node-finance",
 };
 
-function useTimeline() {
+function useTimeline(onLoopStart?: (startedAt: number, loopMs: number) => void) {
   const [beat, setBeat] = useState<Beat>("start");
   const [run, setRun] = useState(0);
   const [frozen, setFrozen] = useState<Beat | null>(null);
+  const onLoopStartRef = useRef(onLoopStart);
+  onLoopStartRef.current = onLoopStart;
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("beat");
@@ -147,6 +149,7 @@ function useTimeline() {
       setBeat(frozen);
       return;
     }
+    onLoopStartRef.current?.(performance.now(), LOOP_MS);
     const timers = TIMELINE.map(([b, t]) => window.setTimeout(() => setBeat(b), t));
     timers.push(window.setTimeout(() => setRun((r) => r + 1), LOOP_MS));
     return () => timers.forEach((id) => window.clearTimeout(id));
@@ -801,8 +804,8 @@ function Pushed({ bg = T.bg, children }: { bg?: string; children: ReactNode }) {
   );
 }
 
-export default function PhoneScene() {
-  const { beat, at, frozen } = useTimeline();
+export default function PhoneScene({ onLoopStart }: { onLoopStart?: (startedAt: number, loopMs: number) => void } = {}) {
+  const { beat, at, frozen } = useTimeline(onLoopStart);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const todoOpen = at("todo") && !at("grid2");
