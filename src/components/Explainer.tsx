@@ -190,7 +190,7 @@ export default function Explainer() {
   const SHOW_WORLD = false;
 
   return (
-    <div ref={explainerRef} className="bg-white">
+    <div ref={explainerRef}>
       {/* ── Section 1: We Build ─────────────────────────────────── */}
       <section className="px-6 sm:px-12 lg:px-20 py-24 md:py-32 max-w-6xl mx-auto">
         <Section className="flex flex-col md:flex-row md:items-center gap-12 md:gap-10">
@@ -224,7 +224,7 @@ export default function Explainer() {
       </section>
 
       {/* ── Section 2: Brain Dump → Dashboard ───────────────────── */}
-      <section id="how" className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-20 md:py-28 bg-black/[0.02]">
+      <section id="how" className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-20 md:py-28">
         <div className="max-w-6xl mx-auto">
           <Section>
             <div className="text-center mb-12 md:mb-16">
@@ -293,7 +293,7 @@ export default function Explainer() {
 
       {/* ── Section 4: Your World — HIDDEN until the Brain ships ── */}
       {SHOW_WORLD && (
-      <section ref={worldRef} className="px-6 sm:px-12 lg:px-20 py-20 md:py-28 bg-black/[0.02]">
+      <section ref={worldRef} className="px-6 sm:px-12 lg:px-20 py-20 md:py-28">
         <div className="max-w-6xl mx-auto">
           <Section>
             <div className="text-center mb-12 md:mb-16">

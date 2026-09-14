@@ -9,7 +9,7 @@ import Footer from "@/components/Footer";
 // from the hero's menu bar.
 export default function Home() {
   return (
-    <div className="bg-white min-h-screen">
+    <div className="xyra-canvas min-h-screen">
       <DesktopHero />
       <div id="learn">
         <Explainer />

@@ -155,3 +155,11 @@ body {
 .xyra-rec-bar {
   animation: xyraRecBar 0.8s ease-in-out infinite;
 }
+
+/* The site's canvas: warm paper + a faint "+" builder grid. Lives on the page
+   wrapper so it runs unbroken from the hero to the footer. */
+.xyra-canvas {
+  background-color: #fbfaf8;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30'%3E%3Cpath d='M15 12v6M12 15h6' stroke='rgba(0,0,0,0.07)' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 30px 30px;
+}

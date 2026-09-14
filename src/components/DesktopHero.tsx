@@ -23,9 +23,8 @@ import { useSectionView } from "@/lib/useSectionView";
 import PhoneScene, { SCREEN_W, SCREEN_H } from "./hero/PhoneScene";
 import { TornSticker } from "./hero/TornSticker";
 
-// faint "+" builder grid — reads as a canvas being built on, not graph paper
-const PLUS_GRID =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30'%3E%3Cpath d='M15 12v6M12 15h6' stroke='rgba(0,0,0,0.07)' stroke-width='1'/%3E%3C/svg%3E\")";
+// The warm "+" grid backdrop is page-level now (.xyra-canvas in globals.css)
+// so it runs unbroken past the hero.
 
 /* ── floaters (draggable, hover = focus) ────────────────────────────────── */
 
@@ -422,8 +421,7 @@ export default function DesktopHero() {
     <section
       ref={sectionRef}
       id="waitlist"
-      className="relative w-full min-h-screen overflow-hidden bg-[#fbfaf8]"
-      style={{ backgroundImage: PLUS_GRID, backgroundSize: "30px 30px" }}
+      className="relative w-full min-h-screen overflow-hidden"
     >
       <Nav />
 
