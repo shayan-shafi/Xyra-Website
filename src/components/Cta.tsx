@@ -92,8 +92,8 @@ function Stickers() {
       <Cutout src="/assets/stk-bolts.png" alt="" width={92} className="left-[30%] top-[7%]" />
       <Cutout src="/assets/stk-stars.png" alt="" width={100} className="right-[28%] top-[9%]" />
       <Cutout src="/assets/stk-hearts.png" alt="" width={60} className="left-[24.5%] top-[39%]" />
-      <Cutout src="/assets/stk-lines-left.png" alt="" width={62} className="left-1/2 -ml-[176px] top-[53%]" />
-      <Cutout src="/assets/stk-lines-right.png" alt="" width={62} className="left-1/2 ml-[114px] top-[53%]" />
+      <Cutout src="/assets/stk-lines-left.png" alt="" width={62} className="left-1/2 -ml-[162px] top-[53%]" />
+      <Cutout src="/assets/stk-lines-right.png" alt="" width={62} className="left-1/2 ml-[100px] top-[54.5%]" />
       <Cutout src="/assets/stk-chevron.png" alt="" width={76} className="left-[67.5%] top-[62%]" />
       <Cutout src="/assets/stk-squiggle.png" alt="" width={78} className="left-[43%] top-[78%]" />
     </div>
