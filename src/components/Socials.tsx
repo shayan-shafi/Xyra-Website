@@ -12,7 +12,7 @@ import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
 import { REELS, type Reel } from "@/content/socials";
 
-const STEP_MS = 2000;
+const STEP_MS = 5000; // long enough for the active reel to actually play
 // per |offset| from the active card: scale, x (in center-card widths), opacity
 const RING = [
   { scale: 1, x: 0, opacity: 1 },
@@ -26,6 +26,18 @@ function ReelCard({ r, d, unit, onPick }: { r: Reel; d: number; unit: number; on
   const ring = RING[ad];
   const active = d === 0;
   const h = (unit * 16) / 9;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  // the middle card plays (muted, from the top); everyone else holds their poster
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (active) {
+      v.currentTime = 0;
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
+  }, [active]);
   return (
     <motion.a
       href={r.url}
@@ -46,13 +58,30 @@ function ReelCard({ r, d, unit, onPick }: { r: Reel; d: number; unit: number; on
       animate={{ x: Math.sign(d) * ring.x * unit, scale: ring.scale, opacity: ring.opacity }}
       transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={r.cover} alt="" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+      {r.video ? (
+        <video
+          ref={videoRef}
+          src={r.video}
+          poster={r.cover}
+          muted
+          loop
+          playsInline
+          preload={ad <= 1 ? "auto" : "none"}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={r.cover} alt="" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+      )}
       <span className="absolute top-3 left-3 font-[family-name:var(--font-jetbrains)] text-[11px] text-white/90 bg-black/50 backdrop-blur-sm rounded-full px-2 py-1 lowercase">{r.platform}</span>
-      <motion.span className="absolute inset-0 flex items-center justify-center" animate={{ opacity: active ? 1 : 0 }} transition={{ duration: 0.3 }}>
+      {/* the middle card: a play glyph if it's only a poster, otherwise a quiet "open" cue */}
+      <motion.span className="absolute inset-0 flex items-center justify-center" animate={{ opacity: active && !r.video ? 1 : 0 }} transition={{ duration: 0.3 }}>
         <span className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-[0_6px_18px_rgba(0,0,0,0.25)]">
           <svg className="w-5 h-5 translate-x-[1px]" viewBox="0 0 24 24" fill="#000"><path d="M8 5v14l11-7z" /></svg>
         </span>
+      </motion.span>
+      <motion.span className="absolute bottom-3 right-3 font-[family-name:var(--font-jetbrains)] text-[11px] text-white/90 bg-black/50 backdrop-blur-sm rounded-full px-2.5 py-1 lowercase" animate={{ opacity: active && r.video ? 1 : 0 }} transition={{ duration: 0.3 }}>
+        watch on {r.platform} ↗
       </motion.span>
     </motion.a>
   );
