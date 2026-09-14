@@ -19,6 +19,38 @@ function Sticker({ className = "", tilt = 0, children }: { className?: string; t
   );
 }
 
+// Annular sector between radii r1..r2 from angle a0 to a1 (degrees, 180 = left, 0 = right).
+function sector(cx: number, cy: number, r1: number, r2: number, a0: number, a1: number) {
+  const pt = (r: number, a: number) => [cx + r * Math.cos((a * Math.PI) / 180), cy - r * Math.sin((a * Math.PI) / 180)] as const;
+  const [x0, y0] = pt(r2, a0), [x1, y1] = pt(r2, a1), [x2, y2] = pt(r1, a1), [x3, y3] = pt(r1, a0);
+  return `M${x0} ${y0} A${r2} ${r2} 0 0 1 ${x1} ${y1} L${x2} ${y2} A${r1} ${r1} 0 0 0 ${x3} ${y3} Z`;
+}
+const GAUGE = ["#16c848", "#8fd13f", "#f8c630", "#f5821f", "#ff1e1e"];
+
+function CortisolGauge() {
+  const cx = 100, cy = 98;
+  return (
+    <svg viewBox="0 0 200 126" className="block w-full h-auto">
+      {GAUGE.map((c, i) => {
+        const a0 = 180 - i * 36 - 2, a1 = 180 - (i + 1) * 36 + 2;
+        return <path key={c} d={sector(cx, cy, 58, 92, a0, a1)} fill={c} />;
+      })}
+      <g className="font-[family-name:var(--font-jetbrains)]" fontSize="10" fontWeight="500" fill="#111" letterSpacing="0.6">
+        <text x="12" y="88" transform="rotate(-90 12 88)" textAnchor="middle">LOW</text>
+        <text x={cx} y="22" textAnchor="middle">MEDIUM</text>
+        <text x="188" y="88" transform="rotate(90 188 88)" textAnchor="middle">HIGH</text>
+        <text x={cx} y="122" textAnchor="middle" fontSize="13" fontWeight="700" letterSpacing="1.2">CORTISOL</text>
+      </g>
+      {/* needle drawn at LOW; the animation starts it rotated onto HIGH and lets it fall */}
+      <g className="xyra-needle" style={{ transformOrigin: `${cx}px ${cy}px` }}>
+        <path d={`M${cx} ${cy} L${cx - 68} ${cy - 22}`} stroke="#111" strokeWidth="5" strokeLinecap="round" />
+        <circle cx={cx} cy={cy} r="10" fill="#111" />
+        <circle cx={cx} cy={cy} r="5.5" fill="none" stroke="#fff" strokeWidth="2.5" />
+      </g>
+    </svg>
+  );
+}
+
 export default function VentStickers() {
   return (
     <div className="hidden xl:block absolute inset-0 pointer-events-none [&>*]:pointer-events-auto">
@@ -66,18 +98,10 @@ export default function VentStickers() {
         </TornSticker>
       </Sticker>
 
-      {/* xyra's receipt */}
-      <Sticker className="right-[3%] top-[57%]" tilt={3}>
-        <div className="w-[160px]">
-          <div className="bg-white border border-black/12 rounded-2xl rounded-bl-md px-3.5 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
-            <p className="font-[family-name:var(--font-jetbrains)] text-[11px] leading-relaxed text-black/75 lowercase">
-              got all of it. 4 things sorted, mom&apos;s bday saved. you&apos;re good.
-            </p>
-          </div>
-          <div className="flex gap-1.5 mt-2">
-            <Chip>→ to-do</Chip>
-            <Chip>→ birthdays</Chip>
-          </div>
+      {/* cortisol, after venting — the needle swings HIGH → LOW when this comes into view */}
+      <Sticker className="right-[3.5%] top-[57%]" tilt={4}>
+        <div className="w-[160px] rounded-2xl bg-white border border-black/10 shadow-[0_4px_14px_rgba(0,0,0,0.08)] px-3 pt-3 pb-2">
+          <CortisolGauge />
         </div>
       </Sticker>
 
