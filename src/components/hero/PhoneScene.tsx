@@ -13,7 +13,8 @@
 // scene on one beat. Beat names are the TIMELINE keys below.
 
 import { useEffect, useLayoutEffect, useRef, useState, ReactNode, RefObject } from "react";
-import { AnimatePresence, motion, useAnimationFrame } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import BrainWorldCanvas, { type BrainCategory } from "./BrainWorldCanvas";
 
 export const SCREEN_W = 390;
 export const SCREEN_H = 829;
@@ -201,9 +202,6 @@ function StatusBar({ color = T.fg }: { color?: string }) {
     </div>
   );
 }
-
-const SunIcon = ({ size = 22, color = "#000" }: IconProps) =>
-  svg(size, <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></>, { stroke: color, strokeWidth: 1.6 });
 
 // [slug].tsx header: back 40×40 · serif 18/600 title · ellipsis 40×40, paddingVertical 12.
 function BoardHeader({ title, fg = T.fg }: { title: string; fg?: string }) {
@@ -657,126 +655,38 @@ function WorkoutScreen() {
   );
 }
 
-/* ── screen 5: the brain — "Your World" (BrainSheet.tsx + brain/BrainWorld.tsx) ── */
+/* ── screen 5: the brain — "Your World" (BrainSheet.tsx + the site's BrainCanvas) ── */
 
-// BrainWorld's world as a 2D projection. The camera is pitched steeper than the
-// app's constant (0,4.5,24) — Shayan's reference shows the orbit as a tall
-// ellipse with big globes, so this looks down at ~49° like that shot. Vertical
-// FOV 45. Nucleus r1.5 solid; category globes r0.55 wireframe; spokes @12%;
-// time-based spin 0.16 rad/s; depth fade. RING 4.6 (app: 6) — the extreme side
-// node can kiss the screen edge, exactly like the reference.
-const CAM = { y: 16, z: 14 };
-const CAM_D = Math.hypot(CAM.y, CAM.z);
-const FWD = { y: -CAM.y / CAM_D, z: -CAM.z / CAM_D };
-const UP = { y: -FWD.z, z: FWD.y };
-const FOCAL = SCREEN_H / 2 / Math.tan((45 / 2) * (Math.PI / 180));
-const RING = 4.6;
-const SPIN_SPEED = 0.00016; // rad/ms
-function project(x: number, y: number, z: number) {
-  const qy = y - CAM.y;
-  const qz = z - CAM.z;
-  const depth = qy * FWD.y + qz * FWD.z;
-  const yc = qy * UP.y + qz * UP.z;
-  return { sx: SCREEN_W / 2 + (FOCAL * x) / depth, sy: SCREEN_H / 2 - (FOCAL * yc) / depth, depth };
-}
-
-// brainGraph CATEGORY_META labels; order picks who's out front when Finance gets
-// tapped. `lift` bobs each globe off the orbital plane so the world reads as a
-// 3D scatter (the reference's moons sit at different heights), not a flat ring.
-const BRAIN_NODES = [
-  { key: "people", label: "People", lift: 1.1 },
-  { key: "finance", label: "Finance", lift: -0.5 },
-  { key: "health", label: "Health", lift: 0.5 },
-  { key: "work", label: "Work", lift: -1.0 },
-  { key: "personal", label: "Personal", lift: 1.6 },
+// brainGraph CATEGORY_META labels + a few moons each so the world reads as the
+// busy 3D map in the app video. Finance is index 1 → it starts front-right,
+// which is where the tap lands.
+const BRAIN_CATEGORIES: BrainCategory[] = [
+  { key: "people", label: "People", children: ["Family", "Team"] },
+  { key: "finance", label: "Finance", children: ["$$$", "Budget"] },
+  { key: "health", label: "Health", children: ["Sleep", "Runs"] },
+  { key: "work", label: "Work", children: ["QCP", "Training"] },
+  { key: "personal", label: "Personal", children: ["Prayer", "Gym", "Schedule"] },
 ];
-const RING_OFFSET = -0.48; // radians — with 2.6s of spin after opening, Finance sits front-right at tap time
 
-// Light palette for the brain + insights (the app's light theme, which is what
-// Shayan's reference shows): white page, black ink, charcoal nucleus.
-const L = { bg: "#ffffff", fg: "#000000", muted: "#4d4d4d", nucleus: "#2b2b2b", hairline: "rgba(0,0,0,0.10)" };
-const PITCH = Math.atan2(CAM.y, CAM.z); // how far the camera looks down → parallels open into ellipses
+// Light palette for the node-insights screen (the site's panel is light).
+const L = { bg: "#ffffff", fg: "#000000", hairline: "rgba(0,0,0,0.10)" };
 
-// A wireframe globe like BrainWorld's EdgesGeometry sphere: outline + 6 meridians
-// + 7 parallels, thin gray lines over a white fill so it reads light and airy.
-function Globe({ sx, sy, r, o, active }: { sx: number; sy: number; r: number; o: number; active: boolean }) {
-  const so = active ? 0.75 : 0.42;
-  const sw = active ? 0.9 : 0.65;
-  const meridians = [0, 30, 60, 90, 120, 150].map((deg) => Math.abs(Math.cos((deg * Math.PI) / 180)) * r);
-  const parallels = [-68, -45, -20, 0, 20, 45, 68].map((deg) => {
-    const t = (deg * Math.PI) / 180;
-    return { cy: sy - r * Math.sin(t) * Math.cos(PITCH), rx: r * Math.cos(t), ry: r * Math.cos(t) * Math.sin(PITCH) };
-  });
+// The sheet: the Three.js world fills it (dark), the header floats on top
+// (serif 28 / serif-italic 15, inset 24, top safe+10), theme toggle, home mic.
+// `mounted` warms the GL world up a beat before the swipe so the spring isn't
+// fighting shader compiles; it unmounts on loop restart so every pass starts
+// from the same spin phase.
+function BrainSheet({ mounted, selected }: { mounted: boolean; selected: string | null }) {
   return (
-    <g opacity={o} stroke={L.fg} strokeOpacity={so} strokeWidth={sw} fill="none">
-      <circle cx={sx} cy={sy} r={r} fill={L.bg} />
-      {meridians.map((rx, i) => (rx < 0.5 ? <line key={i} x1={sx} y1={sy - r} x2={sx} y2={sy + r} /> : <ellipse key={i} cx={sx} cy={sy} rx={rx} ry={r} />))}
-      {parallels.map((p, i) => <ellipse key={`p${i}`} cx={sx} cy={p.cy} rx={p.rx} ry={Math.max(p.ry, 0.3)} />)}
-    </g>
-  );
-}
-
-function BrainSheet({ open, selected }: { open: boolean; selected: string | null }) {
-  const [spin, setSpin] = useState(0);
-  const last = useRef<number | null>(null);
-  // Constant angular velocity (BrainWorld's SPIN_SPEED), clocked from the moment
-  // the sheet opens so every loop finds Finance in the same place at tap time;
-  // the world holds still once a node is picked so the tap reads.
-  useEffect(() => {
-    if (open) setSpin(0);
-    last.current = null;
-  }, [open]);
-  useAnimationFrame((t) => {
-    if (!open || selected) {
-      last.current = null;
-      return;
-    }
-    if (last.current === null) last.current = t;
-    const dt = t - last.current;
-    last.current = t;
-    setSpin((v) => v + dt * SPIN_SPEED);
-  });
-
-  const nucleus = project(0, 0, 0);
-  const nucR = (1.5 / nucleus.depth) * FOCAL;
-  const nodes = BRAIN_NODES.map((n, i) => {
-    const a = (i / BRAIN_NODES.length) * Math.PI * 2 + RING_OFFSET + spin;
-    const p = project(Math.cos(a) * RING, n.lift, Math.sin(a) * RING);
-    return { ...n, ...p, r: (0.55 / p.depth) * FOCAL, o: Math.max(0.45, Math.min(1, 1 - (p.depth - 17) / 26)) };
-  });
-  const back = nodes.filter((n) => n.depth >= nucleus.depth).sort((a, b) => b.depth - a.depth);
-  const front = nodes.filter((n) => n.depth < nucleus.depth).sort((a, b) => b.depth - a.depth);
-
-  return (
-    <div className="absolute inset-0 overflow-hidden" style={{ background: L.bg, color: L.fg }}>
-      <StatusBar color={L.fg} />
-      <svg className="absolute inset-0" width={SCREEN_W} height={SCREEN_H} viewBox={`0 0 ${SCREEN_W} ${SCREEN_H}`}>
-        {nodes.map((n) => (
-          <line key={`spoke-${n.key}`} x1={nucleus.sx} y1={nucleus.sy} x2={n.sx} y2={n.sy} stroke={L.fg} strokeOpacity={0.12} strokeWidth={1} />
-        ))}
-        {back.map((n) => <Globe key={n.key} sx={n.sx} sy={n.sy} r={n.r} o={n.o} active={selected === n.key} />)}
-        <circle cx={nucleus.sx} cy={nucleus.sy} r={nucR} fill={L.nucleus} />
-        {front.map((n) => <Globe key={n.key} sx={n.sx} sy={n.sy} r={n.r} o={n.o} active={selected === n.key} />)}
-      </svg>
-
-      {/* labels: nucleus serifBold 24 over the top of the orb, categories serif 15 sit 24 above */}
-      <div className="absolute text-center pointer-events-none" style={{ left: nucleus.sx - 75, top: nucleus.sy - 56, width: 150, fontFamily: SERIF, fontWeight: 700, fontSize: 24, letterSpacing: -0.3, textShadow: `0 0 4px ${L.bg}` }}>Shayan</div>
-      {nodes.map((n) => (
-        <div key={`lbl-${n.key}`} className="absolute" style={{ left: n.sx, top: n.sy, width: 0, height: 0, opacity: n.o }}>
-          <span data-tap={`node-${n.key}`} className="absolute rounded-full" style={{ left: -26, top: -26, width: 52, height: 52 }} />
-          {/* label stays on screen even when its globe rides past the edge */}
-          <div className="absolute text-center whitespace-nowrap" style={{ left: Math.min(Math.max(n.sx, 44), SCREEN_W - 44) - n.sx - 75, top: -n.r - 20, width: 150, fontFamily: SERIF, fontSize: selected === n.key ? 17 : 15, letterSpacing: -0.2, textShadow: `0 0 4px ${L.bg}` }}>{n.label}</div>
-        </div>
-      ))}
-
-      {/* header floats over the world: serif title / serif-italic subtitle, inset 24, top safe+10 */}
-      <div className="absolute left-0 right-0" style={{ top: SAFE_TOP + 10, padding: "0 24px 8px" }}>
-        <div style={{ fontFamily: SERIF, fontSize: 34, letterSpacing: -0.5, lineHeight: "40px" }}>Your World</div>
-        <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 15, color: L.muted, marginTop: 2 }}>Your universe, mapped by Xyra.</div>
+    <div className="absolute inset-0 overflow-hidden" style={{ background: T.bg, color: T.fg }}>
+      {mounted && <BrainWorldCanvas centerLabel="Shayan" categories={BRAIN_CATEGORIES} dark selected={selected} spinning={!selected} />}
+      <StatusBar />
+      <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: SAFE_TOP + 10, padding: "0 24px 8px" }}>
+        <div style={{ fontFamily: SERIF, fontSize: 28, letterSpacing: -0.3, lineHeight: "34px" }}>Your World</div>
+        <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 15, color: T.muted, marginTop: 2 }}>Your universe, mapped by Xyra.</div>
       </div>
-      <span className="absolute" style={{ right: 20, top: SAFE_TOP + 24 }}><SunIcon /></span>
-
-      <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center rounded-full" style={{ bottom: 80, width: 64, height: 64, background: L.fg, boxShadow: "0 4px 12px rgba(0,0,0,0.18)" }}><MicIcon size={26} color="#fff" /></div>
+      <span className="absolute z-10" style={{ right: 20, top: SAFE_TOP + 21 }}><MoonIcon /></span>
+      <div className="absolute z-10 left-1/2 -translate-x-1/2 flex items-center justify-center rounded-full" style={{ bottom: 80, width: 64, height: 64, background: T.fg, boxShadow: "0 4px 12px rgba(0,0,0,0.18)" }}><MicIcon size={26} /></div>
     </div>
   );
 }
@@ -925,7 +835,7 @@ export default function PhoneScene() {
         animate={{ y: brainOpen ? 0 : SCREEN_H, x: pushed ? -SCREEN_W * 0.3 : 0 }}
         transition={instant ? { duration: 0 } : { y: { ...sheetSpring, delay: 0.12 }, x: { duration: 0.38 } }}
       >
-        <BrainSheet open={brainOpen} selected={at("tap_node") ? "finance" : null} />
+        <BrainSheet mounted={at("grid3")} selected={at("tap_node") ? "finance" : null} />
       </motion.div>
 
       <motion.div className="absolute inset-0 z-10 pointer-events-none" style={{ background: "#000" }} initial={false} animate={{ opacity: pushed ? 0.35 : 0 }} transition={{ duration: 0.38 }} />
