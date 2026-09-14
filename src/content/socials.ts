@@ -19,3 +19,12 @@ export const REELS: Reel[] = [
   { id: "tt-7678466467771206926", platform: "tiktok", url: "https://www.tiktok.com/@use.xyra.dev/video/7678466467771206926", cover: "/assets/reel-tt-7678466467771206926.jpg", video: "/assets/reel-tt-7678466467771206926.mp4" },
   { id: "ig-DXaOqDSj0UO", platform: "instagram", url: "https://www.instagram.com/p/DXaOqDSj0UO/?hl=en", cover: "/assets/reel-ig-DXaOqDSj0UO.jpg", video: "/assets/reel-ig-DXaOqDSj0UO.mp4" },
 ];
+
+// Verbatim quotes for the feedback ticker under the reels (Shayan, 2026-09-14).
+export const FEEDBACK_QUOTES: string[] = [
+  "I'm willing to pay anything. This is something that I need solved.",
+  "This is a revolutionary idea and there's no one that really solved it yet.",
+  "That is exactly the type of stuff that's a viral screen.",
+  "This is a tool that I'll use, you know? 100%.",
+  "It's very rare now when people tell me about an app where I'm like, oh, that's such a good idea \u2014 and this is such a good idea.",
+];

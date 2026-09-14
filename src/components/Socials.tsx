@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
 import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
-import { REELS, type Reel } from "@/content/socials";
+import { FEEDBACK_QUOTES, REELS, type Reel } from "@/content/socials";
 
 const STEP_MS = 2000; // every card is already playing, so the middle can rotate quickly
 // per |offset| from the active card: scale, x (in center-card widths), opacity
@@ -87,6 +87,78 @@ function ReelCard({ r, d, unit, playing, onPick }: { r: Reel; d: number; unit: n
   );
 }
 
+// A ticker of quotes: one continuous line drifting left, the quote nearest the
+// middle in full black, the rest greyed. Driven by rAF so the highlight can
+// follow the real positions (quotes are different lengths); pauses on hover;
+// holds still under prefers-reduced-motion.
+function FeedbackTicker({ quotes }: { quotes: string[] }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const paused = useRef(false);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const track = trackRef.current;
+    if (!wrap || !track) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const SPEED = 70; // px per second
+    let x = 0;
+    let last = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      raf = requestAnimationFrame(tick);
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      if (!paused.current && !still) x -= SPEED * dt;
+      const half = track.scrollWidth / 2; // content is doubled
+      if (half > 0 && -x >= half) x += half;
+      track.style.transform = `translateX(${x}px)`;
+      const wc = wrap.getBoundingClientRect();
+      const mid = wc.left + wc.width / 2;
+      let best = -1;
+      let bestD = Infinity;
+      itemRefs.current.forEach((el, i) => {
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        const d = Math.abs(r.left + r.width / 2 - mid);
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      });
+      itemRefs.current.forEach((el, i) => {
+        if (el) el.style.opacity = i === best ? "1" : "0.22";
+      });
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const items = [...quotes, ...quotes];
+  return (
+    <div
+      ref={wrapRef}
+      className="relative w-full overflow-hidden py-2"
+      onMouseEnter={() => { paused.current = true; }}
+      onMouseLeave={() => { paused.current = false; }}
+    >
+      <div ref={trackRef} className="flex w-max items-baseline gap-24 will-change-transform pr-24">
+        {items.map((q, i) => (
+          <span
+            key={i}
+            ref={(el) => { itemRefs.current[i] = el; }}
+            className="whitespace-nowrap font-[family-name:var(--font-playfair)] text-3xl md:text-4xl lg:text-[2.75rem] font-medium tracking-tight text-black transition-opacity duration-300"
+            style={{ opacity: 0.22 }}
+          >
+            &ldquo;{q}&rdquo;
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Socials() {
   const ref = useSectionView<HTMLElement>("socials");
   const stageRef = useRef<HTMLDivElement>(null);
@@ -136,6 +208,14 @@ export default function Socials() {
           if (d < -n / 2) d += n;
           return <ReelCard key={r.id} r={r} d={d} unit={unit} playing={onScreen} onPick={() => setActive(i)} />;
         })}
+      </div>
+
+      {/* what people said */}
+      <div className="mt-20 md:mt-28">
+        <div className="flex justify-center mb-8 md:mb-10">
+          <span className="font-[family-name:var(--font-jetbrains)] text-[10px] tracking-[0.2em] uppercase text-black/50 border border-black/15 rounded-full px-3 py-1.5">feedback</span>
+        </div>
+        <FeedbackTicker quotes={FEEDBACK_QUOTES} />
       </div>
     </section>
   );
