@@ -80,7 +80,7 @@ export default function BrainShowcase({ active }: { active: boolean }) {
       {/* one line, swapped with the beat: the diagram's line up top while the world
           idles; the insights line along the bottom while the camera is in on
           Finance (the zoomed world crowds the top). Paper halo keeps it legible. */}
-      <div className={`absolute inset-x-0 z-10 flex justify-center px-6 text-center pointer-events-none ${focused ? "bottom-[5%]" : "top-[4%]"}`}>
+      <div className={`absolute inset-x-0 z-10 flex px-6 pointer-events-none ${focused ? "bottom-[5%] justify-center text-center" : "top-[6%] justify-end text-right pr-[5%]"}`}>
         <AnimatePresence mode="wait">
           <motion.h3
             key={focused ? "insights" : "context"}
@@ -88,7 +88,7 @@ export default function BrainShowcase({ active }: { active: boolean }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="font-[family-name:var(--font-playfair)] text-4xl sm:text-5xl font-medium text-black tracking-tight"
+            className={`font-[family-name:var(--font-playfair)] text-4xl sm:text-5xl font-medium text-black tracking-tight leading-[1.05] ${focused ? "" : "max-w-[440px]"}`}
             style={{ textShadow: "0 0 18px #fbfaf8, 0 0 8px #fbfaf8, 0 0 3px #fbfaf8" }}
           >
             {focused ? "simple insights for you." : "seamless context for agents."}
