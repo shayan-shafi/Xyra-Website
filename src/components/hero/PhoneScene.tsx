@@ -661,7 +661,7 @@ function WorkoutScreen() {
 // brainGraph CATEGORY_META labels + a few moons each so the world reads as the
 // busy 3D map in the app video. Finance is index 1 → it starts front-right,
 // which is where the tap lands.
-const BRAIN_CATEGORIES: BrainCategory[] = [
+export const BRAIN_CATEGORIES: BrainCategory[] = [
   { key: "people", label: "People", children: ["Family", "Team"] },
   { key: "finance", label: "Finance", children: ["$$$", "Budget"] },
   { key: "health", label: "Health", children: ["Sleep", "Runs"] },
