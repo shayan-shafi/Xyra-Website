@@ -59,6 +59,7 @@ export default function BrainShowcase({ active }: { active: boolean }) {
   return (
     <div className="relative w-full h-full">
       {active && (
+        <div className="absolute inset-0 translate-x-[1.5%]">
         <BrainWorldCanvas
           centerLabel="you"
           categories={BRAIN_CATEGORIES}
@@ -70,8 +71,9 @@ export default function BrainShowcase({ active }: { active: boolean }) {
           zoomKey="finance"
           selected={open ? "finance" : null}
         />
+        </div>
       )}
-      <div className="hidden md:block absolute z-20 right-[4%] lg:right-[8%] top-1/2 -translate-y-1/2 pointer-events-none">
+      <div className="hidden md:block absolute z-20 right-[4%] lg:right-[8%] top-1/2 -translate-y-1/2 translate-x-[1.5%] pointer-events-none">
         <AnimatePresence>{open && <FinanceInsightsCard key="card" />}</AnimatePresence>
       </div>
 
@@ -97,7 +99,7 @@ export default function BrainShowcase({ active }: { active: boolean }) {
       {/* how it's built → what it feeds. Left: your voice + your connectors, arrows
           into the world. Right: an arrow out to the agents. Hidden while zoomed. */}
       <motion.div
-        className="hidden lg:block absolute inset-0 z-10 pointer-events-none"
+        className="hidden lg:block absolute inset-0 z-10 pointer-events-none translate-x-[1.5%]"
         initial={false}
         animate={{ opacity: focused ? 0 : 1 }}
         transition={{ duration: 0.5 }}
