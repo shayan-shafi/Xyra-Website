@@ -291,13 +291,6 @@ function Nav() {
           xyra
         </span>
         {/* blog link hidden until the blog is ready — route still exists at /blog */}
-        <a
-          href="#learn"
-          onClick={() => track("cta_click", { cta_location: "hero_nav", button_label: "what is xyra" })}
-          className="hidden sm:block font-[family-name:var(--font-jetbrains)] text-xs text-black/50 hover:text-black transition-colors"
-        >
-          what is xyra?
-        </a>
       </div>
 
       <a
