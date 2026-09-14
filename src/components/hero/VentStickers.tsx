@@ -40,12 +40,20 @@ export default function VentStickers() {
         </div>
       </Sticker>
 
-      {/* xyra is typing… */}
-      <Sticker className="right-[9%] top-[40%]">
-        <div className="flex items-center gap-1.5 bg-white border border-black/12 rounded-full px-3.5 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
-          <span className="xyra-typing-dot w-1.5 h-1.5 rounded-full bg-black/40" />
-          <span className="xyra-typing-dot w-1.5 h-1.5 rounded-full bg-black/40" style={{ animationDelay: "0.15s" }} />
-          <span className="xyra-typing-dot w-1.5 h-1.5 rounded-full bg-black/40" style={{ animationDelay: "0.3s" }} />
+      {/* the vent itself — a voice memo mid-record (the app's RecordingWave pill) */}
+      <Sticker className="right-[4%] top-[41%]" tilt={-2}>
+        <div className="flex items-center gap-1.5 rounded-full pl-1.5 pr-1.5 py-1.5 shadow-[0_4px_14px_rgba(0,0,0,0.12)]" style={{ background: "#2A2A2E" }}>
+          <span className="flex items-center justify-center w-7 h-7 rounded-full bg-white/15 text-white text-[11px] leading-none">✕</span>
+          <span className="flex items-center gap-[2px] h-4 px-1">
+            {Array.from({ length: 18 }, (_, i) => (
+              <span
+                key={i}
+                className={i >= 6 ? "xyra-rec-bar w-[2px] rounded-full bg-white/90" : "w-[2px] h-[2px] rounded-full bg-white/90"}
+                style={i >= 6 ? { animationDelay: `${((i * 7) % 9) / 10}s`, animationDuration: `${0.7 + ((i * 3) % 5) * 0.08}s` } : undefined}
+              />
+            ))}
+          </span>
+          <span className="flex items-center justify-center w-7 h-7 rounded-full bg-white text-[#1C1C1E] text-[12px] leading-none">✓</span>
         </div>
       </Sticker>
 
@@ -58,12 +66,18 @@ export default function VentStickers() {
         </TornSticker>
       </Sticker>
 
-      {/* where it all lands */}
-      <Sticker className="right-[4%] top-[56%]" tilt={3}>
-        <div className="flex flex-col items-start gap-1.5">
-          <Chip>→ journal</Chip>
-          <Chip>→ to-do</Chip>
-          <Chip>→ reminders</Chip>
+      {/* xyra's receipt */}
+      <Sticker className="right-[3%] top-[57%]" tilt={3}>
+        <div className="w-[160px]">
+          <div className="bg-white border border-black/12 rounded-2xl rounded-bl-md px-3.5 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
+            <p className="font-[family-name:var(--font-jetbrains)] text-[11px] leading-relaxed text-black/75 lowercase">
+              got all of it. 4 things sorted, mom&apos;s bday saved. you&apos;re good.
+            </p>
+          </div>
+          <div className="flex gap-1.5 mt-2">
+            <Chip>→ to-do</Chip>
+            <Chip>→ birthdays</Chip>
+          </div>
         </div>
       </Sticker>
 

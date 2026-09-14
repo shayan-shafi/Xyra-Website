@@ -260,7 +260,7 @@ function PhotosIcon() {
 // vent section's stickers.)
 export function Chip({ children }: { children: ReactNode }) {
   return (
-    <span className="font-[family-name:var(--font-jetbrains)] text-[10px] leading-none text-black/60 bg-white border border-black/15 rounded-full px-2 py-1">
+    <span className="font-[family-name:var(--font-jetbrains)] text-[10px] leading-none whitespace-nowrap text-black/60 bg-white border border-black/15 rounded-full px-2 py-1">
       {children}
     </span>
   );
