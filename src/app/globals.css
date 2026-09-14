@@ -189,17 +189,3 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .xyra-needle { animation: none; }
 }
-
-/* socials rows: content is doubled, so -50% loops seamlessly */
-@keyframes xyraMarquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
-.xyra-marquee {
-  animation: xyraMarquee 48s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .xyra-marquee { animation: none; }
-}

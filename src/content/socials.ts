@@ -1,33 +1,20 @@
 // ─── socials content ─────────────────────────────────────────────────────────
-// The two rows on the socials section. Edit here, nothing else.
-//
-// REELS: `url` is the actual post (instagram.com/reel/…, tiktok.com/@…/video/…,
-// youtube.com/shorts/…). Cards without a url render as plain cards until one
-// is pasted in. `cover` is a still from the clip (9:16 looks best).
-//
-// FEEDBACK: real quotes only. The entries below are SAMPLES and render with a
-// "sample" tag until replaced — delete `sample: true` (or the entry) once a
-// real quote is in.
+// The reels on the socials section, in carousel order. `url` is the actual
+// post; `cover` is the platform's own thumbnail (pulled 2026-09-14 — TikTok via
+// oEmbed, Instagram via /media/?size=l). Re-pull a cover if a post changes.
 
 export type Platform = "instagram" | "tiktok" | "youtube";
 
-export type Reel = { id: string; platform: Platform; url: string; cover: string; caption: string };
+export type Reel = { id: string; platform: Platform; url: string; cover: string };
 
 export const REELS: Reel[] = [
-  { id: "sheza", platform: "instagram", url: "", cover: "/assets/sheza-vent-poster.jpg", caption: "the xyra episodes: sheza" },
-  { id: "sofia", platform: "tiktok", url: "", cover: "/assets/sofia-cover.jpg", caption: "the xyra episodes: sofia" },
-  { id: "day", platform: "instagram", url: "", cover: "/assets/dayinlife-cover.jpg", caption: "a day with xyra" },
-  { id: "tracks", platform: "tiktok", url: "", cover: "/assets/tracks-cover.jpg", caption: "it tracks everything" },
-  { id: "learn", platform: "instagram", url: "", cover: "/assets/learn-cover.jpg", caption: "learn about urself" },
-  { id: "brain", platform: "youtube", url: "", cover: "/assets/brain-cover.jpg", caption: "your second brain" },
-];
-
-export type Feedback = { id: string; quote: string; who: string; via?: string; sample?: boolean };
-
-export const FEEDBACK: Feedback[] = [
-  { id: "s1", quote: "i just talk at it on the walk home and my week is built by the time i sit down.", who: "alpha tester", via: "imessage", sample: true },
-  { id: "s2", quote: "first app where i didn't have to set anything up. it set itself up.", who: "alpha tester", via: "instagram dm", sample: true },
-  { id: "s3", quote: "vented about my prof for two minutes. it made the to-do, the reminder, and a block on my calendar.", who: "alpha tester", via: "imessage", sample: true },
-  { id: "s4", quote: "the brain thing is genuinely how i think about my week now.", who: "alpha tester", via: "tiktok comment", sample: true },
-  { id: "s5", quote: "it noticed i skip the gym on wednesdays before i did.", who: "alpha tester", via: "imessage", sample: true },
+  { id: "ig-Dcj3CRRPzh6", platform: "instagram", url: "https://www.instagram.com/p/Dcj3CRRPzh6/?hl=en", cover: "/assets/reel-ig-Dcj3CRRPzh6.jpg" },
+  { id: "tt-7665116527091387661", platform: "tiktok", url: "https://www.tiktok.com/@use.xyra.dev/video/7665116527091387661", cover: "/assets/reel-tt-7665116527091387661.jpg" },
+  { id: "ig-DaofZhGPJTx", platform: "instagram", url: "https://www.instagram.com/p/DaofZhGPJTx/?hl=en", cover: "/assets/reel-ig-DaofZhGPJTx.jpg" },
+  { id: "tt-7654768086301543693", platform: "tiktok", url: "https://www.tiktok.com/@use.xyra.dev/video/7654768086301543693", cover: "/assets/reel-tt-7654768086301543693.jpg" },
+  { id: "ig-DXxhk31vIgG", platform: "instagram", url: "https://www.instagram.com/p/DXxhk31vIgG/?hl=en", cover: "/assets/reel-ig-DXxhk31vIgG.jpg" },
+  { id: "tt-7657347197335309581", platform: "tiktok", url: "https://www.tiktok.com/@use.xyra.dev/video/7657347197335309581", cover: "/assets/reel-tt-7657347197335309581.jpg" },
+  { id: "ig-DYdUgIJP-nT", platform: "instagram", url: "https://www.instagram.com/p/DYdUgIJP-nT/?hl=en", cover: "/assets/reel-ig-DYdUgIJP-nT.jpg" },
+  { id: "tt-7678466467771206926", platform: "tiktok", url: "https://www.tiktok.com/@use.xyra.dev/video/7678466467771206926", cover: "/assets/reel-tt-7678466467771206926.jpg" },
+  { id: "ig-DXaOqDSj0UO", platform: "instagram", url: "https://www.instagram.com/p/DXaOqDSj0UO/?hl=en", cover: "/assets/reel-ig-DXaOqDSj0UO.jpg" },
 ];
