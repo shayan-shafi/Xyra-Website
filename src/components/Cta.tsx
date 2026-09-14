@@ -38,7 +38,7 @@ function Stickers() {
   return (
     <div className="hidden lg:block absolute inset-0 pointer-events-none [&>*]:pointer-events-auto">
       {/* xyra, making the ask */}
-      <Sticker className="left-[7%] top-[16%]" tilt={-3}>
+      <Sticker className="left-[5%] top-[45%]" tilt={-3}>
         <div className="w-[150px] bg-white border border-black/12 rounded-2xl rounded-bl-md px-3.5 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
           <p className="font-[family-name:var(--font-jetbrains)] text-[11px] leading-relaxed text-black/75 lowercase">so… you in?</p>
         </div>
@@ -51,29 +51,20 @@ function Stickers() {
         </div>
       </Sticker>
 
-      {/* xyra is typing… */}
-      <Sticker className="right-[19%] top-[38%]">
-        <div className="flex items-center gap-1.5 bg-white border border-black/12 rounded-full px-3.5 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
-          <span className="xyra-typing-dot w-1.5 h-1.5 rounded-full bg-black/40" />
-          <span className="xyra-typing-dot w-1.5 h-1.5 rounded-full bg-black/40" style={{ animationDelay: "0.15s" }} />
-          <span className="xyra-typing-dot w-1.5 h-1.5 rounded-full bg-black/40" style={{ animationDelay: "0.3s" }} />
-        </div>
-      </Sticker>
-
       {/* the vent, mid-record */}
-      <Sticker className="left-[5%] top-[44%]" tilt={-2}>
+      <Sticker className="left-[8%] top-[72%]" tilt={-2}>
         <RecordingPillSticker />
       </Sticker>
 
       {/* the sign-off, on a torn scrap */}
-      <Sticker className="left-[22%] top-[24%]" tilt={6}>
+      <Sticker className="left-[12%] top-[20%]" tilt={6}>
         <TornSticker seed={73} jx={9} jy={10} style={{ width: 96, height: 56 }}>
           <div className="w-full h-full flex items-center justify-center font-[family-name:var(--font-jetbrains)] text-[11px] text-black/70 lowercase">dale.</div>
         </TornSticker>
       </Sticker>
 
       {/* where this lands */}
-      <Sticker className="right-[8%] top-[50%]" tilt={2}>
+      <Sticker className="right-[17%] top-[37%]" tilt={2}>
         <div className="flex flex-col items-start gap-1.5">
           <Chip>→ apply</Chip>
           <Chip>→ test it</Chip>
@@ -82,7 +73,7 @@ function Stickers() {
       </Sticker>
 
       {/* hold-to-talk */}
-      <Sticker className="right-[5%] top-[72%]" tilt={-2}>
+      <Sticker className="right-[5%] top-[62%]" tilt={-2}>
         <div className="flex items-center gap-2.5 bg-black text-white rounded-full pl-3.5 pr-4 py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
           <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 14a3 3 0 003-3V5a3 3 0 10-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.92V21h2v-3.08A7 7 0 0019 11h-2z" />
@@ -98,13 +89,13 @@ function Stickers() {
       </Sticker>
 
       {/* ── the paper cutouts, placed like the mock (sizes to Shayan's reference) ── */}
-      <Cutout src="/assets/stk-bolts.png" alt="" width={92} className="left-[31%] top-[5%]" />
-      <Cutout src="/assets/stk-stars.png" alt="" width={100} className="right-[25%] top-[5%]" />
-      <Cutout src="/assets/stk-hearts.png" alt="" width={60} className="left-[20%] top-[47%]" />
+      <Cutout src="/assets/stk-bolts.png" alt="" width={92} className="left-[30%] top-[7%]" />
+      <Cutout src="/assets/stk-stars.png" alt="" width={100} className="right-[28%] top-[9%]" />
+      <Cutout src="/assets/stk-hearts.png" alt="" width={60} className="left-[24.5%] top-[39%]" />
       <Cutout src="/assets/stk-lines-left.png" alt="" width={62} className="left-1/2 -ml-[176px] top-[53%]" />
       <Cutout src="/assets/stk-lines-right.png" alt="" width={62} className="left-1/2 ml-[114px] top-[53%]" />
-      <Cutout src="/assets/stk-chevron.png" alt="" width={76} className="left-[65%] top-[57%]" />
-      <Cutout src="/assets/stk-squiggle.png" alt="" width={78} className="left-1/2 -ml-[42px] top-[69%]" />
+      <Cutout src="/assets/stk-chevron.png" alt="" width={76} className="left-[67.5%] top-[62%]" />
+      <Cutout src="/assets/stk-squiggle.png" alt="" width={78} className="left-[43%] top-[78%]" />
     </div>
   );
 }
