@@ -582,6 +582,7 @@ export default function DesktopHero() {
           <Chip>→ finances</Chip>
           <Chip>→ workouts</Chip>
           <Chip>→ reminders</Chip>
+          <Chip>→ anything</Chip>
         </div>
       </Decor>
 
