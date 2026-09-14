@@ -13,7 +13,7 @@ import { BRAIN_CATEGORIES } from "./PhoneScene";
 import FinanceInsightsCard from "./FinanceInsightsCard";
 import { AgentTile, ConnectorScrapsRow, HandArrow, RecordingPillSticker } from "./stickers";
 
-const IDLE = 3000, ZOOM_IN = 2200, HOLD = 5200, ZOOM_OUT = 1600;
+const IDLE = 5000, ZOOM_IN = 2200, HOLD = 5200, ZOOM_OUT = 1600;
 const CYCLE = IDLE + ZOOM_IN + HOLD + ZOOM_OUT;
 
 export default function BrainShowcase({ active }: { active: boolean }) {
@@ -83,11 +83,11 @@ export default function BrainShowcase({ active }: { active: boolean }) {
         animate={{ opacity: focused ? 0 : 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="absolute left-[3%] top-[39%] origin-left scale-[1.2]"><RecordingPillSticker /></div>
-        <div className="absolute left-[17.5%] top-[38.5%]"><HandArrow width={125} bow={6} /></div>
+        <div className="absolute left-[3%] top-[30%] origin-left scale-[1.2]"><RecordingPillSticker /></div>
+        <div className="absolute left-[17.5%] top-[31%] rotate-[16deg] origin-left"><HandArrow width={130} bow={-6} /></div>
 
-        <div className="absolute left-[3%] top-[57%]"><ConnectorScrapsRow scale={0.8} /></div>
-        <div className="absolute left-[18.5%] top-[54%] -rotate-[24deg] origin-left"><HandArrow width={112} bow={-10} /></div>
+        <div className="absolute left-[1.5%] top-[64%]"><ConnectorScrapsRow scale={0.8} /></div>
+        <div className="absolute left-[17%] top-[61%] -rotate-[26deg] origin-left"><HandArrow width={118} bow={-10} /></div>
 
         <div className="absolute right-[11%] top-[43%]"><HandArrow width={140} bow={4} /></div>
         <div className="absolute right-[3.5%] top-[32%] flex flex-col gap-5">
