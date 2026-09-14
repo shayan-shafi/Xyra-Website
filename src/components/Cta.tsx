@@ -97,14 +97,14 @@ function Stickers() {
         </div>
       </Sticker>
 
-      {/* ── the paper cutouts, placed like the mock ── */}
-      <Cutout src="/assets/stk-bolts.png" alt="" width={120} className="left-[30%] top-[3%]" />
-      <Cutout src="/assets/stk-stars.png" alt="" width={130} className="right-[24%] top-[3%]" />
-      <Cutout src="/assets/stk-hearts.png" alt="" width={80} className="left-[19%] top-[46%]" />
-      <Cutout src="/assets/stk-lines-left.png" alt="" width={88} className="left-1/2 -ml-[218px] top-[50%]" />
-      <Cutout src="/assets/stk-lines-right.png" alt="" width={88} className="left-1/2 ml-[128px] top-[50%]" />
-      <Cutout src="/assets/stk-chevron.png" alt="" width={100} className="left-[66.5%] top-[55%]" />
-      <Cutout src="/assets/stk-squiggle.png" alt="" width={104} className="left-1/2 -ml-[56px] top-[66%]" />
+      {/* ── the paper cutouts, placed like the mock (sizes to Shayan's reference) ── */}
+      <Cutout src="/assets/stk-bolts.png" alt="" width={92} className="left-[31%] top-[5%]" />
+      <Cutout src="/assets/stk-stars.png" alt="" width={100} className="right-[25%] top-[5%]" />
+      <Cutout src="/assets/stk-hearts.png" alt="" width={60} className="left-[20%] top-[47%]" />
+      <Cutout src="/assets/stk-lines-left.png" alt="" width={62} className="left-1/2 -ml-[176px] top-[53%]" />
+      <Cutout src="/assets/stk-lines-right.png" alt="" width={62} className="left-1/2 ml-[114px] top-[53%]" />
+      <Cutout src="/assets/stk-chevron.png" alt="" width={76} className="left-[65%] top-[57%]" />
+      <Cutout src="/assets/stk-squiggle.png" alt="" width={78} className="left-1/2 -ml-[42px] top-[69%]" />
     </div>
   );
 }
