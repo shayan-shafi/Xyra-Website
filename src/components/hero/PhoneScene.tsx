@@ -679,15 +679,13 @@ const L = { bg: "#ffffff", fg: "#000000", hairline: "rgba(0,0,0,0.10)" };
 function BrainSheet({ mounted, selected }: { mounted: boolean; selected: string | null }) {
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ background: T.bg, color: T.fg }}>
-      {mounted && <BrainWorldCanvas centerLabel="you" categories={BRAIN_CATEGORIES} dark selected={selected} spinning={!selected} />}
+      {mounted && <BrainWorldCanvas centerLabel="Shayan" categories={BRAIN_CATEGORIES} dark selected={selected} spinning={!selected} />}
       <StatusBar />
       <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: SAFE_TOP + 10, padding: "0 24px 8px" }}>
         <div style={{ fontFamily: SERIF, fontSize: 28, letterSpacing: -0.3, lineHeight: "34px" }}>Your World</div>
         <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: 15, color: T.muted, marginTop: 2 }}>Your universe, mapped by Xyra.</div>
       </div>
       <span className="absolute z-10" style={{ right: 20, top: SAFE_TOP + 21 }}><MoonIcon /></span>
-      {/* the planets hint, bottom-left like the reference */}
-      <div className="absolute z-10 pointer-events-none" style={{ left: 24, bottom: 128, fontFamily: MONO, fontSize: 11, letterSpacing: 3, lineHeight: "18px", color: "rgba(237,233,220,0.45)" }}>DRAG · TAP A<br />PLANET</div>
       <div className="absolute z-10 left-1/2 -translate-x-1/2 flex items-center justify-center rounded-full" style={{ bottom: 80, width: 64, height: 64, background: T.fg, boxShadow: "0 4px 12px rgba(0,0,0,0.18)" }}><MicIcon size={26} /></div>
     </div>
   );
