@@ -122,53 +122,11 @@ export default function Explainer() {
       </div>
 
       {/* ── Section 2: Your World — the brain ───────────────────── */}
-      {/* A dark band with the phone's Three.js world running full-bleed on the
-          right. The copy has to carry two ideas without jargon: this is where you
-          see yourself, and it's the memory anything acting for you starts from. */}
-      <section id="world" ref={worldRef} className="relative scroll-mt-20 bg-black text-[#ede9dc] overflow-hidden">
-        {/* the world — bleeds to the right edge on desktop, a band of its own on mobile */}
-        <div ref={brainRef} className="relative h-[62vh] md:absolute md:inset-y-0 md:right-0 md:h-auto md:w-[54%]">
-          {brainNear && <BrainWorldCanvas centerLabel="you" categories={BRAIN_CATEGORIES} dark />}
-          {/* soften the seam into the copy */}
-          <div className="hidden md:block absolute inset-y-0 left-0 w-40 bg-gradient-to-r from-black to-transparent pointer-events-none" />
-        </div>
-
-        <div className="relative z-10 max-w-6xl mx-auto px-6 sm:px-12 lg:px-20 py-20 md:py-32 md:min-h-[88vh] flex items-center">
-          <Section className="md:w-[42%]">
-            <span className="font-[family-name:var(--font-jetbrains)] text-xs tracking-[0.25em] uppercase text-[#ede9dc]/40">
-              Your World
-            </span>
-            <h3 className="font-[family-name:var(--font-playfair)] text-4xl md:text-[2.6rem] lg:text-5xl font-medium tracking-tight mt-4 leading-[1.05]">
-              Everything you say
-              <br />
-              <span className="italic text-[#ede9dc]/70">becomes a map of you.</span>
-            </h3>
-            <p className="font-[family-name:var(--font-eb-garamond)] text-lg sm:text-xl text-[#ede9dc]/60 mt-6 max-w-md leading-relaxed">
-              Every vent, plan, and 2am thought lands somewhere on it. You never build it.
-              It builds itself in the background, every time you talk.
-            </p>
-
-            <ul className="mt-10 space-y-6 max-w-md">
-              <li>
-                <span className="font-[family-name:var(--font-jetbrains)] text-[11px] tracking-[0.2em] uppercase text-[#ede9dc]/45">See yourself</span>
-                <p className="font-[family-name:var(--font-eb-garamond)] text-lg text-[#ede9dc]/75 mt-1.5 leading-relaxed">
-                  Tap any part of it and Xyra shows you what&apos;s really going on there. Where the money goes. What wrecks your sleep. Who you keep flaking on.
-                </p>
-              </li>
-              <li>
-                <span className="font-[family-name:var(--font-jetbrains)] text-[11px] tracking-[0.2em] uppercase text-[#ede9dc]/45">Xyra reads it first</span>
-                <p className="font-[family-name:var(--font-eb-garamond)] text-lg text-[#ede9dc]/75 mt-1.5 leading-relaxed">
-                  It&apos;s what Xyra checks before it answers you, so you never repeat yourself.
-                </p>
-              </li>
-              <li>
-                <span className="font-[family-name:var(--font-jetbrains)] text-[11px] tracking-[0.2em] uppercase text-[#ede9dc]/45">So can anything that works for you</span>
-                <p className="font-[family-name:var(--font-eb-garamond)] text-lg text-[#ede9dc]/75 mt-1.5 leading-relaxed">
-                  As AI starts doing things on your behalf, booking the trip, chasing the refund, planning the week, this is the one place it can start from already knowing you. No forms. No setup.
-                </p>
-              </li>
-            </ul>
-          </Section>
+      {/* Just the world for now, centered on the page grid (light ink, transparent
+          canvas). Shayan writes the copy around it once it's on screen. */}
+      <section id="world" ref={worldRef} className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-12 md:py-20">
+        <div ref={brainRef} className="relative mx-auto w-full max-w-5xl h-[72vh] min-h-[480px]">
+          {brainNear && <BrainWorldCanvas centerLabel="you" categories={BRAIN_CATEGORIES} dark={false} transparent paper="#fbfaf8" />}
         </div>
       </section>
 

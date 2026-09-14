@@ -24,12 +24,18 @@ export default function BrainWorldCanvas({
   dark = true,
   selected = null,
   spinning = true,
+  transparent = false,
+  paper: paperCss,
 }: {
   centerLabel: string;
   categories: BrainCategory[];
   dark?: boolean;
   selected?: string | null;
   spinning?: boolean;
+  /** no scene background — the page shows through (fog + globe fills still use `paper`) */
+  transparent?: boolean;
+  /** the page color behind a transparent canvas, e.g. the site's #fbfaf8 */
+  paper?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
@@ -39,19 +45,20 @@ export default function BrainWorldCanvas({
     const container = containerRef.current;
     if (!container || !isWebGLAvailable()) return;
 
-    const paper = dark ? 0x000000 : 0xffffff;
+    const paperHex = paperCss ?? (dark ? "#000000" : "#ffffff");
+    const paper = new THREE.Color(paperHex).getHex();
     const ink = dark ? 0xede9dc : 0x000000;
     const inkCss = dark ? "#ede9dc" : "#000000";
-    const paperCss = dark ? "#000000" : "#ffffff";
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(paper);
+    if (!transparent) scene.background = new THREE.Color(paper);
     scene.fog = new THREE.FogExp2(paper, 0.02);
 
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
     camera.position.set(0, 10, 20);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: transparent });
+    if (transparent) renderer.setClearColor(0x000000, 0);
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
@@ -99,7 +106,7 @@ export default function BrainWorldCanvas({
         font-family: var(--font-playfair), 'Playfair Display', serif;
         font-size: ${isNucleus ? "24px" : "14px"};
         font-weight: ${isNucleus ? "bold" : "normal"};
-        text-shadow: 0 0 2px ${paperCss};
+        text-shadow: 0 0 2px ${paperHex};
         pointer-events: none;
         white-space: nowrap;
       `;
@@ -179,7 +186,7 @@ export default function BrainWorldCanvas({
       labels.clear();
       controlsRef.current = null;
     };
-  }, [dark, centerLabel, categories]);
+  }, [dark, centerLabel, categories, transparent, paperCss]);
 
   useEffect(() => {
     if (controlsRef.current) controlsRef.current.autoRotate = spinning;
