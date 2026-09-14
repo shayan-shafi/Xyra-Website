@@ -4,7 +4,7 @@
 // The reels as a coverflow: the active one big in the middle, its neighbours
 // stepping down in size and fading toward the edges, five in view. Every card
 // with a clip plays it (muted, looping) while the section is on screen; the
-// carousel advances every five seconds and pauses on hover; a side card click
+// carousel advances every two seconds and pauses on hover; a side card click
 // brings it to the middle, the middle card opens the post. Content:
 // src/content/socials.ts.
 
@@ -14,7 +14,7 @@ import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
 import { REELS, type Reel } from "@/content/socials";
 
-const STEP_MS = 5000; // long enough for the active reel to actually play
+const STEP_MS = 2000; // every card is already playing, so the middle can rotate quickly
 // per |offset| from the active card: scale, x (in center-card widths), opacity
 const RING = [
   { scale: 1, x: 0, opacity: 1 },
