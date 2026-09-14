@@ -19,6 +19,12 @@ const fadeUp = {
 function VentVideo() {
   const ref = useRef<HTMLVideoElement>(null);
   const [sound, setSound] = useState(false);
+  const [left, setLeft] = useState<number | null>(null); // seconds left in this pass of the clip
+  const onTime = () => {
+    const v = ref.current;
+    if (!v || !Number.isFinite(v.duration)) return;
+    setLeft(Math.max(0, Math.ceil(v.duration - v.currentTime)));
+  };
   const toggle = () => {
     const v = ref.current;
     if (!v) return;
@@ -38,13 +44,16 @@ function VentVideo() {
           playsInline
           preload="metadata"
           poster="/assets/sheza-vent-poster.jpg"
+          onLoadedMetadata={onTime}
+          onTimeUpdate={onTime}
           className="block w-full h-auto rounded-2xl border border-black/10 bg-black"
         >
           <source src="/assets/sheza-vent.mp4" type="video/mp4" />
         </video>
       </button>
-      <p className="font-[family-name:var(--font-jetbrains)] text-[11px] text-black/40 mt-3">
+      <p className="font-[family-name:var(--font-jetbrains)] text-[11px] text-black/40 mt-3 tabular-nums">
         {sound ? "sound on" : "tap for sound"}
+        {left !== null && <span className="text-black/30"> · {left}s left</span>}
       </p>
     </div>
   );
