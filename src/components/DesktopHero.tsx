@@ -87,18 +87,18 @@ function PhoneFrame({ children }: { children: ReactNode }) {
 // cutout measures; the height follows the frame image's screen aspect (358:761).
 
 // /assets/iphone-15-frame.png — a real iPhone 15 Pro render (Shayan's pick,
-// 2026-09-12) with the screen cut to transparent and the drop shadow turned
-// into alpha so it composites on the warm canvas. Measured in image px:
-//   image 598×917 · phone body 394×798 at (0,0) · screen 358×761 at (19,17)
-// The container is the phone BODY box (the shadow overflows right + bottom);
-// the screen content sits in a cutout-aligned div underneath the PNG, padded
+// 2026-09-12), screen cut to transparent, body only (its baked shadow is gone:
+// CSS casts a soft one from the silhouette so nothing ever shows a crop edge).
+// Measured in image px: image = body 392×797 · screen 358×761 at (17,16).
+// The screen content sits in a cutout-aligned div underneath the PNG, padded
 // PAD px outward so it also sits under the bezel's anti-aliased inner edge.
 const FRAME = {
   src: "/assets/iphone-15-frame.png",
-  img: { w: 598, h: 917 },
-  body: { w: 394, h: 798 },
-  screen: { x: 19, y: 17, w: 358, h: 761 },
+  img: { w: 392, h: 797 },
+  body: { w: 392, h: 797 },
+  screen: { x: 17, y: 16, w: 358, h: 761 },
 };
+const FRAME_SHADOW = "drop-shadow(18px 26px 30px rgba(0,0,0,0.22)) drop-shadow(0 2px 4px rgba(0,0,0,0.12))";
 const PAD = 2;
 const pct = (n: number, d: number) => `${(n / d) * 100}%`;
 
@@ -162,7 +162,7 @@ function HeroPhone({ children }: { children: ReactNode }) {
         alt=""
         draggable={false}
         className="absolute top-0 left-0 max-w-none pointer-events-none select-none"
-        style={{ width: pct(img.w, body.w), height: pct(img.h, body.h) }}
+        style={{ width: pct(img.w, body.w), height: pct(img.h, body.h), filter: FRAME_SHADOW }}
       />
     </div>
   );
@@ -421,7 +421,10 @@ export default function DesktopHero() {
     <section
       ref={sectionRef}
       id="waitlist"
-      className="relative w-full min-h-screen overflow-hidden"
+      // overflow-x only: dragged floaters still can't widen the page, but the
+      // phone's drop shadow is free to run past the bottom edge (a hidden-y clip
+      // drew a hard line across the canvas right under the phone).
+      className="relative w-full min-h-screen overflow-x-clip"
     >
       <Nav />
 
