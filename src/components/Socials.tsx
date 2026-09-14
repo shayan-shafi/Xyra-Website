@@ -87,14 +87,16 @@ function ReelCard({ r, d, unit, playing, onPick }: { r: Reel; d: number; unit: n
   );
 }
 
-// A ticker of quotes: one continuous line drifting left, the quote nearest the
-// middle in full black, the rest greyed. Driven by rAF so the highlight can
-// follow the real positions (quotes are different lengths); pauses on hover;
-// holds still under prefers-reduced-motion.
+// A ticker of quotes: one continuous line drifting left. The ink is always
+// black; a mask over the stage keeps the middle band solid and fades the text
+// out to transparent toward both edges, so whatever is passing through the
+// centre reads and the rest ghosts away. Pauses on hover; holds still under
+// prefers-reduced-motion.
+const TICKER_MASK = "linear-gradient(to right, transparent 0%, black 27%, black 73%, transparent 100%)";
+
 function FeedbackTicker({ quotes }: { quotes: string[] }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
-  const itemRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const paused = useRef(false);
 
   useEffect(() => {
@@ -114,22 +116,6 @@ function FeedbackTicker({ quotes }: { quotes: string[] }) {
       const half = track.scrollWidth / 2; // content is doubled
       if (half > 0 && -x >= half) x += half;
       track.style.transform = `translateX(${x}px)`;
-      const wc = wrap.getBoundingClientRect();
-      const mid = wc.left + wc.width / 2;
-      let best = -1;
-      let bestD = Infinity;
-      itemRefs.current.forEach((el, i) => {
-        if (!el) return;
-        const r = el.getBoundingClientRect();
-        const d = Math.abs(r.left + r.width / 2 - mid);
-        if (d < bestD) {
-          bestD = d;
-          best = i;
-        }
-      });
-      itemRefs.current.forEach((el, i) => {
-        if (el) el.style.opacity = i === best ? "1" : "0.22";
-      });
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -140,16 +126,15 @@ function FeedbackTicker({ quotes }: { quotes: string[] }) {
     <div
       ref={wrapRef}
       className="relative w-full overflow-hidden py-2"
+      style={{ WebkitMaskImage: TICKER_MASK, maskImage: TICKER_MASK }}
       onMouseEnter={() => { paused.current = true; }}
       onMouseLeave={() => { paused.current = false; }}
     >
-      <div ref={trackRef} className="flex w-max items-baseline gap-24 will-change-transform pr-24">
+      <div ref={trackRef} className="flex w-max items-baseline gap-14 will-change-transform pr-14">
         {items.map((q, i) => (
           <span
             key={i}
-            ref={(el) => { itemRefs.current[i] = el; }}
-            className="whitespace-nowrap font-[family-name:var(--font-playfair)] text-3xl md:text-4xl lg:text-[2.75rem] font-medium tracking-tight text-black transition-opacity duration-300"
-            style={{ opacity: 0.22 }}
+            className="whitespace-nowrap font-[family-name:var(--font-playfair)] text-3xl md:text-4xl lg:text-[2.75rem] font-medium tracking-tight text-black"
           >
             &ldquo;{q}&rdquo;
           </span>
