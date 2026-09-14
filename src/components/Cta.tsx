@@ -106,7 +106,7 @@ export default function Cta() {
     <section id="apply" ref={ref} className="relative scroll-mt-20 px-6 sm:px-12 lg:px-20 pt-28 pb-36 md:pt-40 md:pb-48">
       <Stickers />
       <div className="relative max-w-6xl mx-auto flex flex-col items-center text-center">
-        <div className="w-full max-w-[480px]">
+        <div className="w-full max-w-[480px] -mt-10">
           <iframe
             title="Pitbull — I Know You Want Me (Calle Ocho) on Spotify"
             src={TRACK_EMBED}
@@ -124,7 +124,7 @@ export default function Cta() {
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => track("cta_click", { cta_location: "cta_bottom", button_label: "apply to test it" })}
-          className="mt-8 inline-flex items-center px-7 py-3.5 bg-black text-white rounded-full font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-black/85 transition-colors"
+          className="mt-[72px] inline-flex items-center px-7 py-3.5 bg-black text-white rounded-full font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-black/85 transition-colors"
         >
           apply to test it
         </a>
