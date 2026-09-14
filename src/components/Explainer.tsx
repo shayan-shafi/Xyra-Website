@@ -7,6 +7,7 @@ import { useSectionView } from "@/lib/useSectionView";
 import VentStickers from "@/components/hero/VentStickers";
 import BrainShowcase from "@/components/hero/BrainShowcase";
 import Socials from "@/components/Socials";
+import Cta from "@/components/Cta";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -109,8 +110,11 @@ export default function Explainer() {
         </div>
       </section>
 
-      {/* ── Section 3: socials — reels + feedback marquees ───────── */}
+      {/* ── Section 3: socials — feedback ticker + reels ─────────── */}
       <Socials />
+
+      {/* ── Section 4: the ask ──────────────────────────────────── */}
+      <Cta />
     </div>
   );
 }

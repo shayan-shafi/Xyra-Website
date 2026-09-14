@@ -280,7 +280,7 @@ export const CONNECTOR_SCRAPS = [
 
 /* ── nav ────────────────────────────────────────────────────────────────── */
 
-const TEST_FORM_URL =
+export const TEST_FORM_URL =
   "https://docs.google.com/forms/d/e/1FAIpQLSeV8Eky5rWqVz9LWXd9bTVzm-Pei3F7HxikHe4EC7iqUbFN_A/viewform?usp=header";
 
 function Nav() {
