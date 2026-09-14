@@ -22,9 +22,9 @@ export default function Cta() {
       </div>
       <div className="max-w-6xl mx-auto flex flex-col items-center text-center">
         <h2 className="font-[family-name:var(--font-playfair)] text-5xl sm:text-6xl lg:text-7xl font-medium text-black tracking-tight leading-[1.05]">
-          you know you want me.
+          &ldquo;you know you want me.&rdquo;
         </h2>
-        <p className="font-[family-name:var(--font-jetbrains)] text-[11px] tracking-[0.2em] uppercase text-black/40 mt-4">— pitbull</p>
+        <p className="font-[family-name:var(--font-jetbrains)] text-[11px] tracking-[0.2em] lowercase text-black/40 mt-4">— pitbull</p>
         <a
           href={TEST_FORM_URL}
           target="_blank"
