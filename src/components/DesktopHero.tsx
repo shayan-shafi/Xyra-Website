@@ -427,18 +427,19 @@ export default function DesktopHero() {
 
       {/* ── floating phone screens (desktop only) ── */}
 
-      {/* braindump recording — left, above the dump bubble. Landscape, so it gets the
-          video-message card (a phone frame reads wrong on landscape). */}
+      {/* braindump recording (Sofia's CapCut cut, 2026-09-14) — left, above the
+          dump bubble. Landscape, so it gets the video-message card. Hover plays
+          the muted 360p preview; click opens the 720p cut with sound. */}
       <Floater
         id="braindump"
         caption="the 2am braindump"
         className="hidden md:block left-[4%] top-[15.5%] w-[190px] lg:w-[210px]"
         activeId={activeId}
         setActiveId={setActiveId}
-        onOpen={() => openLightbox("video", "/assets/braindump-demo.mp4", "braindump")}
+        onOpen={() => openLightbox("video", "/assets/sofia-braindump.mp4", "braindump")}
       >
         <div className="w-full rounded-2xl rounded-tl-md overflow-hidden border border-black/10 bg-black shadow-[0_12px_32px_rgba(0,0,0,0.10)]">
-          <HoverVideo src="/assets/braindump-demo.mp4" active={activeId === "braindump"} />
+          <HoverVideo src="/assets/sofia-braindump-preview.mp4" active={activeId === "braindump"} />
         </div>
       </Floater>
 
