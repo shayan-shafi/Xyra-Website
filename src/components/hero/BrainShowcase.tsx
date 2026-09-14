@@ -7,10 +7,11 @@
 // every frame (no React churn); only the card's open/close touches state.
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import BrainWorldCanvas from "./BrainWorldCanvas";
 import { BRAIN_CATEGORIES } from "./PhoneScene";
 import FinanceInsightsCard from "./FinanceInsightsCard";
+import { AgentTile, ConnectorScrapsRow, HandArrow, RecordingPillSticker } from "./stickers";
 
 const IDLE = 3000, ZOOM_IN = 2200, HOLD = 5200, ZOOM_OUT = 1600;
 const CYCLE = IDLE + ZOOM_IN + HOLD + ZOOM_OUT;
@@ -18,12 +19,16 @@ const CYCLE = IDLE + ZOOM_IN + HOLD + ZOOM_OUT;
 export default function BrainShowcase({ active }: { active: boolean }) {
   const zoomRef = useRef(0);
   const [open, setOpen] = useState(false);
+  // true from the first frame of the zoom-in until the zoom-out is nearly home:
+  // the diagram around the world steps aside while the camera is in close
+  const [focused, setFocused] = useState(false);
 
   useEffect(() => {
     if (!active) return;
     let raf = 0;
     const t0 = performance.now();
     let wasOpen = false;
+    let wasFocused = false;
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
       const t = (now - t0) % CYCLE;
@@ -37,6 +42,11 @@ export default function BrainShowcase({ active }: { active: boolean }) {
       if (isOpen !== wasOpen) {
         wasOpen = isOpen;
         setOpen(isOpen);
+      }
+      const isFocused = t >= IDLE && t < CYCLE - 500;
+      if (isFocused !== wasFocused) {
+        wasFocused = isFocused;
+        setFocused(isFocused);
       }
     };
     raf = requestAnimationFrame(tick);
@@ -55,7 +65,7 @@ export default function BrainShowcase({ active }: { active: boolean }) {
           dark={false}
           transparent
           paper="#fbfaf8"
-          cameraPosition={[0, 8, 15.5]}
+          cameraPosition={[0, 9, 17.5]}
           zoomRef={zoomRef}
           zoomKey="finance"
           selected={open ? "finance" : null}
@@ -64,6 +74,27 @@ export default function BrainShowcase({ active }: { active: boolean }) {
       <div className="hidden md:block absolute z-20 right-[4%] lg:right-[8%] top-1/2 -translate-y-1/2 pointer-events-none">
         <AnimatePresence>{open && <FinanceInsightsCard key="card" />}</AnimatePresence>
       </div>
+
+      {/* how it's built → what it feeds. Left: your voice + your connectors, arrows
+          into the world. Right: an arrow out to the agents. Hidden while zoomed. */}
+      <motion.div
+        className="hidden lg:block absolute inset-0 z-10 pointer-events-none"
+        initial={false}
+        animate={{ opacity: focused ? 0 : 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="absolute left-[3%] top-[39%] origin-left scale-[1.2]"><RecordingPillSticker /></div>
+        <div className="absolute left-[17.5%] top-[38.5%]"><HandArrow width={125} bow={6} /></div>
+
+        <div className="absolute left-[3%] top-[57%]"><ConnectorScrapsRow scale={0.8} /></div>
+        <div className="absolute left-[18.5%] top-[54%] -rotate-[24deg] origin-left"><HandArrow width={112} bow={-10} /></div>
+
+        <div className="absolute right-[11%] top-[43%]"><HandArrow width={140} bow={4} /></div>
+        <div className="absolute right-[3.5%] top-[32%] flex flex-col gap-5">
+          <AgentTile name="claude" />
+          <AgentTile name="chatgpt" />
+        </div>
+      </motion.div>
     </div>
   );
 }

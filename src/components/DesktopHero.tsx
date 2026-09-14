@@ -271,7 +271,7 @@ export function Chip({ children }: { children: ReactNode }) {
 // health · notion + bank + luma + contacts. Each scrap is its own draggable
 // decor item so they can be pulled apart one at a time. w/h fit each image's
 // aspect with a 7px paper margin.
-const CONNECTOR_SCRAPS = [
+export const CONNECTOR_SCRAPS = [
   { src: "/assets/connectors-1.png", alt: "connectors coming soon", seed: 7, w: 74, h: 61, rotate: -5, left: "3%", top: "42.5%" },
   { src: "/assets/connectors-2.png", alt: "oura, whoop, outlook, teams", seed: 19, w: 62, h: 75, rotate: 4, left: "8%", top: "41%" },
   { src: "/assets/connectors-3.png", alt: "canvas, google calendar, apple health, google drive", seed: 29, w: 58, h: 77, rotate: -3, left: "12.3%", top: "41.8%" },

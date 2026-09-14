@@ -10,6 +10,7 @@ import { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Chip } from "@/components/DesktopHero";
 import { TornSticker } from "./TornSticker";
+import { RecordingPillSticker } from "./stickers";
 
 function Sticker({ className = "", tilt = 0, children }: { className?: string; tilt?: number; children: ReactNode }) {
   return (
@@ -75,19 +76,7 @@ export default function VentStickers() {
 
       {/* the vent itself — a voice memo mid-record (the app's RecordingWave pill) */}
       <Sticker className="right-[4%] top-[41%]" tilt={-2}>
-        <div className="flex items-center gap-1.5 rounded-full pl-1.5 pr-1.5 py-1.5 shadow-[0_4px_14px_rgba(0,0,0,0.12)]" style={{ background: "#2A2A2E" }}>
-          <span className="flex items-center justify-center w-7 h-7 rounded-full bg-white/15 text-white text-[11px] leading-none">✕</span>
-          <span className="flex items-center gap-[2px] h-4 px-1">
-            {Array.from({ length: 18 }, (_, i) => (
-              <span
-                key={i}
-                className={i >= 6 ? "xyra-rec-bar w-[2px] rounded-full bg-white/90" : "w-[2px] h-[2px] rounded-full bg-white/90"}
-                style={i >= 6 ? { animationDelay: `${((i * 7) % 9) / 10}s`, animationDuration: `${0.7 + ((i * 3) % 5) * 0.08}s` } : undefined}
-              />
-            ))}
-          </span>
-          <span className="flex items-center justify-center w-7 h-7 rounded-full bg-white text-[#1C1C1E] text-[12px] leading-none">✓</span>
-        </div>
+        <RecordingPillSticker />
       </Sticker>
 
       {/* a torn note */}

@@ -125,7 +125,7 @@ export default function Explainer() {
           running the zoom-into-Finance beat on a loop. Shayan writes the copy
           around it. */}
       <section id="world" ref={worldRef} className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-12 md:py-20">
-        <div ref={brainRef} className="relative mx-auto w-full max-w-6xl h-[84vh] min-h-[560px]">
+        <div ref={brainRef} className="relative mx-auto w-full max-w-[1600px] h-[84vh] min-h-[560px]">
           <BrainShowcase active={brainNear} />
         </div>
       </section>
