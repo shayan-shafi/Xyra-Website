@@ -5,7 +5,6 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
-import ScrollCue from "@/components/ScrollCue";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -235,7 +234,6 @@ export default function Explainer() {
           </h2>
           <VentVideo />
         </Section>
-        <ScrollCue targetId="how" label="see how it works" />
       </section>
 
       {/* ── Section 2: Brain Dump → Dashboard ───────────────────── */}
@@ -273,7 +271,6 @@ export default function Explainer() {
               </p>
             </div>
           </Section>
-          <ScrollCue targetId="text-xyra" label="keep going" />
         </div>
       </section>
 
@@ -302,7 +299,6 @@ export default function Explainer() {
               </p>
             </Section>
           </div>
-          <ScrollCue targetId="story" label="ready when you are" />
         </div>
       </section>
 
