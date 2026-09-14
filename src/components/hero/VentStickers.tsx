@@ -9,7 +9,6 @@
 import { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Chip } from "@/components/DesktopHero";
-import { TornSticker } from "./TornSticker";
 import { RecordingPillSticker } from "./stickers";
 
 function Sticker({ className = "", tilt = 0, children }: { className?: string; tilt?: number; children: ReactNode }) {
@@ -79,13 +78,10 @@ export default function VentStickers() {
         <RecordingPillSticker />
       </Sticker>
 
-      {/* a torn note */}
-      <Sticker className="left-[3%] top-[50%]" tilt={-5}>
-        <TornSticker seed={53} jx={8} jy={9} ruled style={{ width: 150, height: 74 }}>
-          <div className="w-full h-full flex items-center justify-center font-[family-name:var(--font-playfair)] italic text-[17px] text-black/80 leading-tight text-center px-3">
-            no forms.<br />no lists.
-          </div>
-        </TornSticker>
+      {/* a gold star (Shayan's cutout) where the torn note was */}
+      <Sticker className="left-[5%] top-[50%]" tilt={-6}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/assets/stk-star.png" alt="" width={112} className="block h-auto" draggable={false} style={{ filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.10))" }} />
       </Sticker>
 
       {/* cortisol, after venting — the needle swings HIGH → LOW when this comes into view */}
