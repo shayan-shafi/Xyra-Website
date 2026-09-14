@@ -78,8 +78,8 @@ export default function BrainShowcase({ active }: { active: boolean }) {
       </div>
 
       {/* one line per beat, each in its own slot so a swap never moves the
-          outgoing text: "context" top right over the agents while the world
-          idles; "insights" along the bottom while the camera is in on Finance. */}
+          outgoing text: both sit top right — "context" over the agents while the
+          world idles, "insights" above the card while the camera is in on Finance. */}
       <div className="absolute inset-x-0 top-[6%] z-10 flex justify-end text-right px-6 pr-[5%] pointer-events-none">
         <AnimatePresence>
           {!focused && (
@@ -97,16 +97,16 @@ export default function BrainShowcase({ active }: { active: boolean }) {
           )}
         </AnimatePresence>
       </div>
-      <div className="absolute inset-x-0 bottom-[5%] z-10 flex justify-center text-center px-6 pointer-events-none">
+      <div className="absolute inset-x-0 top-[6%] z-10 flex justify-start text-left px-6 pl-[5%] pointer-events-none">
         <AnimatePresence>
           {focused && (
             <motion.h3
               key="insights"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
+              exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-              className="font-[family-name:var(--font-playfair)] text-4xl sm:text-5xl font-medium text-black tracking-tight leading-[1.05]"
+              className="font-[family-name:var(--font-playfair)] text-4xl sm:text-5xl font-medium text-black tracking-tight leading-[1.05] max-w-[440px]"
               style={{ textShadow: "0 0 18px #fbfaf8, 0 0 8px #fbfaf8, 0 0 3px #fbfaf8" }}
             >
               simple insights for you.

@@ -198,7 +198,9 @@ export default function BrainWorldCanvas({
         }
         const e = easeInOut(Math.min(1, Math.max(0, z)));
         camera.position.lerpVectors(zoomFrom, zoomTo, e);
-        look.lerpVectors(zoomFromTarget, target, e);
+        // aim a little above the node so the zoomed world sits lower in the
+        // frame — keeps the top of the stage clear for a headline
+        look.lerpVectors(zoomFromTarget, target, e).y += 1.3 * e;
         camera.lookAt(look);
       } else {
         if (zooming) {
