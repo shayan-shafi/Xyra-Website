@@ -1,12 +1,12 @@
 "use client";
 
-import { motion, useInView, AnimatePresence } from "framer-motion";
+import { motion, useInView } from "framer-motion";
 import { useRef, useState } from "react";
-import Image from "next/image";
 import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
 import VentStickers from "@/components/hero/VentStickers";
 import BrainShowcase from "@/components/hero/BrainShowcase";
+import Socials from "@/components/Socials";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -49,27 +49,6 @@ function VentVideo() {
   );
 }
 
-function IPhoneFrame({ src, alt }: { src: string; alt: string }) {
-  return (
-    <div className="relative mx-auto w-[260px] sm:w-[280px] md:w-[300px]">
-      {/* Phone shell */}
-      <div className="relative rounded-[3rem] border-[8px] border-black bg-black overflow-hidden">
-        {/* Notch */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[120px] h-[28px] bg-black rounded-b-2xl z-10" />
-        {/* Screen */}
-        <div className="relative rounded-[2.2rem] overflow-hidden bg-white">
-          <Image
-            src={src}
-            alt={alt}
-            width={390}
-            height={844}
-            className="w-full h-auto"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function Section({
   children,
@@ -130,34 +109,8 @@ export default function Explainer() {
         </div>
       </section>
 
-      {/* ── Section 3: Text Xyra ────────────────────────────────── */}
-      <section id="text-xyra" className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-20 md:py-28">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center gap-12 md:gap-20">
-            <Section className="flex-1 order-2 md:order-1">
-              <IPhoneFrame src="/assets/xyra-chat-companion.png" alt="Texting Xyra in the app" />
-            </Section>
-
-            <Section className="flex-1 order-1 md:order-2">
-              <span className="font-[family-name:var(--font-jetbrains)] text-xs tracking-[0.25em] uppercase text-black/30">
-                Always available
-              </span>
-              <h3 className="font-[family-name:var(--font-playfair)] text-3xl sm:text-4xl md:text-5xl font-medium text-black tracking-tight mt-4 leading-[1.1]">
-                Stop texting yourself.
-                <br />
-                <span className="italic text-black/60">Text Xyra.</span>
-              </h3>
-              <p className="font-[family-name:var(--font-eb-garamond)] text-lg md:text-xl text-black/50 mt-5 max-w-md leading-relaxed">
-                Instead of texting yourself reminders you&apos;ll never open again,
-                just tell Xyra &mdash; by voice or text. It files every thought into
-                the right dashboard: tasks, workouts, notes, anything.
-                It even celebrates your PRs.
-              </p>
-            </Section>
-          </div>
-        </div>
-      </section>
-
+      {/* ── Section 3: socials — reels + feedback marquees ───────── */}
+      <Socials />
     </div>
   );
 }
