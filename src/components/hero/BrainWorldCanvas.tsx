@@ -10,7 +10,7 @@
 // data-tap="node-<key>" so the scene's tap ripple can find it, and the spin can
 // be paused (the world holds still once a node is picked).
 
-import { useEffect, useRef } from "react";
+import { MutableRefObject, useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
@@ -26,6 +26,9 @@ export default function BrainWorldCanvas({
   spinning = true,
   transparent = false,
   paper: paperCss,
+  cameraPosition = [0, 10, 20],
+  zoomRef,
+  zoomKey,
 }: {
   centerLabel: string;
   categories: BrainCategory[];
@@ -36,10 +39,19 @@ export default function BrainWorldCanvas({
   transparent?: boolean;
   /** the page color behind a transparent canvas, e.g. the site's #fbfaf8 */
   paper?: string;
+  /** BrainCanvas's default is (0,10,20); pull it in for a bigger world */
+  cameraPosition?: [number, number, number];
+  /** 0..1 — BrainCanvas's zoomProgress, read every frame: glides the camera from
+   *  wherever the orbit is onto the `zoomKey` category node and looks at it */
+  zoomRef?: MutableRefObject<number>;
+  zoomKey?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const labelsRef = useRef<Map<string, HTMLDivElement>>(new Map());
+  const spinningRef = useRef(spinning);
+  spinningRef.current = spinning;
+  const [cx0, cy0, cz0] = cameraPosition;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -55,7 +67,7 @@ export default function BrainWorldCanvas({
     scene.fog = new THREE.FogExp2(paper, 0.02);
 
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(0, 10, 20);
+    camera.position.set(cx0, cy0, cz0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: transparent });
     if (transparent) renderer.setClearColor(0x000000, 0);
@@ -82,6 +94,7 @@ export default function BrainWorldCanvas({
     controlsRef.current = controls;
 
     const disposables: { dispose: () => void }[] = [];
+    const nodePos = new Map<string, THREE.Vector3>();
 
     function createNode(type: "nucleus" | "category" | "item", labelText: string, position: THREE.Vector3, parentObj: THREE.Mesh | null, key?: string) {
       const isNucleus = type === "nucleus";
@@ -123,6 +136,7 @@ export default function BrainWorldCanvas({
         anchor.position.set(0, 0, 0);
         sphere.add(anchor);
         labelsRef.current.set(key, div);
+        nodePos.set(key, position.clone());
       }
 
       scene.add(sphere);
@@ -157,10 +171,44 @@ export default function BrainWorldCanvas({
       });
     });
 
+    // ── zoom (BrainCanvas's zoomProgress, made continuous) ──
+    // While zooming, OrbitControls is bypassed (its update() would overwrite the
+    // camera); on the way back we hand the camera to it at the exact orbit pose
+    // we left, so the auto-rotate resumes without a jump.
+    const zoomFrom = new THREE.Vector3();
+    const zoomFromTarget = new THREE.Vector3();
+    const zoomTo = new THREE.Vector3();
+    const look = new THREE.Vector3();
+    let zooming = false;
+    const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+
     let raf = 0;
     const animate = () => {
       raf = requestAnimationFrame(animate);
-      controls.update();
+      const z = zoomRef?.current ?? 0;
+      const target = zoomKey ? nodePos.get(zoomKey) : undefined;
+      if (z > 0 && target) {
+        if (!zooming) {
+          zooming = true;
+          zoomFrom.copy(camera.position);
+          zoomFromTarget.copy(controls.target);
+          // approach from the side we're already on, a little above the node
+          const dir = zoomFrom.clone().sub(target).setY(0).normalize();
+          zoomTo.copy(target).addScaledVector(dir, 4.6).add(new THREE.Vector3(0, 1.6, 0));
+        }
+        const e = easeInOut(Math.min(1, Math.max(0, z)));
+        camera.position.lerpVectors(zoomFrom, zoomTo, e);
+        look.lerpVectors(zoomFromTarget, target, e);
+        camera.lookAt(look);
+      } else {
+        if (zooming) {
+          zooming = false;
+          camera.position.copy(zoomFrom);
+          controls.target.copy(zoomFromTarget);
+          controls.autoRotate = spinningRef.current;
+        }
+        controls.update();
+      }
       renderer.render(scene, camera);
       labelRenderer.render(scene, camera);
     };
@@ -186,7 +234,7 @@ export default function BrainWorldCanvas({
       labels.clear();
       controlsRef.current = null;
     };
-  }, [dark, centerLabel, categories, transparent, paperCss]);
+  }, [dark, centerLabel, categories, transparent, paperCss, cx0, cy0, cz0, zoomRef, zoomKey]);
 
   useEffect(() => {
     if (controlsRef.current) controlsRef.current.autoRotate = spinning;

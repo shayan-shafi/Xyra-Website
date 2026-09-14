@@ -6,8 +6,7 @@ import Image from "next/image";
 import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
 import VentStickers from "@/components/hero/VentStickers";
-import BrainWorldCanvas from "@/components/hero/BrainWorldCanvas";
-import { BRAIN_CATEGORIES } from "@/components/hero/PhoneScene";
+import BrainShowcase from "@/components/hero/BrainShowcase";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -122,11 +121,12 @@ export default function Explainer() {
       </div>
 
       {/* ── Section 2: Your World — the brain ───────────────────── */}
-      {/* Just the world for now, centered on the page grid (light ink, transparent
-          canvas). Shayan writes the copy around it once it's on screen. */}
+      {/* The world, centered on the page grid (light ink, transparent canvas),
+          running the zoom-into-Finance beat on a loop. Shayan writes the copy
+          around it. */}
       <section id="world" ref={worldRef} className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-12 md:py-20">
-        <div ref={brainRef} className="relative mx-auto w-full max-w-5xl h-[72vh] min-h-[480px]">
-          {brainNear && <BrainWorldCanvas centerLabel="you" categories={BRAIN_CATEGORIES} dark={false} transparent paper="#fbfaf8" />}
+        <div ref={brainRef} className="relative mx-auto w-full max-w-6xl h-[84vh] min-h-[560px]">
+          <BrainShowcase active={brainNear} />
         </div>
       </section>
 
