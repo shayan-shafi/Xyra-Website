@@ -11,7 +11,11 @@ export default function Cta() {
   const ref = useSectionView<HTMLElement>("cta");
   return (
     <section id="apply" ref={ref} className="relative scroll-mt-20 px-6 sm:px-12 lg:px-20 pt-28 pb-36 md:pt-40 md:pb-48">
-      {/* mr. worldwide, pointing at you — a tilted polaroid beside the line */}
+      {/* mr. worldwide, pointing at you from both sides — tilted polaroids */}
+      <div className="hidden lg:block absolute left-[5%] xl:left-[7%] top-[14%] -rotate-[6deg] w-[190px] bg-white border border-black/10 shadow-[0_18px_50px_rgba(0,0,0,0.14)] p-2 pb-7 pointer-events-none select-none">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/assets/pitbull-2.jpg" alt="Pitbull, pointing at you" className="block w-full h-auto" draggable={false} />
+      </div>
       <div className="hidden lg:block absolute right-[5%] xl:right-[7%] top-[10%] rotate-[7deg] w-[190px] bg-white border border-black/10 shadow-[0_18px_50px_rgba(0,0,0,0.14)] p-2 pb-7 pointer-events-none select-none">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/assets/pitbull.jpg" alt="Pitbull, pointing at you" className="block w-full h-auto" draggable={false} />
