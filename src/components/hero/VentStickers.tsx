@@ -28,22 +28,23 @@ function sector(cx: number, cy: number, r1: number, r2: number, a0: number, a1: 
 const GAUGE = ["#16c848", "#8fd13f", "#f8c630", "#f5821f", "#ff1e1e"];
 
 function CortisolGauge() {
-  const cx = 100, cy = 98;
+  const cx = 120, cy = 112, r1 = 56, r2 = 88;
   return (
-    <svg viewBox="0 0 200 126" className="block w-full h-auto">
+    <svg viewBox="0 0 240 150" className="block w-full h-auto">
       {GAUGE.map((c, i) => {
         const a0 = 180 - i * 36 - 2, a1 = 180 - (i + 1) * 36 + 2;
-        return <path key={c} d={sector(cx, cy, 58, 92, a0, a1)} fill={c} />;
+        return <path key={c} d={sector(cx, cy, r1, r2, a0, a1)} fill={c} />;
       })}
-      <g className="font-[family-name:var(--font-jetbrains)]" fontSize="10" fontWeight="500" fill="#111" letterSpacing="0.6">
-        <text x="12" y="88" transform="rotate(-90 12 88)" textAnchor="middle">LOW</text>
-        <text x={cx} y="22" textAnchor="middle">MEDIUM</text>
-        <text x="188" y="88" transform="rotate(90 188 88)" textAnchor="middle">HIGH</text>
-        <text x={cx} y="122" textAnchor="middle" fontSize="13" fontWeight="700" letterSpacing="1.2">CORTISOL</text>
+      {/* labels clear of the arc: 12 outside the outer radius */}
+      <g className="font-[family-name:var(--font-jetbrains)]" fontSize="11" fontWeight="500" fill="#111" letterSpacing="0.6">
+        <text x={cx - r2 - 13} y={cy - 28} transform={`rotate(-90 ${cx - r2 - 13} ${cy - 28})`} textAnchor="middle">LOW</text>
+        <text x={cx} y={cy - r2 - 10} textAnchor="middle">MEDIUM</text>
+        <text x={cx + r2 + 13} y={cy - 28} transform={`rotate(90 ${cx + r2 + 13} ${cy - 28})`} textAnchor="middle">HIGH</text>
+        <text x={cx} y={cy + 30} textAnchor="middle" fontSize="14" fontWeight="700" letterSpacing="1.2">CORTISOL</text>
       </g>
       {/* needle drawn at LOW; the animation starts it rotated onto HIGH and lets it fall */}
       <g className="xyra-needle" style={{ transformOrigin: `${cx}px ${cy}px` }}>
-        <path d={`M${cx} ${cy} L${cx - 68} ${cy - 22}`} stroke="#111" strokeWidth="5" strokeLinecap="round" />
+        <path d={`M${cx} ${cy} L${cx - 66} ${cy - 21}`} stroke="#111" strokeWidth="5" strokeLinecap="round" />
         <circle cx={cx} cy={cy} r="10" fill="#111" />
         <circle cx={cx} cy={cy} r="5.5" fill="none" stroke="#fff" strokeWidth="2.5" />
       </g>
@@ -99,8 +100,8 @@ export default function VentStickers() {
       </Sticker>
 
       {/* cortisol, after venting — the needle swings HIGH → LOW when this comes into view */}
-      <Sticker className="right-[3.5%] top-[57%]" tilt={4}>
-        <div className="w-[160px] rounded-2xl bg-white border border-black/10 shadow-[0_4px_14px_rgba(0,0,0,0.08)] px-3 pt-3 pb-2">
+      <Sticker className="right-[3%] top-[57%]" tilt={4}>
+        <div className="w-[180px]" style={{ filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.12))" }}>
           <CortisolGauge />
         </div>
       </Sticker>
