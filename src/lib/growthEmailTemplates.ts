@@ -311,6 +311,7 @@ function emailShell(opts: { kicker: string; preheader?: string; bodyHtml: string
             <td style="padding:22px 40px 30px;border-top:1px solid ${HAIRLINE};">
               <p style="margin:0;font-family:${SERIF};font-size:13px;line-height:1.6;color:${FAINT};text-align:center;">
                 Xyra, the AI-native personal operating system.<br>
+                <a href="${XYRA_ORIGIN}" style="color:${INK};font-weight:600;text-decoration:none;">xyra.dev</a><br>
                 You're receiving this because you joined the Xyra waitlist.
               </p>
             </td>
@@ -328,6 +329,7 @@ function textFooter(): string[] {
   return [
     ``,
     `Xyra, the AI-native personal operating system.`,
+    XYRA_ORIGIN,
     `You're receiving this because you joined the Xyra waitlist.`,
   ];
 }
