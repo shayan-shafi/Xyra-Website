@@ -666,6 +666,7 @@ const plainMessage: GrowthTemplate = {
     { key: "message_body", label: "Message (paragraphs separated by blank lines)", example: "I wanted to reach out directly. We're getting close to opening Xyra up and I'd love your thoughts on a few things when we do.\n\nMore soon.", scope: "global", required: true, multiline: true },
     { key: "cta_label", label: "Button label (optional)", example: "", scope: "global", help: "Optional. Shown only when both label and link are filled." },
     { key: "cta_link", label: "Button link (optional)", example: "", scope: "global", help: "Public HTTPS URL. Renders as a simple underlined link between the body and the sign-off." },
+    { key: "signoff_closing", label: "Sign-off closing", example: "Thanks,", scope: "global" },
     { key: "signoff_name", label: "Sign-off name", example: "Cole", scope: "global", required: true },
   ],
   buildSubject: () => "",
@@ -682,12 +683,14 @@ const plainMessage: GrowthTemplate = {
     const ctaHtml = ctaLabel && ctaLink
       ? `<p style="margin:0 0 14px;"><a href="${esc(ctaLink)}" style="color:#111;">${esc(ctaLabel)}</a></p>`
       : "";
+    const closing = (v.signoff_closing ?? "").trim();
     const name = (v.signoff_name ?? "").trim() || "Cole";
+    const closingLine = closing ? `${esc(closing)}<br>` : "";
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:16px;font-family:${SANS};font-size:15px;line-height:1.6;color:#111;">
 <p style="margin:0 0 14px;">${esc(greeting)}</p>
-${paraHtml}${ctaHtml}<p style="margin:14px 0 0;">${esc(name)}</p>
+${paraHtml}${ctaHtml}<p style="margin:14px 0 0;">${closingLine}${esc(name)}</p>
 </body></html>`;
   },
   buildText: (v) => {
@@ -698,8 +701,10 @@ ${paraHtml}${ctaHtml}<p style="margin:14px 0 0;">${esc(name)}</p>
     const ctaLabel = (v.cta_label ?? "").trim();
     const ctaLink = (v.cta_link ?? "").trim();
     const ctaLines = ctaLabel && ctaLink ? [``, `${ctaLabel}: ${ctaLink}`] : [];
+    const closing = (v.signoff_closing ?? "").trim();
     const name = (v.signoff_name ?? "").trim() || "Cole";
-    return [greeting, ``, ...bodyParas.flatMap(p => [p, ``]), ...ctaLines, name].join("\n");
+    const signoffLines = closing ? [``, closing, name] : [``, name];
+    return [greeting, ``, ...bodyParas.flatMap(p => [p, ``]), ...ctaLines, ...signoffLines].join("\n");
   },
 };
 
