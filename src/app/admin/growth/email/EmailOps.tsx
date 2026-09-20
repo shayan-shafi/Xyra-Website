@@ -642,6 +642,10 @@ export default function EmailOps({
                   <ImageGalleryField value={values[p.key] ?? ""} onChange={val => setValue(p.key, val)} ready={imageUploadReady} />
                 ) : p.type === "image" ? (
                   <ImageField value={values[p.key] ?? ""} onChange={url => setValue(p.key, url)} ready={imageUploadReady} />
+                ) : p.type === "select" ? (
+                  <select className={inputCls} value={values[p.key] ?? ""} onChange={e => setValue(p.key, e.target.value)}>
+                    {(p.options ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
                 ) : p.multiline ? (
                   <textarea className={inputCls + " resize-y"} rows={3} value={values[p.key] ?? ""} onChange={e => setValue(p.key, e.target.value)} placeholder={p.example} />
                 ) : (

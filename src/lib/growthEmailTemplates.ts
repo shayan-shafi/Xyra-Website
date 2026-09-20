@@ -40,7 +40,8 @@ export type PlaceholderDef = {
   multiline?: boolean;
   help?: string;
   section?: string;
-  type?: "image" | "images";
+  type?: "image" | "images" | "select";
+  options?: { value: string; label: string }[];
 };
 
 // A single image in a multi-image gallery field. Persisted as a JSON string in
@@ -601,9 +602,54 @@ const generalMessage: GrowthTemplate = {
   },
 };
 
+// ── Template 4: Plain personal message ──────────────────────────────────────
+// No branded shell, no logo, no gold rule, no footer boilerplate. Reads like a
+// real one-to-one email. Sends from a whitelisted address (server-enforced).
+
+export const PLAIN_FROM_WHITELIST = ["team@xyra.dev", "cole@xyra.dev", "shayan@xyra.dev"] as const;
+
+const plainMessage: GrowthTemplate = {
+  id: "plain-message",
+  name: "Plain Message",
+  description: "A no-frills message with no branded shell. Reads like a real personal email.",
+  confirmPhrase: "SEND PLAIN",
+  sections: [],
+  placeholders: [
+    { key: "first_name", label: "First name", example: "Alex", scope: "perRecipient", required: true, help: "Auto-filled per recipient on a real send." },
+    { key: "from_address", label: "From address", example: "team@xyra.dev", scope: "global", required: true, type: "select", options: PLAIN_FROM_WHITELIST.map(e => ({ value: e, label: e })), help: "Which address this sends from. Only these three are allowed." },
+    { key: "message_body", label: "Message (paragraphs separated by blank lines)", example: "I wanted to reach out directly. We're getting close to opening Xyra up and I'd love your thoughts on a few things when we do.\n\nMore soon.", scope: "global", required: true, multiline: true },
+    { key: "signoff_name", label: "Sign-off name", example: "Cole", scope: "global", required: true },
+  ],
+  buildSubject: () => "",
+  buildHtml: (v) => {
+    const first = (v.first_name ?? "").trim();
+    const greeting = first && first.toLowerCase() !== NAME_PLACEHOLDER.toLowerCase() ? `Hi ${first},` : `Hey,`;
+    const paras = (v.message_body ?? "").split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    const bodyParas = paras.length ? paras : [(v.message_body ?? "").trim()];
+    const paraHtml = bodyParas
+      .map(p => `<p style="margin:0 0 14px;">${esc(p).replace(/\n/g, "<br>")}</p>`)
+      .join("");
+    const name = (v.signoff_name ?? "").trim() || "Cole";
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:16px;font-family:${SANS};font-size:15px;line-height:1.6;color:#111;">
+<p style="margin:0 0 14px;">${esc(greeting)}</p>
+${paraHtml}<p style="margin:14px 0 0;">${esc(name)}</p>
+</body></html>`;
+  },
+  buildText: (v) => {
+    const first = (v.first_name ?? "").trim();
+    const greeting = first && first.toLowerCase() !== NAME_PLACEHOLDER.toLowerCase() ? `Hi ${first},` : `Hey,`;
+    const paras = (v.message_body ?? "").split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    const bodyParas = paras.length ? paras : [(v.message_body ?? "").trim()];
+    const name = (v.signoff_name ?? "").trim() || "Cole";
+    return [greeting, ``, ...bodyParas.flatMap(p => [p, ``]), name].join("\n");
+  },
+};
+
 // ── Registry ─────────────────────────────────────────────────────────────────
 
-export const GROWTH_TEMPLATES: GrowthTemplate[] = [alphaInvite, newsletter, generalMessage];
+export const GROWTH_TEMPLATES: GrowthTemplate[] = [alphaInvite, newsletter, generalMessage, plainMessage];
 
 export function getGrowthTemplate(id: string): GrowthTemplate | null {
   return GROWTH_TEMPLATES.find(t => t.id === id) ?? null;
