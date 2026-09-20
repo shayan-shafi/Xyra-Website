@@ -343,6 +343,14 @@ function preheaderOf(v: Record<string, string>, fallback: string): string {
   return has(v, "preheader") ? raw(v, "preheader") : fallback;
 }
 
+// Optional editable display name used in the email's From header
+// ("Cole from Xyra" <address>). Blank = fall back to the send route's default.
+function senderFields(defaultDisplay: string): PlaceholderDef[] {
+  return [
+    { key: "from_display_name", label: "From display name", example: defaultDisplay, scope: "global", help: "Shown as the sender name in the recipient's inbox. Blank uses the default." },
+  ];
+}
+
 // Shared editable header/sign-off fields appended to every template.
 function headerFields(eyebrowExample: string, headlineExample: string): PlaceholderDef[] {
   return [
@@ -379,6 +387,7 @@ const alphaInvite: GrowthTemplate = {
   ],
   placeholders: [
     { key: "first_name", label: "First name", example: "Alex", scope: "perRecipient", required: true, help: "Auto-filled per recipient from their waitlist name on a real send." },
+    ...senderFields("Cole & Shayan from Xyra"),
     ...headerFields("Alpha is almost here", "You're in."),
     { key: "intro", label: "Opening line", example: "We've been reading every signup, and we'd like you in the Xyra Alpha.", scope: "global", required: true, multiline: true },
     { key: "context", label: "Why them / context", example: "We're opening access today. We're keeping this first group small on purpose: we want real feedback from real people who'll actually use it, not a launch-day crowd. You're one of them.", scope: "global", required: true, multiline: true },
@@ -466,6 +475,7 @@ const newsletter: GrowthTemplate = {
   ],
   placeholders: [
     { key: "first_name", label: "First name", example: "Alex", scope: "perRecipient", required: true, help: "Auto-filled per recipient on a real send." },
+    ...senderFields("Xyra"),
     ...headerFields("Xyra update", "The latest from Xyra"),
     { key: "opening", label: "Opening line", example: "Here's what we have been working on this week.", scope: "global", required: true, multiline: true },
     { key: "quick_update", label: "Quick update", example: "We're heads-down getting the Alpha ready for Monday.", scope: "global", required: true, multiline: true, section: "quick_update" },
@@ -550,6 +560,7 @@ const generalMessage: GrowthTemplate = {
   ],
   placeholders: [
     { key: "first_name", label: "First name", example: "Alex", scope: "perRecipient", required: true, help: "Auto-filled per recipient on a real send." },
+    ...senderFields("Xyra"),
     ...headerFields("A note from Xyra", ""),
     { key: "message_body", label: "Message body (paragraphs separated by blank lines)", example: "Thanks for being on the Xyra waitlist. We wanted to share a quick update.\n\nWe're getting close to opening things up, and we'll be in touch soon with next steps.", scope: "global", required: true, multiline: true },
     { key: "message_images", label: "Photos", example: "", scope: "global", section: "images", type: "images", help: "Optional. Upload one or more images, one at a time, each with optional alt text and a caption. Two images sit side by side and stack on mobile." },
@@ -608,6 +619,40 @@ const generalMessage: GrowthTemplate = {
 
 export const PLAIN_FROM_WHITELIST = ["team@xyra.dev", "cole@xyra.dev", "shayan@xyra.dev"] as const;
 
+// Resolves the Resend `from` header for a send. Plain-message uses one of the
+// whitelisted bare addresses (with an optional display name); other templates
+// use the configured GROWTH_EMAIL_FROM address, with the display name coming
+// from `from_display_name` when set, else a template-specific default.
+// Returns { from } on success or { error } when a plain-message from_address is
+// missing/not whitelisted (real send only — test-send falls back silently).
+export function resolveSenderFrom(opts: {
+  templateId: string;
+  values: Record<string, string>;
+  fallbackAddress: string;
+  requireWhitelistedPlainAddress: boolean;
+}): { from: string; error?: undefined } | { from?: undefined; error: string } {
+  const { templateId, values, fallbackAddress, requireWhitelistedPlainAddress } = opts;
+  const displayName = (values.from_display_name ?? "").trim();
+
+  if (templateId === "plain-message") {
+    const requested = (values.from_address ?? "").trim().toLowerCase();
+    const allowed = (PLAIN_FROM_WHITELIST as readonly string[]).includes(requested);
+    if (!allowed) {
+      if (requireWhitelistedPlainAddress) {
+        return { error: `from_address must be one of: ${PLAIN_FROM_WHITELIST.join(", ")}.` };
+      }
+      const bare = fallbackAddress.replace(/^.*<([^>]+)>.*$/, "$1");
+      return { from: displayName ? `${displayName} <${bare}>` : bare };
+    }
+    return { from: displayName ? `${displayName} <${requested}>` : requested };
+  }
+
+  if (fallbackAddress.includes("<")) return { from: fallbackAddress };
+  const defaultName = templateId === "alpha-invite" ? "Cole & Shayan from Xyra" : "Xyra";
+  const name = displayName || defaultName;
+  return { from: `${name} <${fallbackAddress}>` };
+}
+
 const plainMessage: GrowthTemplate = {
   id: "plain-message",
   name: "Plain Message",
@@ -617,7 +662,10 @@ const plainMessage: GrowthTemplate = {
   placeholders: [
     { key: "first_name", label: "First name", example: "Alex", scope: "perRecipient", required: true, help: "Auto-filled per recipient on a real send." },
     { key: "from_address", label: "From address", example: "team@xyra.dev", scope: "global", required: true, type: "select", options: PLAIN_FROM_WHITELIST.map(e => ({ value: e, label: e })), help: "Which address this sends from. Only these three are allowed." },
+    { key: "from_display_name", label: "From display name", example: "Cole from Xyra", scope: "global", help: "Shown as the sender name in the recipient's inbox. Blank sends as the bare address." },
     { key: "message_body", label: "Message (paragraphs separated by blank lines)", example: "I wanted to reach out directly. We're getting close to opening Xyra up and I'd love your thoughts on a few things when we do.\n\nMore soon.", scope: "global", required: true, multiline: true },
+    { key: "cta_label", label: "Button label (optional)", example: "", scope: "global", help: "Optional. Shown only when both label and link are filled." },
+    { key: "cta_link", label: "Button link (optional)", example: "", scope: "global", help: "Public HTTPS URL. Renders as a simple underlined link between the body and the sign-off." },
     { key: "signoff_name", label: "Sign-off name", example: "Cole", scope: "global", required: true },
   ],
   buildSubject: () => "",
@@ -629,12 +677,17 @@ const plainMessage: GrowthTemplate = {
     const paraHtml = bodyParas
       .map(p => `<p style="margin:0 0 14px;">${esc(p).replace(/\n/g, "<br>")}</p>`)
       .join("");
+    const ctaLabel = (v.cta_label ?? "").trim();
+    const ctaLink = (v.cta_link ?? "").trim();
+    const ctaHtml = ctaLabel && ctaLink
+      ? `<p style="margin:0 0 14px;"><a href="${esc(ctaLink)}" style="color:#111;">${esc(ctaLabel)}</a></p>`
+      : "";
     const name = (v.signoff_name ?? "").trim() || "Cole";
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:16px;font-family:${SANS};font-size:15px;line-height:1.6;color:#111;">
 <p style="margin:0 0 14px;">${esc(greeting)}</p>
-${paraHtml}<p style="margin:14px 0 0;">${esc(name)}</p>
+${paraHtml}${ctaHtml}<p style="margin:14px 0 0;">${esc(name)}</p>
 </body></html>`;
   },
   buildText: (v) => {
@@ -642,8 +695,11 @@ ${paraHtml}<p style="margin:14px 0 0;">${esc(name)}</p>
     const greeting = first && first.toLowerCase() !== NAME_PLACEHOLDER.toLowerCase() ? `Hi ${first},` : `Hey,`;
     const paras = (v.message_body ?? "").split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
     const bodyParas = paras.length ? paras : [(v.message_body ?? "").trim()];
+    const ctaLabel = (v.cta_label ?? "").trim();
+    const ctaLink = (v.cta_link ?? "").trim();
+    const ctaLines = ctaLabel && ctaLink ? [``, `${ctaLabel}: ${ctaLink}`] : [];
     const name = (v.signoff_name ?? "").trim() || "Cole";
-    return [greeting, ``, ...bodyParas.flatMap(p => [p, ``]), name].join("\n");
+    return [greeting, ``, ...bodyParas.flatMap(p => [p, ``]), ...ctaLines, name].join("\n");
   },
 };
 

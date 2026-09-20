@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { resend } from "@/lib/resend";
 import { isAdminRequest } from "@/lib/adminApiAuth";
-import { getGrowthTemplate } from "@/lib/growthEmailTemplates";
+import { getGrowthTemplate, resolveSenderFrom } from "@/lib/growthEmailTemplates";
 import { isValidEmail } from "@/lib/emailValidation";
 
 // ── Test send ────────────────────────────────────────────────────────────────
@@ -87,7 +87,8 @@ export async function POST(request: Request) {
   // address gets wrapped with a default display name (otherwise we'd produce
   // an invalid nested "Xyra <Name <email>>" that Resend rejects with a 422).
   const fromConfigured = process.env.GROWTH_EMAIL_FROM || process.env.ANALYTICS_REPORT_FROM_EMAIL || "shayan@xyra.dev";
-  const from = fromConfigured.includes("<") ? fromConfigured : `Xyra <${fromConfigured}>`;
+  const resolved = resolveSenderFrom({ templateId, values, fallbackAddress: fromConfigured, requireWhitelistedPlainAddress: false });
+  const from = resolved.from ?? fromConfigured;
   const subject = `[TEST] ${subjectOverride ?? tpl.buildSubject(values)}`;
   const html = tpl.buildHtml(values, sections);
   const text = tpl.buildText(values, sections);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { resend } from "@/lib/resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminApiAuth";
-import { getGrowthTemplate, buildRecipientValues, missingRequiredGlobals, PER_RECIPIENT_KEYS, NAME_PLACEHOLDER, PLAIN_FROM_WHITELIST } from "@/lib/growthEmailTemplates";
+import { getGrowthTemplate, buildRecipientValues, missingRequiredGlobals, PER_RECIPIENT_KEYS, NAME_PLACEHOLDER, resolveSenderFrom } from "@/lib/growthEmailTemplates";
 import { issueDryRunToken, verifyDryRunToken } from "@/lib/growthDryRunToken";
 import { isValidEmail } from "@/lib/emailValidation";
 
@@ -242,22 +242,10 @@ export async function POST(request: Request) {
   // If the configured value already includes a display name ("Name <email>"),
   // use it verbatim; only a bare address gets wrapped with a default display
   // name (re-wrapping a "Name <email>" produces an invalid 422 `from`).
-  // Plain-message sends from one of the whitelisted addresses, as a bare
-  // address (no display name) so it reads like a real one-to-one email.
-  // Other templates use GROWTH_EMAIL_FROM with a display-name wrapper.
-  let from: string;
-  if (templateId === "plain-message") {
-    const requested = (globalValues.from_address ?? "").trim().toLowerCase();
-    const allowed = (PLAIN_FROM_WHITELIST as readonly string[]).includes(requested);
-    if (!allowed) {
-      return NextResponse.json({ error: `from_address must be one of: ${PLAIN_FROM_WHITELIST.join(", ")}.` }, { status: 400 });
-    }
-    from = requested;
-  } else {
-    const fromConfigured = process.env.GROWTH_EMAIL_FROM || process.env.ANALYTICS_REPORT_FROM_EMAIL || "shayan@xyra.dev";
-    const fromName = templateId === "alpha-invite" ? "Cole & Shayan from Xyra" : "Xyra";
-    from = fromConfigured.includes("<") ? fromConfigured : `${fromName} <${fromConfigured}>`;
-  }
+  const fromConfigured = process.env.GROWTH_EMAIL_FROM || process.env.ANALYTICS_REPORT_FROM_EMAIL || "shayan@xyra.dev";
+  const resolved = resolveSenderFrom({ templateId, values: globalValues, fallbackAddress: fromConfigured, requireWhitelistedPlainAddress: true });
+  if (!resolved.from) return NextResponse.json({ error: resolved.error }, { status: 400 });
+  const from = resolved.from;
   const sentBy = typeof body.sentBy === "string" ? body.sentBy.slice(0, 200) : null;
   const base = siteBaseUrl();
 
