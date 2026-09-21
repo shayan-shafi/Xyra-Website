@@ -69,6 +69,9 @@ const SINCE_OPTIONS: { days: number | null; label: string }[] = [
 
 const TZ = "America/Chicago";
 
+// Calendar day (YYYY-MM-DD) of an instant in TZ — string-comparable with <input type="date"> values.
+const dayKey = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: TZ });
+
 const pctText = (n: number, d: number) => {
   const p = pct(n, d);
   return p === null ? "—" : `${p}%`;
@@ -162,6 +165,10 @@ function Milestones({ user }: { user: RetentionUser }) {
 
 export default function RetentionDashboard({ data }: { data: RetentionData }) {
   const [sinceDays, setSinceDays] = useState<number | null>(null);
+  // Custom signup range (YYYY-MM-DD in TZ, inclusive, either end optional).
+  // Mutually exclusive with the presets: picking one clears the other.
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [excludeInternal, setExcludeInternal] = useState(true);
   const [grain, setGrain] = useState<"week" | "month">("week");
   const [segment, setSegment] = useState("");
@@ -169,10 +176,21 @@ export default function RetentionDashboard({ data }: { data: RetentionData }) {
   const [msg, setMsg] = useState<string | null>(null);
 
   const internalN = useMemo(() => data.users.filter((u) => u.internal).length, [data.users]);
+  const signupDay = useMemo(() => new Map(data.users.map((u) => [u.id, dayKey(u.signedUpAt)])), [data.users]);
+  const firstSignupDay = useMemo(() => data.users.reduce((min, u) => { const d = signupDay.get(u.id)!; return !min || d < min ? d : min; }, ""), [data.users, signupDay]);
+  const today = dayKey(data.generatedAt);
+  const customRange = from !== "" || to !== "";
   const users = useMemo(
-    () => data.users.filter((u) => (!excludeInternal || !u.internal) && (sinceDays === null || u.ageHours <= sinceDays * 24)),
-    [data.users, excludeInternal, sinceDays],
+    () => data.users.filter((u) => {
+      if (excludeInternal && u.internal) return false;
+      if (sinceDays !== null && u.ageHours > sinceDays * 24) return false;
+      const d = signupDay.get(u.id)!;
+      return (!from || d >= from) && (!to || d <= to);
+    }),
+    [data.users, excludeInternal, sinceDays, from, to, signupDay],
   );
+  const pickPreset = (days: number | null) => { setSinceDays(days); setFrom(""); setTo(""); };
+  const pickDate = (which: "from" | "to", v: string) => { setSinceDays(null); if (which === "from") setFrom(v); else setTo(v); };
 
   const f72 = useMemo(() => first72(users), [users]);
   const pred = useMemo(() => predictors(users), [users]);
@@ -226,11 +244,22 @@ export default function RetentionDashboard({ data }: { data: RetentionData }) {
         <span className={LABEL}>Signed up</span>
         <div className="flex items-center gap-1.5">
           {SINCE_OPTIONS.map((o) => (
-            <button key={o.label} type="button" onClick={() => setSinceDays(o.days)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border ${sinceDays === o.days ? "bg-black text-white border-black" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}`}>
+            <button key={o.label} type="button" onClick={() => pickPreset(o.days)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border ${!customRange && sinceDays === o.days ? "bg-black text-white border-black" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}`}>
               {o.label}
             </button>
           ))}
+        </div>
+        <div className={`flex items-center gap-1.5 rounded-full border pl-3 pr-1.5 py-0.5 ${customRange ? "border-black" : "border-gray-200"}`}>
+          <span className="text-xs text-gray-500">or from</span>
+          <input type="date" aria-label="Signed up on or after" value={from} min={firstSignupDay} max={to || today} onChange={(e) => pickDate("from", e.target.value)}
+            className="text-xs text-gray-800 bg-transparent focus:outline-none tabular-nums" />
+          <span className="text-xs text-gray-500">to</span>
+          <input type="date" aria-label="Signed up on or before" value={to} min={from || firstSignupDay} max={today} onChange={(e) => pickDate("to", e.target.value)}
+            className="text-xs text-gray-800 bg-transparent focus:outline-none tabular-nums" />
+          {customRange && (
+            <button type="button" onClick={() => pickPreset(null)} aria-label="Clear custom range" title="Clear custom range" className="h-5 w-5 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700">×</button>
+          )}
         </div>
         <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
           <input type="checkbox" checked={excludeInternal} onChange={(e) => setExcludeInternal(e.target.checked)} />
