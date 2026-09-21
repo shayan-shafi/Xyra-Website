@@ -668,6 +668,7 @@ const plainMessage: GrowthTemplate = {
     { key: "cta_link", label: "Button link (optional)", example: "", scope: "global", help: "Public HTTPS URL. Renders as a simple underlined link between the body and the sign-off." },
     { key: "signoff_closing", label: "Sign-off closing", example: "Thanks,", scope: "global" },
     { key: "signoff_name", label: "Sign-off name", example: "Cole", scope: "global", required: true },
+    { key: "postscript", label: "Postscript (after sign-off, optional)", example: "", scope: "global", multiline: true, help: "Shown as a separate paragraph below your sign-off. Any https:// URL becomes a clickable link." },
   ],
   buildSubject: () => "",
   buildHtml: (v) => {
@@ -686,11 +687,17 @@ const plainMessage: GrowthTemplate = {
     const closing = (v.signoff_closing ?? "").trim();
     const name = (v.signoff_name ?? "").trim() || "Cole";
     const closingLine = closing ? `${esc(closing)}<br>` : "";
+    const postscript = (v.postscript ?? "").trim();
+    const linkify = (s: string) => esc(s).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" style="color:#111;">${u}</a>`);
+    const psParas = postscript.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    const psHtml = psParas
+      .map(p => `<p style="margin:18px 0 0;color:#555;">${linkify(p).replace(/\n/g, "<br>")}</p>`)
+      .join("");
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:16px;font-family:${SANS};font-size:15px;line-height:1.6;color:#111;">
 <p style="margin:0 0 14px;">${esc(greeting)}</p>
-${paraHtml}${ctaHtml}<p style="margin:14px 0 0;">${closingLine}${esc(name)}</p>
+${paraHtml}${ctaHtml}<p style="margin:14px 0 0;">${closingLine}${esc(name)}</p>${psHtml}
 </body></html>`;
   },
   buildText: (v) => {
@@ -704,7 +711,9 @@ ${paraHtml}${ctaHtml}<p style="margin:14px 0 0;">${closingLine}${esc(name)}</p>
     const closing = (v.signoff_closing ?? "").trim();
     const name = (v.signoff_name ?? "").trim() || "Cole";
     const signoffLines = closing ? [``, closing, name] : [``, name];
-    return [greeting, ``, ...bodyParas.flatMap(p => [p, ``]), ...ctaLines, ...signoffLines].join("\n");
+    const postscript = (v.postscript ?? "").trim();
+    const psLines = postscript ? [``, postscript] : [];
+    return [greeting, ``, ...bodyParas.flatMap(p => [p, ``]), ...ctaLines, ...signoffLines, ...psLines].join("\n");
   },
 };
 
