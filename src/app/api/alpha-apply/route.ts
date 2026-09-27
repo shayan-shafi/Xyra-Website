@@ -43,15 +43,13 @@ type Application = {
   payOk: boolean;
 };
 
-// Best-effort heads-up to the inbox that already gets the daily signups
-// digest (or ALPHA_APPLY_NOTIFY_TO to route it elsewhere). Never fails the
-// request — the row is what matters; this is the "new response" ping the
-// Google Form used to give.
+// Optional heads-up to Shayan's inbox — the "new response" ping the Google
+// Form used to give. Strictly opt-in: nothing is sent unless
+// ALPHA_APPLY_NOTIFY_TO is set (Shayan, 2026-09-27: no ping for now). The
+// applicant is never emailed from here. Never fails the request.
 async function notify(app: Application, returning: boolean) {
   if (!resend) return;
-  const to = parseRecipients(
-    process.env.ALPHA_APPLY_NOTIFY_TO || process.env.DAILY_SIGNUPS_RECIPIENTS || process.env.ANALYTICS_REPORT_RECIPIENTS
-  );
+  const to = parseRecipients(process.env.ALPHA_APPLY_NOTIFY_TO);
   if (to.length === 0) return;
   const fromEmail = process.env.ANALYTICS_REPORT_FROM_EMAIL ?? "shayan@xyra.dev";
   const lines = [
