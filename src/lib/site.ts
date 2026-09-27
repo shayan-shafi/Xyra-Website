@@ -11,3 +11,6 @@ export const SITE_URL = (
 export function absoluteUrl(path: string): string {
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
+
+/** The alpha application — the in-site form that replaced the Google Form (2026-09-27). */
+export const APPLY_PATH = "/apply";

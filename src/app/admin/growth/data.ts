@@ -40,6 +40,11 @@ type WaitlistRow = {
   alpha_status?: string | null;
   alpha_invited_at?: string | null;
   admin_notes?: string | null;
+  // Present only after supabase/setup.sql section 14 is applied (the /apply form).
+  alpha_applied_at?: string | null;
+  alpha_whats_up?: string | null;
+  alpha_why?: string | null;
+  alpha_pay_ok?: boolean | null;
 };
 
 export type GrowthUser = {
@@ -61,6 +66,11 @@ export type GrowthUser = {
   alphaStatus: string | null;
   alphaInvitedAt: string | null;
   adminNotes: string | null;
+  // The /apply answers (null until they apply; setup.sql §14).
+  alphaAppliedAt: string | null;
+  alphaWhatsUp: string | null;
+  alphaWhy: string | null;
+  alphaPayOk: boolean | null;
 };
 
 export type LeaderboardRow = {
@@ -77,6 +87,8 @@ export type GrowthData = {
   total: number;
   // False until the alpha_* / admin_notes columns exist (setup.sql §7).
   alphaFieldsAvailable: boolean;
+  // False until the /apply answer columns exist (setup.sql §14).
+  applicationFieldsAvailable: boolean;
   sources: string[];
   campaigns: string[];
 };
@@ -100,9 +112,15 @@ export async function fetchGrowthData(): Promise<GrowthData | null> {
   // an error condition.
   const probe = await supabaseAdmin.from("waitlist").select("alpha_status").limit(1);
   const alphaFieldsAvailable = !probe.error;
+  // Same idea for the /apply answer columns (setup.sql §14).
+  const appProbe = await supabaseAdmin.from("waitlist").select("alpha_applied_at").limit(1);
+  const applicationFieldsAvailable = !appProbe.error;
 
   const baseCols = "id,name,email,created_at,ref_code,referred_by,referral_count,first_utm_source,first_utm_campaign,first_ref_code";
-  const cols = alphaFieldsAvailable ? `${baseCols},alpha_status,alpha_invited_at,admin_notes` : baseCols;
+  const cols =
+    baseCols +
+    (alphaFieldsAvailable ? ",alpha_status,alpha_invited_at,admin_notes" : "") +
+    (applicationFieldsAvailable ? ",alpha_applied_at,alpha_whats_up,alpha_why,alpha_pay_ok" : "");
 
   const rows = await fetchAllRows<WaitlistRow>(
     (from, to) =>
@@ -137,6 +155,10 @@ export async function fetchGrowthData(): Promise<GrowthData | null> {
     alphaStatus: alphaFieldsAvailable ? r.alpha_status ?? null : null,
     alphaInvitedAt: alphaFieldsAvailable ? r.alpha_invited_at ?? null : null,
     adminNotes: alphaFieldsAvailable ? r.admin_notes ?? null : null,
+    alphaAppliedAt: applicationFieldsAvailable ? r.alpha_applied_at ?? null : null,
+    alphaWhatsUp: applicationFieldsAvailable ? r.alpha_whats_up ?? null : null,
+    alphaWhy: applicationFieldsAvailable ? r.alpha_why ?? null : null,
+    alphaPayOk: applicationFieldsAvailable ? r.alpha_pay_ok ?? null : null,
   }));
 
   const leaderboard: LeaderboardRow[] = users
@@ -161,6 +183,7 @@ export async function fetchGrowthData(): Promise<GrowthData | null> {
     leaderboard,
     total: users.length,
     alphaFieldsAvailable,
+    applicationFieldsAvailable,
     sources,
     campaigns,
   };

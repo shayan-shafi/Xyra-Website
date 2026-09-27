@@ -17,8 +17,10 @@
 // chips, black/white, rounded-soft.
 
 import { useEffect, useRef, useState, CSSProperties, FormEvent, ReactNode } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { getFirstTouch, getVisitorId, track } from "@/lib/analytics";
+import { APPLY_PATH } from "@/lib/site";
 import { useSectionView } from "@/lib/useSectionView";
 import PhoneScene, { SCREEN_W, SCREEN_H } from "./hero/PhoneScene";
 import { TornSticker } from "./hero/TornSticker";
@@ -280,9 +282,8 @@ export const CONNECTOR_SCRAPS = [
 
 /* ── nav ────────────────────────────────────────────────────────────────── */
 
-export const TEST_FORM_URL =
-  "https://docs.google.com/forms/d/e/1FAIpQLSeV8Eky5rWqVz9LWXd9bTVzm-Pei3F7HxikHe4EC7iqUbFN_A/viewform?usp=header";
-
+// "apply to test it" used to open a Google Form in a new tab; since
+// 2026-09-27 it's the /apply conversation on the site (APPLY_PATH).
 function Nav() {
   return (
     <div className="absolute top-0 inset-x-0 z-[70] flex items-center justify-between px-5 sm:px-8 h-12">
@@ -293,15 +294,13 @@ function Nav() {
         {/* blog link hidden until the blog is ready — route still exists at /blog */}
       </div>
 
-      <a
-        href={TEST_FORM_URL}
-        target="_blank"
-        rel="noopener noreferrer"
+      <Link
+        href={APPLY_PATH}
         onClick={() => track("cta_click", { cta_location: "hero_nav", button_label: "apply to test it" })}
         className="font-[family-name:var(--font-jetbrains)] text-xs text-black underline underline-offset-4 decoration-black/30 hover:decoration-black transition-all"
       >
         apply to test it
-      </a>
+      </Link>
     </div>
   );
 }

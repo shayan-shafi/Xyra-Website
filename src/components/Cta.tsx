@@ -5,34 +5,17 @@
 // which also links out to the track), the tester form, and the sticker kit
 // scattered around them, draggable like the hero's.
 
-import { ReactNode } from "react";
-import { motion } from "framer-motion";
+import Link from "next/link";
 import { track } from "@/lib/analytics";
+import { APPLY_PATH } from "@/lib/site";
 import { useSectionView } from "@/lib/useSectionView";
-import { Chip, TEST_FORM_URL } from "@/components/DesktopHero";
+import { Chip } from "@/components/DesktopHero";
+import { Cutout, Sticker } from "@/components/hero/Sticker";
 import { TornSticker } from "@/components/hero/TornSticker";
 import { RecordingPillSticker } from "@/components/hero/stickers";
 
 // "I Know You Want Me (Calle Ocho)"
 const TRACK_EMBED = "https://open.spotify.com/embed/track/5RzFJd6W40SDTyZkX6xx45?utm_source=generator&theme=0";
-
-function Sticker({ className = "", tilt = 0, children }: { className?: string; tilt?: number; children: ReactNode }) {
-  return (
-    <motion.div drag dragMomentum={false} className={`absolute z-10 select-none cursor-grab active:cursor-grabbing ${className}`}>
-      <div style={tilt ? { transform: `rotate(${tilt}deg)` } : undefined}>{children}</div>
-    </motion.div>
-  );
-}
-
-// Shayan's paper cutouts (2026-09-14): white knocked out, draggable like the rest.
-function Cutout({ src, alt, className = "", width }: { src: string; alt: string; className?: string; width: number }) {
-  return (
-    <Sticker className={className}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt={alt} width={width} className="block h-auto" draggable={false} style={{ filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.10))" }} />
-    </Sticker>
-  );
-}
 
 function Stickers() {
   return (
@@ -119,15 +102,13 @@ export default function Cta() {
             onLoad={() => track("section_view", { section: "cta_spotify" })}
           />
         </div>
-        <a
-          href={TEST_FORM_URL}
-          target="_blank"
-          rel="noopener noreferrer"
+        <Link
+          href={APPLY_PATH}
           onClick={() => track("cta_click", { cta_location: "cta_bottom", button_label: "apply to test it" })}
           className="mt-[72px] inline-flex items-center px-7 py-3.5 bg-black text-white rounded-full font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-black/85 transition-colors"
         >
           apply to test it
-        </a>
+        </Link>
       </div>
     </section>
   );

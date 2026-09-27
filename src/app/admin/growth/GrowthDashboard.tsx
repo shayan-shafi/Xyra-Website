@@ -6,7 +6,7 @@ import type { GrowthData, GrowthUser } from "./data";
 // sessionStorage key the Email Ops page reads to prefill selected recipients.
 const RECIPIENTS_KEY = "xyra_growth_recipients";
 
-type SortKey = "recent" | "referrals" | "reward";
+type SortKey = "recent" | "referrals" | "reward" | "applied";
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -20,7 +20,7 @@ function csvCell(val: unknown): string {
 const LABEL = "font-[family-name:var(--font-jetbrains)] text-[10px] uppercase tracking-[0.12em] text-gray-400";
 
 export default function GrowthDashboard({ data }: { data: GrowthData }) {
-  const { users, leaderboard, alphaFieldsAvailable, sources, campaigns } = data;
+  const { users, leaderboard, alphaFieldsAvailable, applicationFieldsAvailable, sources, campaigns } = data;
 
   const [search, setSearch] = useState("");
   const [minReferrals, setMinReferrals] = useState(0);
@@ -29,6 +29,7 @@ export default function GrowthDashboard({ data }: { data: GrowthData }) {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [alphaFilter, setAlphaFilter] = useState("");
+  const [appliedOnly, setAppliedOnly] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("recent");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [topN, setTopN] = useState(10);
@@ -50,15 +51,18 @@ export default function GrowthDashboard({ data }: { data: GrowthData }) {
         if (alphaFilter === "__none__" && u.alphaStatus) return false;
         if (alphaFilter !== "__none__" && u.alphaStatus !== alphaFilter) return false;
       }
+      if (appliedOnly && !u.alphaAppliedAt) return false;
       return true;
     });
     list = [...list].sort((a, b) => {
       if (sortKey === "referrals") return b.referralCount - a.referralCount || b.rewardReferrals - a.rewardReferrals;
       if (sortKey === "reward") return b.rewardReferrals - a.rewardReferrals || b.referralCount - a.referralCount;
+      // newest application first; people who never applied sink to the bottom
+      if (sortKey === "applied") return (b.alphaAppliedAt ?? "").localeCompare(a.alphaAppliedAt ?? "") || b.createdAt.localeCompare(a.createdAt);
       return b.createdAt.localeCompare(a.createdAt);
     });
     return list;
-  }, [users, search, minReferrals, sourceFilter, campaignFilter, dateFrom, dateTo, alphaFilter, sortKey]);
+  }, [users, search, minReferrals, sourceFilter, campaignFilter, dateFrom, dateTo, alphaFilter, appliedOnly, sortKey]);
 
   const alphaStatuses = useMemo(
     () => Array.from(new Set(users.map(u => u.alphaStatus).filter((s): s is string => Boolean(s)))).sort(),
@@ -101,9 +105,12 @@ export default function GrowthDashboard({ data }: { data: GrowthData }) {
 
   const exportCsv = useCallback(() => {
     const rows = selectedUsers.length > 0 ? selectedUsers : filtered;
-    const header = ["name", "email", "ref_code", "referral_count", "reward_referrals", "source", "campaign", "signup_date", "alpha_status"];
+    const header = ["name", "email", "ref_code", "referral_count", "reward_referrals", "source", "campaign", "signup_date", "alpha_status", "applied_date", "pay_ok", "whats_up", "why"];
     const body = rows.map((u: GrowthUser) =>
-      [u.name, u.email, u.refCode, u.referralCount, u.rewardReferrals, u.source, u.campaign, u.createdAt.slice(0, 10), u.alphaStatus].map(csvCell).join(",")
+      [
+        u.name, u.email, u.refCode, u.referralCount, u.rewardReferrals, u.source, u.campaign, u.createdAt.slice(0, 10), u.alphaStatus,
+        u.alphaAppliedAt?.slice(0, 10), u.alphaPayOk === null ? "" : u.alphaPayOk ? "yes" : "no", u.alphaWhatsUp, u.alphaWhy,
+      ].map(csvCell).join(",")
     );
     const csv = [header.join(","), ...body].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -139,6 +146,15 @@ export default function GrowthDashboard({ data }: { data: GrowthData }) {
           <span className="shrink-0 mt-0.5">⚠</span>
           <p className="leading-snug">
             Alpha fields (<code className="bg-amber-100 px-1 rounded">alpha_status</code>, <code className="bg-amber-100 px-1 rounded">alpha_invited_at</code>, <code className="bg-amber-100 px-1 rounded">admin_notes</code>) aren&apos;t in the database yet. Apply section 7 of <code className="bg-amber-100 px-1 rounded">supabase/setup.sql</code> to enable alpha status, invite tracking, and notes. Everything else works without it.
+          </p>
+        </div>
+      )}
+
+      {!applicationFieldsAvailable && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-amber-800">
+          <span className="shrink-0 mt-0.5">⚠</span>
+          <p className="leading-snug">
+            The <code className="bg-amber-100 px-1 rounded">/apply</code> answer columns (<code className="bg-amber-100 px-1 rounded">alpha_applied_at</code>, <code className="bg-amber-100 px-1 rounded">alpha_whats_up</code>, <code className="bg-amber-100 px-1 rounded">alpha_why</code>, <code className="bg-amber-100 px-1 rounded">alpha_pay_ok</code>) aren&apos;t in the database yet. Apply section 14 of <code className="bg-amber-100 px-1 rounded">supabase/setup.sql</code>. Until then the apply form can&apos;t save, and applications won&apos;t show here.
           </p>
         </div>
       )}
@@ -218,10 +234,17 @@ export default function GrowthDashboard({ data }: { data: GrowthData }) {
                 {alphaStatuses.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             )}
+            {applicationFieldsAvailable && (
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={appliedOnly} onChange={e => setAppliedOnly(e.target.checked)} />
+                <span className={LABEL}>Applied only</span>
+              </label>
+            )}
             <select className={inputCls} value={sortKey} onChange={e => setSortKey(e.target.value as SortKey)}>
               <option value="recent">Sort: Newest</option>
               <option value="referrals">Sort: Referral count</option>
               <option value="reward">Sort: Reward (recomputed)</option>
+              {applicationFieldsAvailable && <option value="applied">Sort: Newest application</option>}
             </select>
           </div>
         </div>
@@ -266,11 +289,15 @@ export default function GrowthDashboard({ data }: { data: GrowthData }) {
                 {alphaFieldsAvailable && <th className={`pb-2 ${LABEL}`}>Alpha</th>}
                 {alphaFieldsAvailable && <th className={`pb-2 ${LABEL}`}>Invited</th>}
                 {alphaFieldsAvailable && <th className={`pb-2 ${LABEL}`}>Notes</th>}
+                {applicationFieldsAvailable && <th className={`pb-2 ${LABEL}`}>Applied</th>}
+                {applicationFieldsAvailable && <th className={`pb-2 ${LABEL}`}>$10</th>}
+                {applicationFieldsAvailable && <th className={`pb-2 ${LABEL}`}>Up to</th>}
+                {applicationFieldsAvailable && <th className={`pb-2 ${LABEL}`}>Why</th>}
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={alphaFieldsAvailable ? 12 : 9} className="py-6 text-center text-sm text-gray-400 italic">No users match these filters.</td></tr>
+                <tr><td colSpan={9 + (alphaFieldsAvailable ? 3 : 0) + (applicationFieldsAvailable ? 4 : 0)} className="py-6 text-center text-sm text-gray-400 italic">No users match these filters.</td></tr>
               ) : (
                 filtered.map(u => {
                   const isSel = selected.has(u.email);
@@ -288,6 +315,14 @@ export default function GrowthDashboard({ data }: { data: GrowthData }) {
                       {alphaFieldsAvailable && <td className="py-2 text-sm text-gray-600">{u.alphaStatus ?? "—"}</td>}
                       {alphaFieldsAvailable && <td className="py-2 text-xs text-gray-400 whitespace-nowrap">{u.alphaInvitedAt ? fmtDate(u.alphaInvitedAt) : "—"}</td>}
                       {alphaFieldsAvailable && <td className="py-2 text-xs text-gray-400 max-w-[160px] truncate" title={u.adminNotes ?? ""}>{u.adminNotes ?? "—"}</td>}
+                      {applicationFieldsAvailable && <td className="py-2 text-xs text-gray-400 whitespace-nowrap">{u.alphaAppliedAt ? fmtDate(u.alphaAppliedAt) : "—"}</td>}
+                      {applicationFieldsAvailable && (
+                        <td className={`py-2 text-xs whitespace-nowrap ${u.alphaPayOk === false ? "text-amber-600" : "text-gray-600"}`}>
+                          {u.alphaPayOk === null ? "—" : u.alphaPayOk ? "yes" : "no"}
+                        </td>
+                      )}
+                      {applicationFieldsAvailable && <td className="py-2 text-xs text-gray-600 max-w-[180px] truncate" title={u.alphaWhatsUp ?? ""}>{u.alphaWhatsUp ?? "—"}</td>}
+                      {applicationFieldsAvailable && <td className="py-2 text-xs text-gray-600 max-w-[260px] truncate" title={u.alphaWhy ?? ""}>{u.alphaWhy ?? "—"}</td>}
                     </tr>
                   );
                 })

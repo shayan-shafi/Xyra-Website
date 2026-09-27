@@ -478,3 +478,23 @@ DROP TRIGGER IF EXISTS trg_bouncer_sessions_updated_at ON bouncer_sessions;
 CREATE TRIGGER trg_bouncer_sessions_updated_at
   BEFORE UPDATE ON bouncer_sessions
   FOR EACH ROW EXECUTE FUNCTION set_bouncer_sessions_updated_at();
+
+-- ============================================================
+-- 14. Alpha application  (the in-site "apply to test it" form, 2026-09-27)
+--     Replaces the Google Form. The five answers land on the applicant's
+--     waitlist row (created if they weren't on the list yet), so the Growth
+--     tab's "Waitlist & Alpha Candidates" table shows applicants next to
+--     everyone else. alpha_status becomes 'applied' unless it's already
+--     further along (e.g. 'invited' from an Email Ops send).
+--
+--     Written by /api/alpha-apply (service_role when configured, otherwise
+--     anon — the anon insert/update policies in §1 already cover it).
+--     Safe to run multiple times (idempotent).
+-- ============================================================
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS alpha_applied_at TIMESTAMPTZ; -- when they applied
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS alpha_whats_up   TEXT;        -- "what are you up to these days?"
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS alpha_why        TEXT;        -- "why do you want to use xyra?"
+ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS alpha_pay_ok     BOOLEAN;     -- "$10 to test?" yes / no
+
+CREATE INDEX IF NOT EXISTS idx_waitlist_alpha_applied
+  ON waitlist (alpha_applied_at DESC) WHERE alpha_applied_at IS NOT NULL;
