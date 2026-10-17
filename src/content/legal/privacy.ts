@@ -12,7 +12,7 @@ Xyra is a personal tracking app. You talk to it, and it organises your life into
 - **Your data is yours.** We do not sell it, rent it, or share it with data brokers.
 - **No ads, ever.** There is no advertising business here, so there is no reason to profile you for anyone else.
 - **Photos you attach to boards stay on your device.** We store the file's location on your phone, not the picture.
-- **Location is only recorded while you are actively recording a run.** Never in the background.
+- **Location is only used when you ask for it:** while you are recording a run, or once when you pin where you are on a Locations board. Never passively.
 - **We use no third party analytics in the app.** No Google Analytics, no Facebook SDK, no Mixpanel, no Segment. Our usage analytics are first party and cannot contain your content.
 
 ---
@@ -121,7 +121,7 @@ We may also disclose information if the law requires it, or to protect the safet
 
 ## 6. Sensitive information
 
-**Location.** Xyra records precise location only while you have started a run. It is saved with that run so your map and distance work.
+**Location.** Xyra uses precise location only when you ask: continuously while you are recording a run you started (including with the screen locked), or once when you tap to pin where you are on a Locations board. The route or pin is saved with that entry so your map and distance work.
 
 **Health.** Anything health related in Xyra is what you typed or said. It is treated like any other board content, including being processed by the providers in §5.
 
