@@ -2,9 +2,10 @@
 
 // ─── Footer ──────────────────────────────────────────────────────────────────
 // Sits on the page grid like everything else: a hairline, the wordmark, the
-// tagline, the year, privacy settings. Lowercase, quiet, no quote.
+// tagline, the year, privacy + terms, privacy settings. Lowercase, quiet, no quote.
 
 import Image from "next/image";
+import Link from "next/link";
 import { openPrivacySettings } from "@/components/AnalyticsProvider";
 import { useSectionView } from "@/lib/useSectionView";
 
@@ -26,6 +27,8 @@ export default function Footer() {
 
           <div className="flex items-center gap-5 font-[family-name:var(--font-jetbrains)] text-[11px] text-black/40 lowercase">
             <span>&copy; {new Date().getFullYear()} xyra</span>
+            <Link href="/privacy" className="hover:text-black transition-colors">privacy</Link>
+            <Link href="/terms" className="hover:text-black transition-colors">terms</Link>
             <button onClick={openPrivacySettings} className="hover:text-black transition-colors underline underline-offset-4 decoration-black/20 hover:decoration-black">
               privacy settings
             </button>
