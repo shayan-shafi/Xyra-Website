@@ -7,9 +7,9 @@ import Footer from "@/components/Footer";
 // ─── LegalPage ───────────────────────────────────────────────────────────────
 // /privacy and /terms in the site's own language (the /apply page's frame):
 // the warm "+" canvas, the lowercase xyra / ← back bar, a Playfair title, and
-// a row of mono chips — one to flip between the two documents, one per
-// section to jump to it. Prose stays sentence case so the legal text reads
-// straight; only the headings go lowercase. Black and white, no gold.
+// a pair of mono chips to flip between the two documents. Prose stays sentence
+// case so the legal text reads straight; only the headings go lowercase.
+// Headings keep anchor ids (/privacy#limited-use-style links). No gold.
 
 type Doc = "privacy" | "terms";
 
@@ -28,14 +28,6 @@ function textOf(node: ReactNode): string {
 const slug = (s: string) =>
   s.toLowerCase().replace(/^\d+\.\s*/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-/** "## 3. Connected services" → { id: "connected-services", label: "connected services" } */
-function sectionsOf(markdown: string) {
-  return [...markdown.matchAll(/^## (.+)$/gm)].map((m) => ({
-    id: slug(m[1]),
-    label: m[1].replace(/^\d+\.\s*/, "").toLowerCase(),
-  }));
-}
-
 const chip =
   "font-[family-name:var(--font-jetbrains)] text-[10px] leading-none whitespace-nowrap rounded-full px-2 py-1 border transition-colors";
 
@@ -52,8 +44,6 @@ export default function LegalPage({
   updated: string;
   markdown: string;
 }) {
-  const sections = sectionsOf(markdown);
-
   return (
     <div className="xyra-canvas min-h-screen">
       {/* nav — the /apply page's */}
@@ -93,19 +83,6 @@ export default function LegalPage({
             >
               {d.label}
             </Link>
-          ))}
-        </nav>
-
-        {/* jump to a section */}
-        <nav aria-label="sections" className="flex flex-wrap gap-1.5 mt-3">
-          {sections.map((s) => (
-            <a
-              key={s.id}
-              href={`#${s.id}`}
-              className={`${chip} bg-white/60 text-black/50 border-black/15 hover:border-black hover:text-black`}
-            >
-              → {s.label}
-            </a>
           ))}
         </nav>
 
