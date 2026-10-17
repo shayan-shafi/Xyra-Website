@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "*",
         allow: "/",
         // Keep the admin console and API endpoints out of the index.
-        disallow: ["/admin", "/api"],
+        disallow: ["/admin", "/api", "/oauth"],
       },
     ],
     sitemap: absoluteUrl("/sitemap.xml"),
