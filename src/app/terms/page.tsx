@@ -5,7 +5,7 @@ import { absoluteUrl } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Terms of Service — Xyra",
-  description: "The agreement between you and Xyra AI Inc. for using Xyra.",
+  description: "The agreement between you and Xyra AI, Inc. for using Xyra.",
   alternates: { canonical: absoluteUrl("/terms") },
 };
 

@@ -19,7 +19,7 @@ Xyra is a personal tracking app. You talk to it, and it organises your life into
 
 ## 1. Who we are
 
-Xyra is operated by **Xyra AI Inc.** ("Xyra", "we", "us").
+Xyra is operated by **Xyra AI, Inc.** ("Xyra", "we", "us").
 
 For any privacy question, or to exercise any right described here, email **[privacy@xyra.dev](mailto:privacy@xyra.dev)**.
 
@@ -177,5 +177,5 @@ If we change this policy in a way that matters to you, we will tell you in the a
 
 ## 12. Contact
 
-Xyra AI Inc. · [privacy@xyra.dev](mailto:privacy@xyra.dev)
+Xyra AI, Inc. · [privacy@xyra.dev](mailto:privacy@xyra.dev)
 `;

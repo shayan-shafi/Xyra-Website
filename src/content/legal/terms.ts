@@ -5,7 +5,7 @@
 export const TERMS_UPDATED = "17 October 2026";
 
 export const TERMS_MD = `
-These terms are an agreement between you and **Xyra AI Inc.** ("Xyra", "we", "us") for your use of the Xyra app, the web app at app.xyra.dev, and xyra.dev (together, "Xyra"). By creating an account or using Xyra, you agree to them. If you do not agree, please do not use Xyra.
+These terms are an agreement between you and **Xyra AI, Inc.** ("Xyra", "we", "us") for your use of the Xyra app, the web app at app.xyra.dev, and xyra.dev (together, "Xyra"). By creating an account or using Xyra, you agree to them. If you do not agree, please do not use Xyra.
 
 How we handle your information is described in our [Privacy Policy](/privacy).
 
@@ -58,7 +58,7 @@ We may suspend or close accounts that do these things.
 
 ## 8. Our property
 
-Xyra itself (the app, its design, its code, and the Xyra name and logo) belongs to Xyra AI Inc. These terms give you a personal right to use it, nothing more. If you send us feedback or ideas, we may use them without owing you anything.
+Xyra itself (the app, its design, its code, and the Xyra name and logo) belongs to Xyra AI, Inc. These terms give you a personal right to use it, nothing more. If you send us feedback or ideas, we may use them without owing you anything.
 
 ## 9. Ending things
 
@@ -70,7 +70,7 @@ Xyra is provided **"as is" and "as available."** To the fullest extent the law a
 
 ## 11. Limit on our liability
 
-To the fullest extent the law allows, Xyra AI Inc. is not liable for indirect, incidental, special, consequential, or punitive damages, or for lost data, profits, or opportunities. Our total liability for any claim about Xyra is limited to the greater of **$100** or **what you paid us in the 12 months before the claim**.
+To the fullest extent the law allows, Xyra AI, Inc. is not liable for indirect, incidental, special, consequential, or punitive damages, or for lost data, profits, or opportunities. Our total liability for any claim about Xyra is limited to the greater of **$100** or **what you paid us in the 12 months before the claim**.
 
 Some places do not allow some of these limits, so they may not all apply to you.
 
@@ -88,5 +88,5 @@ If we change these terms in a way that matters, we will tell you in the app befo
 
 ## 15. Contact
 
-Xyra AI Inc. · [privacy@xyra.dev](mailto:privacy@xyra.dev)
+Xyra AI, Inc. · [privacy@xyra.dev](mailto:privacy@xyra.dev)
 `;
