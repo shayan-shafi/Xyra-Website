@@ -10,5 +10,13 @@ export const metadata: Metadata = {
 };
 
 export default function PrivacyPage() {
-  return <LegalPage title="Privacy Policy" updated={PRIVACY_UPDATED} markdown={PRIVACY_MD} />;
+  return (
+    <LegalPage
+      doc="privacy"
+      title="privacy policy"
+      blurb="what xyra keeps about you, what it does with it, and who else ever sees it."
+      updated={PRIVACY_UPDATED}
+      markdown={PRIVACY_MD}
+    />
+  );
 }

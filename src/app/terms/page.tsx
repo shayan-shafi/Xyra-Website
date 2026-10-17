@@ -10,5 +10,13 @@ export const metadata: Metadata = {
 };
 
 export default function TermsPage() {
-  return <LegalPage title="Terms of Service" updated={TERMS_UPDATED} markdown={TERMS_MD} />;
+  return (
+    <LegalPage
+      doc="terms"
+      title="terms of service"
+      blurb="the deal between you and xyra, in plain words."
+      updated={TERMS_UPDATED}
+      markdown={TERMS_MD}
+    />
+  );
 }
