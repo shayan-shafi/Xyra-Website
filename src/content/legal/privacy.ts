@@ -1,9 +1,10 @@
 // The privacy policy behind xyra.dev/privacy. Every claim here was checked
 // against the app's code and the live database on 2026-10-17 (the Granola
-// section against granola-sync on 2026-10-22) — change the code and this
+// section against granola-sync on 2026-10-22, AI apps against api/mcp and
+// settings → agents on 2026-10-23) — change the code and this
 // together. Google's OAuth review reads §3 and §4 line by line.
 
-export const PRIVACY_UPDATED = "22 October 2026";
+export const PRIVACY_UPDATED = "23 October 2026";
 
 export const PRIVACY_MD = `
 ## The short version
@@ -89,6 +90,16 @@ All of these can be seen, edited, or deleted in the app. The summaries and notes
 
 **What we store:** your Granola access is stored encrypted (see §9), along with which meetings Xyra has already read (so it never reads one twice), and on each to-do it adds, the meeting it came from. Nothing else from Granola is saved.
 
+### AI apps you connect
+
+You can let an AI app you already use, such as **Claude**, **ChatGPT**, **Gemini**, or Meta's **Muse**, or a coding agent like Claude Code, read your Brain. You start this yourself, from Settings → agents, and approve it on a Xyra sign-in page.
+
+**What it can see:** your memories and your boards, the same things you see in the Brain. **Passwords boards are never shown.** It can add or change anything only if you allowed writing when you connected it, and every change it makes is listed in Settings → agents with an undo.
+
+**Where your data goes:** what the app reads leaves Xyra and is handled under **that company's** terms and privacy policy, not ours. Check them before you connect. In particular, **Meta says it uses what Muse reads through a connector to improve AI at Meta.**
+
+**What we store:** the app's name, when it was last used, and the log of changes it made. Tokens for coding agents are stored only as a one way hash. Disconnect any app in Settings → agents, and it can no longer read anything.
+
 ### Disconnecting
 Disconnecting deletes your stored access, so Xyra can no longer read your calendar or your Granola notes. Memories, meeting lines, and to-dos Xyra already wrote stay until you delete them. To also withdraw the permission on Google's side, remove Xyra at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
 
@@ -159,7 +170,7 @@ We keep your information for as long as your account exists. Memories you correc
 ## 8. Your choices and rights
 
 - **See and edit what Xyra knows**, in the Brain.
-- **Disconnect Google Calendar or Granola** at any time.
+- **Disconnect Google Calendar, Granola, or any AI app** at any time.
 - **Turn off notifications**, set quiet hours, or pause check-ins.
 - **Delete your account** from Settings.
 - **Get a copy of your data** by emailing privacy@xyra.dev.
