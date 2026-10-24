@@ -105,7 +105,7 @@ All of these can be seen, edited, or deleted in the app. The summaries and notes
 
 You can let an AI app you already use, such as **Claude**, **ChatGPT**, **Gemini**, or Meta's **Muse**, or a coding agent like Claude Code, read your Brain. You start this yourself, from Settings → agents, and approve it on a Xyra sign-in page.
 
-**What it can see:** your memories and your boards, the same things you see in the Brain. **Passwords boards are never shown.** It can add or change anything only if you allowed writing when you connected it, and every change it makes is listed in Settings → agents with an undo.
+**What it can see:** your memories, your boards, and your Apple Health summaries if you've connected Health, the same things you see in the Brain. **Passwords boards are never shown.** It can add or change anything only if you allowed writing when you connected it, and every change it makes is listed in Settings → agents with an undo.
 
 **Where your data goes:** what the app reads leaves Xyra and is handled under **that company's** terms and privacy policy, not ours. Check them before you connect. In particular, **Meta says it uses what Muse reads through a connector to improve AI at Meta.**
 
@@ -120,7 +120,9 @@ Disconnecting deletes your stored access, so Xyra can no longer read your calend
 
 **What we read, and why:** steps, active energy, exercise minutes, resting heart rate, heart rate variability, sleep, weight, workouts (type, length, energy, and distance), mindful minutes, and food totals (calories, protein, carbs, and fat), including what your watch, ring, or food app saves to Health. Your iPhone reads them, the last 30 days when you first connect and new data after that, and adds them up into one summary per day.
 
-**What we store:** those daily summaries, including a short summary of each workout, so your Health board works. If you have a Sleep board, Xyra also adds each night there, but never over a night you logged yourself. Those nights are board content like any other (see §5). The daily summaries are shown only to you: they are not sent to AI providers, not used for advertising, and never sold or shared for marketing. Xyra does not store your individual heart rate readings or other raw Health samples.
+**What we store:** those daily summaries, including a short summary of each workout, so your Health board and the Apple Health page in your Brain work, plus one short line per week on your Fitness and Sleep shelves. If you have a Sleep board, Xyra also adds each night there, but never over a night you logged yourself. Xyra does not store your individual heart rate readings or other raw Health samples.
+
+**Who sees them:** when you ask Xyra about your health ("how many steps did I walk?"), your recent daily summaries are sent to our AI providers (see §5) to answer; the weekly lines and Sleep board nights are treated like your other memories and board content. If you connect an AI app (see below), it can read your Apple Health summaries, read only. They are never used for advertising, and never sold or shared for marketing.
 
 ---
 
@@ -145,7 +147,7 @@ Xyra is an AI product, so your information is processed by service providers act
 | Provider | What it receives | Why |
 |---|---|---|
 | **Supabase** | Everything in §2 | Our database, sign-in, and servers |
-| **OpenAI** | Your messages, board contents, your memories, calendar titles, and Granola and Wispr Flow meeting summaries and notes (§3) | Understanding what you say, and writing memories |
+| **OpenAI** | Your messages, board contents, your memories, calendar titles, Granola and Wispr Flow meeting summaries and notes, and recent Apple Health summaries when you ask about your health (§3) | Understanding what you say, and writing memories |
 | **Anthropic** | Your messages and the same context | Writing Xyra's replies |
 | **Groq** | Your voice audio | Speech to text |
 | **Expo** | Your push token and notification text | Delivering notifications |
@@ -166,7 +168,7 @@ We may also disclose information if the law requires it, or to protect the safet
 
 **Location.** Xyra uses precise location only when you ask: continuously while you are recording a run you started (including with the screen locked), or once when you tap to pin where you are on a Locations board. The route or pin is saved with that entry so your map and distance work.
 
-**Health.** Health information in Xyra is what you typed or said, plus, if you connect it, the Apple Health summaries described in §3. What you typed or said is treated like any other board content, including being processed by the providers in §5. Apple Health summaries are not sent to AI providers, except nights Xyra adds to your Sleep board.
+**Health.** Health information in Xyra is what you typed or said, plus, if you connect it, the Apple Health summaries described in §3. What you typed or said is treated like any other board content, including being processed by the providers in §5. Apple Health summaries are sent to AI providers only to answer what you ask about your health, and are readable by AI apps you connect (§3).
 
 **Money.** Amounts you enter are stored like any other entry. Receipt photos are sent to OpenAI to read the total and are not kept.
 
