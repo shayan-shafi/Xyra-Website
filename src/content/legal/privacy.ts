@@ -1,7 +1,8 @@
 // The privacy policy behind xyra.dev/privacy. Every claim here was checked
 // against the app's code and the live database on 2026-10-17 (the Granola
 // section against granola-sync on 2026-10-22, AI apps against api/mcp and
-// settings → agents on 2026-10-23) — change the code and this
+// settings → agents on 2026-10-23, Wispr Flow against wispr-sync /
+// wisprText.ts on 2026-10-23) — change the code and this
 // together. Google's OAuth review reads §3 and §4 line by line.
 
 export const PRIVACY_UPDATED = "23 October 2026";
@@ -63,7 +64,7 @@ xyra.dev uses first party analytics (pages viewed, where you came from). You can
 
 ## 3. Connected services
 
-Today you can connect **Google Calendar** and **Granola**. If we add others, we will update this section before they go live.
+Today you can connect **Google Calendar**, **Granola**, and **Wispr Flow**. If we add others, we will update this section before they go live.
 
 ### Google Calendar
 
@@ -90,6 +91,16 @@ All of these can be seen, edited, or deleted in the app. The summaries and notes
 
 **What we store:** your Granola access is stored encrypted (see §9), along with which meetings Xyra has already read (so it never reads one twice), and on each to-do it adds, the meeting it came from. Nothing else from Granola is saved.
 
+### Wispr Flow
+
+**How you connect:** you sign in to Wispr Flow through Wispr's own connection for apps. Xyra asks for read access to your Notetaker meetings and for your Wispr email address, so you can see which account is connected. Xyra never adds, changes, or deletes anything in Wispr Flow, and never reads your dictation history.
+
+**What we read, and why:** Xyra reads the list of your Notetaker meetings (title and date), and for each new meeting, its summary, your notes, its action items, and who was there. It reads the last 30 days when you first connect, then checks for new meetings about every 30 minutes. Wispr may send a meeting's transcript along with its notes; **Xyra throws the transcript away as soon as it arrives. It is never saved and never sent to OpenAI.** The summaries and notes are sent to OpenAI (see §5) to write the same three things as for Granola: one dated line per meeting on your Meetings shelf, up to three memories about you from each meeting, and the things you said you would do, from meetings in the last three days, on your To-Do list. If Granola and Wispr Flow both recorded the same meeting, Xyra tries to write it up only once.
+
+All of these can be seen, edited, or deleted in the app. The summaries and notes themselves are not saved.
+
+**What we store:** your Wispr Flow access is stored encrypted (see §9), along with which meetings Xyra has already read, and on each to-do it adds, the meeting it came from. Nothing else from Wispr Flow is saved.
+
 ### AI apps you connect
 
 You can let an AI app you already use, such as **Claude**, **ChatGPT**, **Gemini**, or Meta's **Muse**, or a coding agent like Claude Code, read your Brain. You start this yourself, from Settings → agents, and approve it on a Xyra sign-in page.
@@ -101,7 +112,7 @@ You can let an AI app you already use, such as **Claude**, **ChatGPT**, **Gemini
 **What we store:** the app's name, when it was last used, and the log of changes it made. Tokens for coding agents are stored only as a one way hash. Disconnect any app in Settings → agents, and it can no longer read anything.
 
 ### Disconnecting
-Disconnecting deletes your stored access, so Xyra can no longer read your calendar or your Granola notes. Memories, meeting lines, and to-dos Xyra already wrote stay until you delete them. To also withdraw the permission on Google's side, remove Xyra at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+Disconnecting deletes your stored access, so Xyra can no longer read your calendar, your Granola notes, or your Wispr Flow meetings. Memories, meeting lines, and to-dos Xyra already wrote stay until you delete them. To also withdraw the permission on Google's side, remove Xyra at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
 
 ### Apple Health
 Xyra does not read Apple Health.
@@ -129,7 +140,7 @@ Xyra is an AI product, so your information is processed by service providers act
 | Provider | What it receives | Why |
 |---|---|---|
 | **Supabase** | Everything in §2 | Our database, sign-in, and servers |
-| **OpenAI** | Your messages, board contents, your memories, calendar titles, and Granola meeting summaries and notes (§3) | Understanding what you say, and writing memories |
+| **OpenAI** | Your messages, board contents, your memories, calendar titles, and Granola and Wispr Flow meeting summaries and notes (§3) | Understanding what you say, and writing memories |
 | **Anthropic** | Your messages and the same context | Writing Xyra's replies |
 | **Groq** | Your voice audio | Speech to text |
 | **Expo** | Your push token and notification text | Delivering notifications |
@@ -138,6 +149,7 @@ Xyra is an AI product, so your information is processed by service providers act
 | **Vercel** | Requests to our website and web app | Hosting |
 | **Google** | Your Google access token | Reading and updating your calendar (§3) |
 | **Granola** | Your Granola access token | Reading your meeting notes (§3) |
+| **Wispr Flow** | Your Wispr Flow access token | Reading your Notetaker meetings (§3) |
 
 We use OpenAI and Anthropic through their business APIs, under terms that do not allow them to train their models on our data.
 
@@ -170,7 +182,7 @@ We keep your information for as long as your account exists. Memories you correc
 ## 8. Your choices and rights
 
 - **See and edit what Xyra knows**, in the Brain.
-- **Disconnect Google Calendar, Granola, or any AI app** at any time.
+- **Disconnect Google Calendar, Granola, Wispr Flow, or any AI app** at any time.
 - **Turn off notifications**, set quiet hours, or pause check-ins.
 - **Delete your account** from Settings.
 - **Get a copy of your data** by emailing privacy@xyra.dev.
