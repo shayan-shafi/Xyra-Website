@@ -6,17 +6,19 @@ import { fetchAll } from "@/lib/fetchAll";
 //
 // Joins two databases by email:
 //   • the XYRA APP project (service role): auth users + activity signals
-//     (dashboards, items, chat, brain dumps, feedback, push tokens, billing)
+//     (dashboards, items, chat, brain dumps, feedback, push tokens, billing,
+//     and app_opened events: opening the web or phone app counts as use)
 //   • the marketing site's own project: the waitlist (alpha_status, invite
 //     date, acquisition source)
 //
-// Everything is read-only. Activity is derived from row timestamps — no
-// tracking pixels, no new writes in the app.
+// Everything is read-only. Activity is derived from row timestamps, plus the
+// app's first-party app_opened events (product_events, sent by the app since
+// 2026-10-27), so a visit that creates nothing still counts.
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 /**
- * Lifecycle bucket, computed from the most recent activity row:
+ * Lifecycle bucket, computed from the most recent activity row or app open:
  *   active   – used the app in the last 7 days
  *   cooling  – 8–30 days since last activity
  *   dormant  – >30 days since last activity
@@ -36,9 +38,11 @@ export type AlphaUser = {
   activated: boolean; // has at least one activity row
   signedUpAt: string | null; // auth.users.created_at
   lastSignInAt: string | null;
-  lastActiveAt: string | null; // max(created_at) across activity tables
+  lastActiveAt: string | null; // max(created_at) across activity tables and app opens
   daysSinceActive: number | null;
-  activeDays30: number; // distinct days with activity in the last 30 days
+  activeDays30: number; // distinct days with activity or an app open in the last 30 days
+  webOpens30: number; // app_opened from the laptop web app, last 30 days
+  phoneOpens30: number; // app_opened from the phone app, last 30 days
   dashboards: number;
   items: number;
   chats: number; // user-authored chat messages
@@ -130,6 +134,7 @@ export async function fetchUsersData(): Promise<UsersData | null> {
     chatRows,
     dumpRows,
     feedbackRows,
+    openRows,
     pushRows,
     subRows,
     waitlistRows,
@@ -151,6 +156,10 @@ export async function fetchUsersData(): Promise<UsersData | null> {
     stamps("chat_messages", (q) => q.eq("role", "user").eq("synthetic", false)),
     stamps("ingestion_events"),
     stamps("feedback"),
+    // Opening the app (web or phone), at most one per device kind per 15 min.
+    fetchAll<Stamp & { props: { client?: string } | null }>((from, to) =>
+      app.from("product_events").select("user_id, created_at, props").eq("event_name", "app_opened")
+        .order("created_at", { ascending: false }).range(from, to), "product_events/app_opened"),
     fetchAll<{ user_id: string }>((from, to) => app.from("push_tokens").select("user_id").range(from, to), "push_tokens"),
     fetchAll<{ user_id: string; status: string }>(
       (from, to) => app.from("subscriptions").select("user_id, status").range(from, to),
@@ -192,6 +201,15 @@ export async function fetchUsersData(): Promise<UsersData | null> {
   for (const r of chatRows) chats.add(r);
   for (const r of dumpRows) dumps.add(r);
   for (const r of feedbackRows) fb.add(r);
+  const opens = new Rollup(cutoff30);
+  const webOpens = new Map<string, number>();
+  const phoneOpens = new Map<string, number>();
+  for (const r of openRows) {
+    opens.add(r);
+    if (new Date(r.created_at).getTime() < cutoff30) continue;
+    const by = r.props?.client === "web" ? webOpens : r.props?.client === "mobile" ? phoneOpens : null;
+    if (by) by.set(r.user_id, (by.get(r.user_id) ?? 0) + 1);
+  }
 
   const profileByAuth = new Map<string, { name: string | null; created_at: string | null }>();
   for (const p of profileRows) if (p.auth_id) profileByAuth.set(p.auth_id, { name: p.name, created_at: p.created_at });
@@ -208,7 +226,7 @@ export async function fetchUsersData(): Promise<UsersData | null> {
     seenEmails.add(email);
     const id = u.id;
     const wl = waitlistByEmail.get(email);
-    const lastActiveAt = maxIso(dash.latest.get(id), items.latest.get(id), chats.latest.get(id), dumps.latest.get(id));
+    const lastActiveAt = maxIso(dash.latest.get(id), items.latest.get(id), chats.latest.get(id), dumps.latest.get(id), opens.latest.get(id));
     const nDash = dash.count.get(id) ?? 0;
     const nItems = items.count.get(id) ?? 0;
     const nChats = chats.count.get(id) ?? 0;
@@ -217,10 +235,12 @@ export async function fetchUsersData(): Promise<UsersData | null> {
     const since = daysAgo(lastActiveAt, now);
 
     const activeDaySet = new Set<string>();
-    for (const r of [dash, items, chats, dumps]) for (const d of r.days.get(id) ?? []) activeDaySet.add(d);
+    for (const r of [dash, items, chats, dumps, opens]) for (const d of r.days.get(id) ?? []) activeDaySet.add(d);
 
+    // "Activated" stays "created something"; opening the app keeps an
+    // activated account active (and an open-only account out of idle).
     let status: UserStatus;
-    if (!activated) status = "idle";
+    if (!activated && !opens.latest.has(id)) status = "idle";
     else if (since !== null && since <= 7) status = "active";
     else if (since !== null && since <= 30) status = "cooling";
     else status = "dormant";
@@ -242,6 +262,8 @@ export async function fetchUsersData(): Promise<UsersData | null> {
       lastActiveAt,
       daysSinceActive: since,
       activeDays30: activeDaySet.size,
+      webOpens30: webOpens.get(id) ?? 0,
+      phoneOpens30: phoneOpens.get(id) ?? 0,
       dashboards: nDash,
       items: nItems,
       chats: nChats,
@@ -277,6 +299,8 @@ export async function fetchUsersData(): Promise<UsersData | null> {
       lastActiveAt: null,
       daysSinceActive: null,
       activeDays30: 0,
+      webOpens30: 0,
+      phoneOpens30: 0,
       dashboards: 0,
       items: 0,
       chats: 0,

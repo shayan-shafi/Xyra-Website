@@ -155,9 +155,9 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
   }, [filtered]);
 
   const exportCsv = useCallback(() => {
-    const header = ["email", "name", "status", "signed_up", "last_active", "days_since_active", "active_days_30", "dashboards", "items", "chats", "dumps", "feedback", "push", "subscription", "alpha_status", "source"];
+    const header = ["email", "name", "status", "signed_up", "last_active", "days_since_active", "active_days_30", "dashboards", "items", "chats", "dumps", "feedback", "web_opens_30", "phone_opens_30", "push", "subscription", "alpha_status", "source"];
     const rows = targets.map((u) =>
-      [u.email, u.name, u.status, u.signedUpAt?.slice(0, 10), u.lastActiveAt?.slice(0, 10), u.daysSinceActive, u.activeDays30, u.dashboards, u.items, u.chats, u.dumps, u.feedback, u.pushEnabled ? "on" : "off", u.subscription, u.alphaStatus, u.source]
+      [u.email, u.name, u.status, u.signedUpAt?.slice(0, 10), u.lastActiveAt?.slice(0, 10), u.daysSinceActive, u.activeDays30, u.dashboards, u.items, u.chats, u.dumps, u.feedback, u.webOpens30, u.phoneOpens30, u.pushEnabled ? "on" : "off", u.subscription, u.alphaStatus, u.source]
         .map(csvCell).join(","),
     );
     const blob = new Blob([[header.join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -347,6 +347,8 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
                   </td>
                   <td className="py-2.5 text-[10px] text-gray-500 whitespace-nowrap space-x-1.5">
                     {u.hasAccount && <span className={u.pushEnabled ? "text-green-600" : "text-gray-300"} title={u.pushEnabled ? "push notifications on" : "no push token"}>push</span>}
+                    {u.webOpens30 > 0 && <span className="text-sky-600" title={`opened the laptop web app ${u.webOpens30}× in the last 30 days`}>web</span>}
+                    {u.phoneOpens30 > 0 && <span className="text-amber-600" title={`opened the phone app ${u.phoneOpens30}× in the last 30 days`}>phone</span>}
                     {u.subscription && <span className="text-indigo-600" title={`subscription: ${u.subscription}`}>{u.subscription}</span>}
                     {u.adminNotes && <span className="text-gray-400" title={u.adminNotes}>note</span>}
                   </td>
