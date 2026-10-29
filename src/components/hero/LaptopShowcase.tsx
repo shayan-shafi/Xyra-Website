@@ -61,25 +61,26 @@ function Laptop({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Shayan's sticker sheet (2026-10-29), three a side, hung off the laptop's
-// edges so they never cover the screen. Draggable like the rest of the canvas;
-// xl and up only, where there's room beside the laptop.
-const SIDE_STICKERS: { src: string; width: number; tilt: number; pos: string }[] = [
-  { src: "/assets/stk-robot.png", width: 92, tilt: -6, pos: "right-[calc(100%+40px)] top-[2%]" },
-  { src: "/assets/stk-exclaim.png", width: 84, tilt: 8, pos: "right-[calc(100%+64px)] top-[38%]" },
-  { src: "/assets/stk-megaphone.png", width: 132, tilt: -4, pos: "right-[calc(100%+28px)] top-[68%]" },
-  { src: "/assets/stk-chip-bubble.png", width: 118, tilt: 5, pos: "left-[calc(100%+36px)] top-[0%]" },
-  { src: "/assets/stk-ai-head.png", width: 116, tilt: -3, pos: "left-[calc(100%+60px)] top-[36%]" },
-  { src: "/assets/stk-brain.png", width: 158, tilt: 4, pos: "left-[calc(100%+24px)] top-[66%]" },
+// Shayan's sticker sheet (2026-10-29), laid out where he dragged them: three
+// down the left, two on the right, hung off the laptop's edges so they never
+// cover the screen. Offsets and widths are % of the laptop's width (tops % of
+// its height), so the layout scales with it. Draggable like the rest of the
+// canvas; only where there's room beside the laptop.
+const SIDE_STICKERS: { src: string; width: string; tilt: number; pos: string }[] = [
+  { src: "/assets/stk-robot.png", width: "w-[9%]", tilt: 8, pos: "right-[calc(100%+25%)] top-[1%]" },
+  { src: "/assets/stk-exclaim.png", width: "w-[8%]", tilt: 9, pos: "right-[calc(100%+12.5%)] top-[32%]" },
+  { src: "/assets/stk-megaphone.png", width: "w-[13%]", tilt: -12, pos: "right-[calc(100%+19%)] top-[70%]" },
+  { src: "/assets/stk-chip-bubble.png", width: "w-[12%]", tilt: 4, pos: "left-[calc(100%+7%)] top-[5%]" },
+  { src: "/assets/stk-brain.png", width: "w-[15.5%]", tilt: 12, pos: "left-[calc(100%+16%)] top-[61%]" },
 ];
 
 function SideStickers() {
   return (
-    <div className="hidden xl:block absolute inset-0 pointer-events-none [&>*]:pointer-events-auto">
+    <div className="hidden min-[1360px]:block absolute inset-0 pointer-events-none [&>*]:pointer-events-auto">
       {SIDE_STICKERS.map((st) => (
-        <Sticker key={st.src} className={st.pos} tilt={st.tilt}>
+        <Sticker key={st.src} className={`${st.pos} ${st.width}`} tilt={st.tilt}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={st.src} alt="" width={st.width} className="block h-auto max-w-none" draggable={false} style={{ filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.10))" }} />
+          <img src={st.src} alt="" className="block w-full h-auto" draggable={false} style={{ filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.10))" }} />
         </Sticker>
       ))}
     </div>
