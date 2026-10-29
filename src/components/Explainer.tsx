@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
 import VentStickers from "@/components/hero/VentStickers";
-import BrainShowcase from "@/components/hero/BrainShowcase";
+import LaptopShowcase from "@/components/hero/LaptopShowcase";
 import Socials from "@/components/Socials";
 import Cta from "@/components/Cta";
 
@@ -109,13 +109,13 @@ export default function Explainer() {
         </section>
       </div>
 
-      {/* ── Section 2: Your World — the brain ───────────────────── */}
-      {/* The world, centered on the page grid (light ink, transparent canvas),
-          running the zoom-into-Finance beat on a loop. Shayan writes the copy
-          around it. */}
+      {/* ── Section 2: Your World — context for agents ───────────── */}
+      {/* A laptop running the web app: connect two AIs and three tools, it all
+          lands in one brain, and a third AI knows you. (The old zoom-into-
+          Finance world, hero/BrainShowcase.tsx, stays on disk.) */}
       <section id="world" ref={worldRef} className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-12 md:py-20">
-        <div ref={brainRef} className="relative mx-auto w-full max-w-[1600px] h-[84vh] min-h-[560px]">
-          <BrainShowcase active={brainNear} />
+        <div ref={brainRef} className="relative mx-auto w-full max-w-[1200px]">
+          <LaptopShowcase active={brainNear} />
         </div>
       </section>
 

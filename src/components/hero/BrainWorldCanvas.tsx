@@ -8,7 +8,9 @@
 // inverts ink/paper (black page, off-white nucleus + lines — the app's dark
 // theme), each category carries an invisible CSS2D anchor with
 // data-tap="node-<key>" so the scene's tap ripple can find it, and the spin can
-// be paused (the world holds still once a node is picked).
+// be paused (the world holds still once a node is picked). With `stageRef`,
+// nodes carry a stage and pop in once the ref reaches it — the laptop scene
+// grows the world as each connected source lands.
 
 import { MutableRefObject, useEffect, useRef } from "react";
 import * as THREE from "three";
@@ -16,7 +18,15 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DRenderer, CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { isWebGLAvailable } from "@/lib/webgl";
 
-export type BrainCategory = { key: string; label: string; children: string[] };
+export type BrainCategory = {
+  key: string;
+  label: string;
+  children: string[];
+  /** with `stageRef`: the stage this globe pops in at (default 0) */
+  stage?: number;
+  /** with `stageRef`: per-child stages, same order as `children` (default: the globe's) */
+  childStages?: number[];
+};
 
 export default function BrainWorldCanvas({
   centerLabel,
@@ -29,6 +39,7 @@ export default function BrainWorldCanvas({
   cameraPosition = [0, 10, 20],
   zoomRef,
   zoomKey,
+  stageRef,
 }: {
   centerLabel: string;
   categories: BrainCategory[];
@@ -45,6 +56,9 @@ export default function BrainWorldCanvas({
    *  wherever the orbit is onto the `zoomKey` category node and looks at it */
   zoomRef?: MutableRefObject<number>;
   zoomKey?: string;
+  /** read every frame: a node shows once this reaches its stage, popping in
+   *  over ~0.7s; dropping back below hides it again (the loop's reset) */
+  stageRef?: MutableRefObject<number>;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
@@ -95,8 +109,9 @@ export default function BrainWorldCanvas({
 
     const disposables: { dispose: () => void }[] = [];
     const nodePos = new Map<string, THREE.Vector3>();
+    const staged: { stage: number; sphere: THREE.Mesh; line: THREE.Line | null; label: HTMLDivElement; bornAt: number | null }[] = [];
 
-    function createNode(type: "nucleus" | "category" | "item", labelText: string, position: THREE.Vector3, parentObj: THREE.Mesh | null, key?: string) {
+    function createNode(type: "nucleus" | "category" | "item", labelText: string, position: THREE.Vector3, parentObj: THREE.Mesh | null, key?: string, stage = 0) {
       const isNucleus = type === "nucleus";
       const size = isNucleus ? 1.5 : 0.5;
       const geometry = new THREE.SphereGeometry(size, 32, 32);
@@ -141,12 +156,15 @@ export default function BrainWorldCanvas({
 
       scene.add(sphere);
 
+      let line: THREE.Line | null = null;
       if (parentObj) {
         const lineGeo = new THREE.BufferGeometry().setFromPoints([parentObj.position.clone(), position.clone()]);
         const lineMat = new THREE.LineBasicMaterial({ color: ink, transparent: true, opacity: 0.2 });
         disposables.push(lineGeo, lineMat);
-        scene.add(new THREE.Line(lineGeo, lineMat));
+        line = new THREE.Line(lineGeo, lineMat);
+        scene.add(line);
       }
+      if (stageRef && !isNucleus) staged.push({ stage, sphere, line, label: div, bornAt: null });
       return sphere;
     }
 
@@ -157,7 +175,8 @@ export default function BrainWorldCanvas({
       const angle = (i / categories.length) * Math.PI * 2;
       const x = Math.cos(angle) * orbitRadius;
       const z = Math.sin(angle) * orbitRadius;
-      const catNode = createNode("category", cat.label, new THREE.Vector3(x, 0, z), nucleus, cat.key);
+      const catStage = cat.stage ?? 0;
+      const catNode = createNode("category", cat.label, new THREE.Vector3(x, 0, z), nucleus, cat.key, catStage);
       cat.children.forEach((childLabel, j) => {
         const subAngle = (j / cat.children.length) * Math.PI * 2;
         const dirX = x / orbitRadius;
@@ -167,7 +186,7 @@ export default function BrainWorldCanvas({
         const sx = x + (Math.cos(subAngle) * perpX + Math.sin(subAngle) * dirX * 0.5) * subOrbitRadius;
         const sy = Math.sin(subAngle) * subOrbitRadius * 0.7;
         const sz = z + (Math.cos(subAngle) * perpZ + Math.sin(subAngle) * dirZ * 0.5) * subOrbitRadius;
-        createNode("item", childLabel, new THREE.Vector3(sx, sy, sz), catNode);
+        createNode("item", childLabel, new THREE.Vector3(sx, sy, sz), catNode, undefined, cat.childStages?.[j] ?? catStage);
       });
     });
 
@@ -182,9 +201,32 @@ export default function BrainWorldCanvas({
     let zooming = false;
     const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
+    // easeOutBack: the globe overshoots a touch, so a new node reads as a pop
+    const pop = (x: number) => 1 + 2.2 * Math.pow(x - 1, 3) + 1.2 * Math.pow(x - 1, 2);
+    const reveal = (now: number) => {
+      if (!stageRef) return;
+      const s = stageRef.current;
+      for (const n of staged) {
+        const on = s >= n.stage;
+        if (!on) {
+          n.bornAt = null;
+          n.sphere.visible = false;
+          if (n.line) n.line.visible = false;
+          continue;
+        }
+        if (n.bornAt === null) n.bornAt = now;
+        const p = Math.min(1, (now - n.bornAt) / 700);
+        n.sphere.visible = true;
+        n.sphere.scale.setScalar(Math.max(0.001, pop(p)));
+        if (n.line) n.line.visible = p > 0.2;
+        n.label.style.opacity = String(Math.min(1, Math.max(0, (p - 0.35) / 0.5)));
+      }
+    };
+
     let raf = 0;
     const animate = () => {
       raf = requestAnimationFrame(animate);
+      reveal(performance.now());
       const z = zoomRef?.current ?? 0;
       const target = zoomKey ? nodePos.get(zoomKey) : undefined;
       if (z > 0 && target) {
@@ -236,7 +278,7 @@ export default function BrainWorldCanvas({
       labels.clear();
       controlsRef.current = null;
     };
-  }, [dark, centerLabel, categories, transparent, paperCss, cx0, cy0, cz0, zoomRef, zoomKey]);
+  }, [dark, centerLabel, categories, transparent, paperCss, cx0, cy0, cz0, zoomRef, zoomKey, stageRef]);
 
   useEffect(() => {
     if (controlsRef.current) controlsRef.current.autoRotate = spinning;
