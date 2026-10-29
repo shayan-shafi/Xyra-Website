@@ -156,6 +156,22 @@ body {
   animation: xyraRecBar 0.8s ease-in-out infinite;
 }
 
+/* LogoMarquee: each row holds its list twice, so sliding it by half its width
+   lands exactly where it started. */
+@keyframes xyraMarquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.xyra-marquee {
+  animation: xyraMarquee 45s linear infinite;
+}
+.xyra-marquee-reverse {
+  animation-direction: reverse;
+}
+@media (prefers-reduced-motion: reduce) {
+  .xyra-marquee { animation: none; }
+}
+
 /* The site's canvas: warm paper + a faint "+" builder grid. Lives on the page
    wrapper so it runs unbroken from the hero to the footer. */
 .xyra-canvas {
