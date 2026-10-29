@@ -4,18 +4,21 @@
 // The laptop's scripted loop, the PhoneScene idea on the web app: the world
 // (your brain) sits nearly empty → settings (slides in from the left, by the rail) → connect claude (consent → its
 // memories import) → connect chatgpt (same) → connect google calendar, granola
-// and canvas (each pops its receipt) → back to the world, now full → connect
+// and canvas (each pops its receipt) → back to the world, now full → open the
+// work node (camera glides in, its panel lists memories from every source) and
+// close it → connect
 // gemini → a gemini window asks "what do you know about me?" → it answers with
 // everything, each line tagged with where xyra got it → loop. Every surface is
 // rebuilt from xyrav2-org/web (dark theme): WorkspaceRail, the world pane's
-// pills, Settings → agents / connectors, OAuthConsent, ConnectorReceiptModal.
+// pills, Settings → agents / connectors, OAuthConsent, ConnectorReceiptModal,
+// BrainNodePanel.
 // Each block names its source. The canvas is a 1280×800 laptop screen; the
 // frame scales it.
 //
 // Dev aid: append ?laptop=<beat> to the URL (e.g. ?laptop=answer) to freeze the
 // scene on one beat. Beat names are the TIMELINE keys below.
 
-import { useEffect, useLayoutEffect, useRef, useState, ReactNode, RefObject } from "react";
+import { MutableRefObject, useEffect, useLayoutEffect, useRef, useState, ReactNode, RefObject } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { NotebookPen } from "lucide-react";
 import BrainWorldCanvas, { type BrainCategory } from "./BrainWorldCanvas";
@@ -128,7 +131,11 @@ const TIMELINE = [
   ["click_gotit3", 15100],
   ["move_close", 15500],
   ["click_close", 16100],
-  ["world_full", 16500],
+  ["world_full", 16300],
+  ["move_node", 16600],
+  ["click_node", 17000],
+  ["move_node_close", 17750],
+  ["click_node_close", 18450],
   ["move_settings2", 19200],
   ["click_settings2", 19800],
   ["move_gemini", 20400],
@@ -162,6 +169,8 @@ const AIM: Partial<Record<Beat, string>> = {
   move_canvas: "conn-canvas",
   move_gotit3: "gotit",
   move_close: "pane-close",
+  move_node: "node-work",
+  move_node_close: "node-close",
   move_settings2: "settings",
   move_gemini: "agent-gemini",
   move_allow3: "allow",
@@ -170,7 +179,7 @@ const AIM: Partial<Record<Beat, string>> = {
 // … and which beats are clicks.
 const CLICKS = new Set<Beat>([
   "click_settings", "click_claude", "click_allow1", "click_chatgpt", "click_allow2", "click_gcal", "click_gotit1",
-  "click_granola", "click_gotit2", "click_canvas", "click_gotit3", "click_close", "click_settings2", "click_gemini",
+  "click_granola", "click_gotit2", "click_canvas", "click_gotit3", "click_close", "click_node", "click_node_close", "click_settings2", "click_gemini",
   "click_allow3", "click_send",
 ]);
 
@@ -198,7 +207,7 @@ function useTimeline(onLoopStart?: (startedAt: number, loopMs: number) => void) 
   }, [run, frozen]);
 
   const at = (b: Beat) => ORDER.indexOf(beat) >= ORDER.indexOf(b);
-  return { beat, at, frozen: frozen !== null };
+  return { beat, at, run, frozen: frozen !== null };
 }
 
 /* ── the cursor — glides to the aimed element, presses on clicks ─────────── */
@@ -264,6 +273,12 @@ const WORLD: BrainCategory[] = [
   { key: "finance", label: "Finance", stage: 2, children: ["Budget"] },
 ];
 const MEMORIES = [12, 41, 66, 81, 95, 118];
+
+// The orbit restarts with every loop and spins 3°/s (autoRotateSpeed 0.5), the
+// camera's azimuth growing. Work is globe 1 of 7, at 360/7 ≈ 51°. Start where
+// the camera sits ~25° short of Work when click_node lands (17s): it glides in
+// a touch from the side, and the nucleus falls right, under the node panel.
+const ORBIT_FROM = 360 / 7 - 25 - 3 * 17;
 
 const STAGE_AT: [Beat, number][] = [
   ["import_claude", 1],
@@ -469,6 +484,77 @@ function SettingsPane({ at, beat }: { at: (b: Beat) => boolean; beat: Beat }) {
   );
 }
 
+/* ── node panel (components/BrainNodePanel.tsx, an area folder) ─────────── */
+
+const NODE_W = 480;
+const WORK_MEMORIES: [string, string][] = [
+  ["junior at UT, wants a product role after graduation", "career · via claude"],
+  ["building a budgeting app on weekends", "side project · via claude"],
+  ["you'll send priya the deck by friday", "meetings · via granola"],
+  ["design club wants a demo on the 14th", "meetings · via granola"],
+  ["1:1 with priya every thursday at 4", "meetings · via google calendar"],
+  ["pitched the app to two friends, both said they'd pay", "side project · via chatgpt"],
+];
+
+function NodePanel({ pressingClose }: { pressingClose: boolean }) {
+  return (
+    <div className="absolute top-0 bottom-0 right-0 flex flex-col" style={{ width: NODE_W, background: T.bg, borderLeft: "1px solid rgba(237,233,220,0.1)", color: T.fg }}>
+      <div className="flex items-center justify-between" style={{ padding: "24px 32px 8px" }}>
+        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: 1.8, color: "rgba(237,233,220,0.4)" }}>
+          YOUR WORLD <span style={{ color: "rgba(237,233,220,0.2)" }}>/</span> WORK
+        </span>
+        <span data-tap="node-close" className="flex items-center justify-center" style={{ width: 26, height: 26, borderRadius: 4, background: pressingClose ? "rgba(237,233,220,0.12)" : "transparent" }}>
+          <CloseIcon color="rgba(237,233,220,0.5)" />
+        </span>
+      </div>
+      <div style={{ padding: "0 32px" }}>
+        <div style={{ fontFamily: MONO, fontSize: 10, color: "rgba(237,233,220,0.35)" }}>folder</div>
+        <div style={{ fontFamily: SERIF, fontSize: 34, lineHeight: "38px", letterSpacing: -0.6, marginTop: 4 }}>work</div>
+        <div className="flex items-baseline justify-between" style={{ marginTop: 26, paddingBottom: 6, borderBottom: "1px solid rgba(237,233,220,0.1)", fontFamily: MONO, fontSize: 10, letterSpacing: 2, color: "rgba(237,233,220,0.45)" }}>
+          <span>MEMORIES</span>
+          <span style={{ letterSpacing: 0, color: "rgba(237,233,220,0.35)" }}>{WORK_MEMORIES.length}</span>
+        </div>
+        {WORK_MEMORIES.map(([text, meta], i) => (
+          <motion.div
+            key={text}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 + i * 0.07, duration: 0.3 }}
+            className="flex"
+            style={{ gap: 12, padding: "8px 0" }}
+          >
+            <span className="shrink-0 rounded-full" style={{ width: 6, height: 6, marginTop: 10, border: "1px solid rgba(237,233,220,0.4)" }} />
+            <span className="min-w-0">
+              <span className="block" style={{ fontFamily: SERIF, fontSize: 16, lineHeight: "25px" }}>{text}</span>
+              <span className="block" style={{ fontFamily: MONO, fontSize: 10, marginTop: 2, color: "rgba(237,233,220,0.35)" }}>{meta}</span>
+            </span>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Glides zoomRef (BrainWorldCanvas's zoom, read every frame) toward 1 while
+// `on`, back to 0 when not — the camera into the node and out again.
+function useZoom(on: boolean, zoomRef: MutableRefObject<number>, ms: number) {
+  useEffect(() => {
+    const from = zoomRef.current;
+    const to = on ? 1 : 0;
+    if (from === to) return;
+    let raf = 0;
+    const t0 = performance.now();
+    const span = ms * Math.abs(to - from);
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - t0) / span);
+      zoomRef.current = from + (to - from) * p;
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [on, zoomRef, ms]);
+}
+
 /* ── consent (pages/OAuthConsent.tsx) ────────────────────────────────────── */
 
 function Consent({ name }: { name: string }) {
@@ -670,7 +756,7 @@ function GeminiWindow({ at, beat }: { at: (b: Beat) => boolean; beat: Beat }) {
 /* ── the scene ───────────────────────────────────────────────────────────── */
 
 export default function LaptopScene({ onLoopStart }: { onLoopStart?: (startedAt: number, loopMs: number) => void } = {}) {
-  const { beat, at, frozen } = useTimeline(onLoopStart);
+  const { beat, at, run, frozen } = useTimeline(onLoopStart);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   let stage = 0;
@@ -679,6 +765,9 @@ export default function LaptopScene({ onLoopStart }: { onLoopStart?: (startedAt:
   stageRef.current = stage;
 
   const paneOpen = (at("click_settings") && !at("click_close")) || (at("click_settings2") && !at("end"));
+  const nodeOpen = at("click_node") && !at("click_node_close");
+  const zoomRef = useRef(0);
+  useZoom(nodeOpen, zoomRef, 700);
   const consent =
     at("click_claude") && !at("click_allow1") ? "claude"
     : at("click_chatgpt") && !at("click_allow2") ? "chatgpt"
@@ -701,7 +790,7 @@ export default function LaptopScene({ onLoopStart }: { onLoopStart?: (startedAt:
         <motion.div
           className="absolute inset-0"
           initial={false}
-          animate={{ x: paneOpen ? PANE_W / 2 : 0, scale: paneOpen ? 0.78 : 1 }}
+          animate={{ x: paneOpen ? PANE_W / 2 : nodeOpen ? -NODE_W / 2 : 0, scale: paneOpen ? 0.78 : 1 }}
           transition={instant ? { duration: 0 } : { duration: 0.6, ease: [0.65, 0, 0.35, 1] }}
         >
           <BrainWorldCanvas
@@ -711,6 +800,12 @@ export default function LaptopScene({ onLoopStart }: { onLoopStart?: (startedAt:
             paper="#000000"
             cameraPosition={[0, 10, 21]}
             stageRef={stageRef}
+            zoomRef={zoomRef}
+            zoomKey="work"
+            orbitFrom={ORBIT_FROM}
+            orbitKey={run}
+            zoomDistance={8}
+            selected={nodeOpen ? "work" : null}
           />
         </motion.div>
 
@@ -740,6 +835,21 @@ export default function LaptopScene({ onLoopStart }: { onLoopStart?: (startedAt:
         >
           <MicIcon />
         </motion.div>
+
+        <AnimatePresence>
+          {nodeOpen && (
+            <motion.div
+              key="node"
+              className="absolute inset-0 z-20 pointer-events-none"
+              initial={{ x: NODE_W }}
+              animate={{ x: 0 }}
+              exit={{ x: NODE_W }}
+              transition={instant ? { duration: 0 } : { duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <NodePanel pressingClose={beat === "click_node_close"} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {paneOpen && (

@@ -39,7 +39,10 @@ export default function BrainWorldCanvas({
   cameraPosition = [0, 10, 20],
   zoomRef,
   zoomKey,
+  orbitFrom,
+  orbitKey,
   stageRef,
+  zoomDistance = 4.6,
 }: {
   centerLabel: string;
   categories: BrainCategory[];
@@ -56,6 +59,15 @@ export default function BrainWorldCanvas({
    *  wherever the orbit is onto the `zoomKey` category node and looks at it */
   zoomRef?: MutableRefObject<number>;
   zoomKey?: string;
+  /** a scripted scene's orbit: the camera starts at this azimuth (degrees,
+   *  atan2(z, x)) and spins by the clock, not by frames, so where every node
+   *  sits at a given moment is known (a 120Hz screen spins at the same speed) */
+  orbitFrom?: number;
+  /** change it to put the camera back at `orbitFrom` (the loop's restart) */
+  orbitKey?: number;
+  /** how far from the node the zoom stops (its height scales with it) — back
+   *  off to keep the node's moons in frame instead of in the lens */
+  zoomDistance?: number;
   /** read every frame: a node shows once this reaches its stage, popping in
    *  over ~0.7s; dropping back below hides it again (the loop's reset) */
   stageRef?: MutableRefObject<number>;
@@ -63,6 +75,7 @@ export default function BrainWorldCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const labelsRef = useRef<Map<string, HTMLDivElement>>(new Map());
+  const orbitResetRef = useRef<(() => void) | null>(null);
   const spinningRef = useRef(spinning);
   spinningRef.current = spinning;
   const [cx0, cy0, cz0] = cameraPosition;
@@ -223,10 +236,24 @@ export default function BrainWorldCanvas({
       }
     };
 
+    // orbitFrom: camera at that azimuth, same height and distance as cameraPosition
+    const toOrbitStart = () => {
+      if (orbitFrom === undefined) return;
+      const a = (orbitFrom * Math.PI) / 180;
+      const r = Math.hypot(cx0, cz0);
+      camera.position.set(Math.cos(a) * r, cy0, Math.sin(a) * r);
+      controls.target.set(0, 0, 0);
+      controls.update(0);
+    };
+    toOrbitStart();
+    orbitResetRef.current = toOrbitStart;
+
     let raf = 0;
+    let lastFrame = performance.now();
     const animate = () => {
       raf = requestAnimationFrame(animate);
-      reveal(performance.now());
+      const now = performance.now();
+      reveal(now);
       const z = zoomRef?.current ?? 0;
       const target = zoomKey ? nodePos.get(zoomKey) : undefined;
       if (z > 0 && target) {
@@ -236,7 +263,7 @@ export default function BrainWorldCanvas({
           zoomFromTarget.copy(controls.target);
           // approach from the side we're already on, a little above the node
           const dir = zoomFrom.clone().sub(target).setY(0).normalize();
-          zoomTo.copy(target).addScaledVector(dir, 4.6).add(new THREE.Vector3(0, 1.6, 0));
+          zoomTo.copy(target).addScaledVector(dir, zoomDistance).add(new THREE.Vector3(0, (1.6 * zoomDistance) / 4.6, 0));
         }
         const e = easeInOut(Math.min(1, Math.max(0, z)));
         camera.position.lerpVectors(zoomFrom, zoomTo, e);
@@ -251,10 +278,12 @@ export default function BrainWorldCanvas({
           controls.target.copy(zoomFromTarget);
           controls.autoRotate = spinningRef.current;
         }
-        controls.update();
+        if (orbitFrom === undefined) controls.update();
+        else controls.update(Math.min(0.1, (now - lastFrame) / 1000));
       }
       renderer.render(scene, camera);
       labelRenderer.render(scene, camera);
+      lastFrame = now;
     };
     animate();
 
@@ -278,7 +307,12 @@ export default function BrainWorldCanvas({
       labels.clear();
       controlsRef.current = null;
     };
-  }, [dark, centerLabel, categories, transparent, paperCss, cx0, cy0, cz0, zoomRef, zoomKey, stageRef]);
+  }, [dark, centerLabel, categories, transparent, paperCss, cx0, cy0, cz0, zoomRef, zoomKey, stageRef, orbitFrom, zoomDistance]);
+
+  // the loop restarted: camera back to its start (under the scene's black seam)
+  useEffect(() => {
+    if (orbitKey !== undefined) orbitResetRef.current?.();
+  }, [orbitKey]);
 
   useEffect(() => {
     if (controlsRef.current) controlsRef.current.autoRotate = spinning;
