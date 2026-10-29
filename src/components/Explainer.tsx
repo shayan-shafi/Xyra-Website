@@ -113,7 +113,7 @@ export default function Explainer() {
       {/* A laptop running the web app: connect two AIs and three tools, it all
           lands in one brain, and a third AI knows you. (The old zoom-into-
           Finance world, hero/BrainShowcase.tsx, stays on disk.) */}
-      <section id="world" ref={worldRef} className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-12 md:py-20">
+      <section id="world" ref={worldRef} className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-12 md:py-20 overflow-x-clip">
         <div ref={brainRef} className="relative mx-auto w-full max-w-[1200px]">
           <LaptopShowcase active={brainNear} />
         </div>

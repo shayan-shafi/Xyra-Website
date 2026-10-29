@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import LaptopScene, { LAPTOP_W, LAPTOP_H } from "./LaptopScene";
+import { Sticker } from "./Sticker";
 
 // when each step starts, in the loop's ms (LaptopScene's TIMELINE beats:
 // move_gcal, click_close, move_settings2)
@@ -56,6 +57,31 @@ function Laptop({ children }: { children: React.ReactNode }) {
         <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[13%] h-[30%] rounded-b-[8px] bg-[#a3a3a8]" />
         <div className="absolute left-[3%] right-[3%] bottom-0 h-[38%] rounded-b-[50%] bg-black/10 blur-[6px]" />
       </div>
+    </div>
+  );
+}
+
+// Shayan's sticker sheet (2026-10-29), three a side, hung off the laptop's
+// edges so they never cover the screen. Draggable like the rest of the canvas;
+// xl and up only, where there's room beside the laptop.
+const SIDE_STICKERS: { src: string; width: number; tilt: number; pos: string }[] = [
+  { src: "/assets/stk-robot.png", width: 92, tilt: -6, pos: "right-[calc(100%+40px)] top-[2%]" },
+  { src: "/assets/stk-exclaim.png", width: 84, tilt: 8, pos: "right-[calc(100%+64px)] top-[38%]" },
+  { src: "/assets/stk-megaphone.png", width: 132, tilt: -4, pos: "right-[calc(100%+28px)] top-[68%]" },
+  { src: "/assets/stk-chip-bubble.png", width: 118, tilt: 5, pos: "left-[calc(100%+36px)] top-[0%]" },
+  { src: "/assets/stk-ai-head.png", width: 116, tilt: -3, pos: "left-[calc(100%+60px)] top-[36%]" },
+  { src: "/assets/stk-brain.png", width: 158, tilt: 4, pos: "left-[calc(100%+24px)] top-[66%]" },
+];
+
+function SideStickers() {
+  return (
+    <div className="hidden xl:block absolute inset-0 pointer-events-none [&>*]:pointer-events-auto">
+      {SIDE_STICKERS.map((st) => (
+        <Sticker key={st.src} className={st.pos} tilt={st.tilt}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={st.src} alt="" width={st.width} className="block h-auto max-w-none" draggable={false} style={{ filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.10))" }} />
+        </Sticker>
+      ))}
     </div>
   );
 }
@@ -107,7 +133,8 @@ export default function LaptopShowcase({ active }: { active: boolean }) {
         </h3>
       </div>
 
-      <div style={{ width: "min(1060px, 89%, calc((86vh - 150px) / 0.71))" }}>
+      <div className="relative" style={{ width: "min(1060px, 89%, calc((86vh - 150px) / 0.71))" }}>
+        <SideStickers />
         <Laptop>{active && <LaptopScene onLoopStart={(start, ms) => setLoop({ start, ms })} />}</Laptop>
       </div>
     </div>
