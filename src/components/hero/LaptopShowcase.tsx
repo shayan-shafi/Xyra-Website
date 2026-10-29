@@ -61,17 +61,12 @@ function Laptop({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Shayan's sticker sheet (2026-10-29), laid out where he dragged them: three
-// down the left, two on the right, hung off the laptop's edges so they never
-// cover the screen. Offsets and widths are % of the laptop's width (tops % of
-// its height), so the layout scales with it. Draggable like the rest of the
-// canvas; only where there's room beside the laptop.
+// Shayan's robot sticker (2026-10-29), low on the laptop's left where he
+// dragged it, hung off the edge so it never covers the screen. Offset and width
+// are % of the laptop's width (top % of its height), so it scales with it.
+// Draggable like the rest of the canvas; only where there's room beside it.
 const SIDE_STICKERS: { src: string; width: string; tilt: number; pos: string }[] = [
-  { src: "/assets/stk-robot.png", width: "w-[9%]", tilt: 8, pos: "right-[calc(100%+25%)] top-[1%]" },
-  { src: "/assets/stk-exclaim.png", width: "w-[8%]", tilt: 9, pos: "right-[calc(100%+12.5%)] top-[32%]" },
-  { src: "/assets/stk-megaphone.png", width: "w-[13%]", tilt: -12, pos: "right-[calc(100%+19%)] top-[70%]" },
-  { src: "/assets/stk-chip-bubble.png", width: "w-[12%]", tilt: 4, pos: "left-[calc(100%+7%)] top-[5%]" },
-  { src: "/assets/stk-brain.png", width: "w-[15.5%]", tilt: 12, pos: "left-[calc(100%+16%)] top-[61%]" },
+  { src: "/assets/stk-robot.png", width: "w-[9.5%]", tilt: 8, pos: "right-[calc(100%+22.5%)] top-[61%]" },
 ];
 
 function SideStickers() {
