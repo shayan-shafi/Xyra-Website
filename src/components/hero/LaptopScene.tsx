@@ -2,7 +2,7 @@
 
 // ─── LaptopScene ─────────────────────────────────────────────────────────────
 // The laptop's scripted loop, the PhoneScene idea on the web app: the world
-// (your brain) sits nearly empty → settings → connect claude (consent → its
+// (your brain) sits nearly empty → settings (slides in from the left, by the rail) → connect claude (consent → its
 // memories import) → connect chatgpt (same) → connect google calendar, granola
 // and canvas (each pops its receipt) → back to the world, now full → connect
 // gemini → a gemini window asks "what do you know about me?" → it answers with
@@ -359,7 +359,7 @@ function SettingsPane({ at, beat }: { at: (b: Beat) => boolean; beat: Beat }) {
   const pressed = (b: Beat) => beat === b;
 
   return (
-    <div className="absolute top-0 bottom-0 right-0 overflow-hidden" style={{ width: PANE_W, background: T.bg, borderLeft: `1px solid ${T.hairline}`, padding: "30px 32px", color: T.fg }}>
+    <div className="absolute top-0 bottom-0 left-0 overflow-hidden" style={{ width: PANE_W, background: T.bg, borderRight: `1px solid ${T.hairline}`, padding: "30px 32px", color: T.fg }}>
       <div className="flex items-start justify-between">
         <div>
           <div style={{ fontFamily: SERIF, fontSize: 38, lineHeight: "42px", color: T.white }}>settings</div>
@@ -701,7 +701,7 @@ export default function LaptopScene({ onLoopStart }: { onLoopStart?: (startedAt:
         <motion.div
           className="absolute inset-0"
           initial={false}
-          animate={{ x: paneOpen ? -PANE_W / 2 : 0, scale: paneOpen ? 0.78 : 1 }}
+          animate={{ x: paneOpen ? PANE_W / 2 : 0, scale: paneOpen ? 0.78 : 1 }}
           transition={instant ? { duration: 0 } : { duration: 0.6, ease: [0.65, 0, 0.35, 1] }}
         >
           <BrainWorldCanvas
@@ -715,11 +715,17 @@ export default function LaptopScene({ onLoopStart }: { onLoopStart?: (startedAt:
         </motion.div>
 
         {/* top left: what's in the brain, ticking up as things land */}
-        <div className="absolute flex items-center" style={{ left: 24, top: 22, gap: 8, fontFamily: MONO, fontSize: 9.5, letterSpacing: 2, color: T.muted }}>
+        <motion.div
+          className="absolute flex items-center"
+          style={{ left: 24, top: 22, gap: 8, fontFamily: MONO, fontSize: 9.5, letterSpacing: 2, color: T.muted }}
+          initial={false}
+          animate={{ x: paneOpen ? PANE_W : 0 }}
+          transition={instant ? { duration: 0 } : { duration: 0.6, ease: [0.65, 0, 0.35, 1] }}
+        >
           <motion.span key={stage} initial={{ color: "#ffffff" }} animate={{ color: T.muted }} transition={{ duration: 1.2 }}>
             {MEMORIES[stage]} MEMORIES · {sources ? `${sources} SOURCE${sources > 1 ? "S" : ""}` : "TAP A NODE"}
           </motion.span>
-        </div>
+        </motion.div>
         <div className="absolute flex" style={{ right: 22, top: 18, gap: 8 }}>
           <Pill>BOARDS</Pill>
           <Pill>FILTER</Pill>
@@ -729,7 +735,7 @@ export default function LaptopScene({ onLoopStart }: { onLoopStart?: (startedAt:
           className="absolute flex items-center justify-center rounded-full"
           style={{ bottom: 30, width: 50, height: 50, background: T.fg, left: "50%", marginLeft: -25 }}
           initial={false}
-          animate={{ x: paneOpen ? -PANE_W / 2 : 0 }}
+          animate={{ x: paneOpen ? PANE_W / 2 : 0 }}
           transition={instant ? { duration: 0 } : { duration: 0.6, ease: [0.65, 0, 0.35, 1] }}
         >
           <MicIcon />
@@ -740,9 +746,9 @@ export default function LaptopScene({ onLoopStart }: { onLoopStart?: (startedAt:
             <motion.div
               key="pane"
               className="absolute inset-0 z-20 pointer-events-none"
-              initial={{ x: PANE_W }}
+              initial={{ x: -PANE_W }}
               animate={{ x: 0 }}
-              exit={{ x: PANE_W }}
+              exit={{ x: -PANE_W }}
               transition={instant ? { duration: 0 } : { duration: 0.6, ease: [0.65, 0, 0.35, 1] }}
             >
               <SettingsPane at={at} beat={beat} />
