@@ -17,7 +17,7 @@ const SCHOOLS: Logo[] = [
   { src: "/assets/logos/georgetown.png", alt: "Georgetown University", h: 36 },
   { src: "/assets/logos/nyu.png", alt: "NYU", h: 44 },
   { src: "/assets/logos/illinois.png", alt: "University of Illinois Urbana-Champaign", h: 32 },
-  { src: "/assets/logos/ucsd.png", alt: "UC San Diego", h: 24 },
+  { src: "/assets/logos/sdsu.png", alt: "San Diego State University", h: 30 },
   { src: "/assets/logos/penn.png", alt: "University of Pennsylvania", h: 34 },
   { src: "/assets/logos/tamu.png", alt: "Texas A&M University", h: 32 },
   { src: "/assets/logos/uchicago.png", alt: "The University of Chicago", h: 32 },
