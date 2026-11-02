@@ -147,7 +147,7 @@ Xyra is an AI product, so your information is processed by service providers act
 | Provider | What it receives | Why |
 |---|---|---|
 | **Supabase** | Everything in §2 | Our database, sign-in, and servers |
-| **OpenAI** | Your messages, board contents, your memories, calendar titles, Granola and Wispr Flow meeting summaries and notes, and recent Apple Health summaries when you ask about your health (§3) | Understanding what you say, and writing memories |
+| **OpenAI** | Your messages, board contents, your memories, calendar titles, Granola and Wispr Flow meeting summaries and notes, and recent Apple Health summaries when you ask about your health (§3) | Understanding what you say, writing memories, and drafting emails you ask for (Xyra never sends them) |
 | **Anthropic** | Your messages and the same context | Writing Xyra's replies |
 | **Groq** | Your voice audio | Speech to text |
 | **Expo** | Your push token and notification text | Delivering notifications |
