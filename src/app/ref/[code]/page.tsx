@@ -3,7 +3,7 @@
 import { useState, FormEvent } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
-import { getFirstTouch, getVisitorId, track } from "@/lib/analytics";
+import { fireXConversion, getFirstTouch, getVisitorId, getXAttribution, track } from "@/lib/analytics";
 
 export default function ReferralPage() {
   const { code } = useParams<{ code: string }>();
@@ -19,6 +19,7 @@ export default function ReferralPage() {
     track("waitlist_email_submit", { cta_location: "ref_page", ref_code: code ?? null });
 
     try {
+      const xAttribution = getXAttribution();
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -28,10 +29,12 @@ export default function ReferralPage() {
           referredBy: code,
           visitor_id: getVisitorId() || undefined,
           first_touch: getFirstTouch(),
+          x: xAttribution,
         }),
       });
 
       if (res.status === 201) {
+        fireXConversion("waitlist", xAttribution);
         setStatus("success");
         track("waitlist_email_success", { cta_location: "ref_page", ref_code: code ?? null });
       } else if (res.status === 200) {

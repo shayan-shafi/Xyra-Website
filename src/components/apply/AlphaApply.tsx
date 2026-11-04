@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useRef, useState, FormEvent, KeyboardEvent } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { getFirstTouch, getVisitorId, track } from "@/lib/analytics";
+import { fireXConversion, getFirstTouch, getVisitorId, getXAttribution, track } from "@/lib/analytics";
 import { isValidEmail } from "@/lib/emailValidation";
 import { useSectionView } from "@/lib/useSectionView";
 import { Cutout, Sticker } from "@/components/hero/Sticker";
@@ -260,6 +260,7 @@ export default function AlphaApply() {
     track("alpha_apply_submit", { pay_ok: ok, retry });
 
     try {
+      const xAttribution = getXAttribution();
       const res = await fetch("/api/alpha-apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -271,9 +272,11 @@ export default function AlphaApply() {
           payOk: ok,
           visitor_id: getVisitorId() || undefined,
           first_touch: getFirstTouch(),
+          x: xAttribution,
         }),
       });
       if (!res.ok) throw new Error(`alpha-apply ${res.status}`);
+      fireXConversion("alpha_apply", xAttribution);
       setTyping(false);
       await say(
         [ok ? "dale. you're in the pile." : "fair. you're still in the pile.", `we'll be in touch soon. keep an eye on ${answers.email}.`],

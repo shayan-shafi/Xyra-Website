@@ -5,7 +5,7 @@
 // wisprText.ts on 2026-10-23) — change the code and this
 // together. Google's OAuth review reads §3 and §4 line by line.
 
-export const PRIVACY_UPDATED = "23 October 2026";
+export const PRIVACY_UPDATED = "4 November 2026";
 
 export const PRIVACY_MD = `
 ## The short version
@@ -58,7 +58,7 @@ If you send feedback we store your message, the board you were on, your app vers
 We record a small, fixed set of product events (for example "a board was created"). This is restricted in our database to a list of allowed event names and simple values. **Your board titles, entries, messages, Xyra's replies, and your email address cannot enter our analytics.**
 
 ### Our website
-xyra.dev uses first party analytics (pages viewed, where you came from). You can opt out at any time with "privacy settings" in the site footer.
+xyra.dev uses first party analytics (pages viewed, where you came from). It also uses the X (Twitter) conversion pixel so we can see which of our ads on X lead to signups. The pixel loads from X and can set X cookies in your browser. When you join the waitlist or apply for the alpha, our server tells X a signup happened and sends a hashed (SHA-256) copy of your email, your IP address, your browser's user agent, and the X click ID if you arrived from an X ad. X uses this to match the signup to an ad. You can turn both off at any time with "privacy settings" in the site footer. We also turn both off automatically if your browser sends Do Not Track or Global Privacy Control. None of this runs in the app.
 
 ---
 
@@ -154,6 +154,7 @@ Xyra is an AI product, so your information is processed by service providers act
 | **Resend** | Your email address and name | Sign-in and account emails |
 | **Stripe** | Your payment details | Subscriptions |
 | **Vercel** | Requests to our website and web app | Hosting |
+| **X (Twitter)** | On xyra.dev only: pixel page visits, and at signup a hashed email, IP address, user agent, and X click ID (§2, Our website) | Measuring our ads on X |
 | **Google** | Your Google access token | Reading and updating your calendar (§3) |
 | **Granola** | Your Granola access token | Reading your meeting notes (§3) |
 | **Wispr Flow** | Your Wispr Flow access token | Reading your Notetaker meetings (§3) |
@@ -194,7 +195,7 @@ We keep your information for as long as your account exists. Memories you correc
 - **Delete your account** from Settings.
 - **Get a copy of your data** by emailing privacy@xyra.dev.
 
-**California residents.** You have the right to know what personal information we collect and how we use it (this policy), to get a copy of it, to correct it, and to delete it. We do not sell or share personal information as those terms are defined in California law, so there is nothing to opt out of. We will not treat you differently for using these rights. Email privacy@xyra.dev; we may need to confirm it is you before we act.
+**California residents.** You have the right to know what personal information we collect and how we use it (this policy), to get a copy of it, to correct it, and to delete it. We do not sell personal information. On xyra.dev we use the X conversion pixel to measure our ads (§2, Our website). California law may treat that as "sharing" for cross context behavioural advertising. You can opt out with "privacy settings" in the site footer, and we honour Global Privacy Control signals automatically. The app shares nothing for advertising. We will not treat you differently for using these rights. Email privacy@xyra.dev; we may need to confirm it is you before we act.
 
 Xyra is currently offered in the United States.
 

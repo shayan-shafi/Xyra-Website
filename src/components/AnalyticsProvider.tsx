@@ -148,7 +148,8 @@ export default function AnalyticsProvider() {
           <div className="rounded-2xl bg-black/90 backdrop-blur-md border border-white/10 shadow-2xl p-5 text-white">
             <p className="font-[family-name:var(--font-eb-garamond)] text-sm leading-relaxed text-white/80">
               We use first-party analytics to understand which pages and signup
-              links are working. No ad tracking. No data selling.
+              links are working, and X&apos;s pixel to see which of our ads on X
+              lead to signups. No data selling.
             </p>
             <div className="mt-4 flex items-center gap-2">
               <button
@@ -185,17 +186,19 @@ export default function AnalyticsProvider() {
             <p className="font-[family-name:var(--font-eb-garamond)] text-base text-black/60 mt-2 leading-relaxed">
               We use first-party analytics (anonymous visitor and session IDs,
               pageviews, and signup events) to understand which pages and
-              signup links are working. We do not use ad tracking, session
-              replay, fingerprinting, or third-party analytics.
+              signup links are working. We also use X&apos;s conversion pixel to
+              measure our ads on X: when you sign up, X gets a hashed copy of
+              your email, your IP address, and your browser type. We do not use
+              session replay or fingerprinting. Turning this off stops both.
             </p>
 
             <div className="mt-6 flex items-center justify-between rounded-xl border border-black/10 px-4 py-3">
               <div>
                 <div className="font-[family-name:var(--font-jetbrains)] text-sm">
-                  Analytics
+                  Analytics &amp; ad measurement
                 </div>
                 <div className="font-[family-name:var(--font-eb-garamond)] text-xs text-black/50 mt-0.5">
-                  {optedOut ? "Off — events are not collected." : "On — first-party only."}
+                  {optedOut ? "Off — nothing is collected." : "On — first-party analytics + X ad measurement."}
                 </div>
               </div>
               <button

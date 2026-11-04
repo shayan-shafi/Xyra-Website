@@ -2,7 +2,7 @@
 
 import { motion, useInView } from "framer-motion";
 import { useRef, useState, useEffect, FormEvent } from "react";
-import { getFirstTouch, getVisitorId, track, trackOncePerSession } from "@/lib/analytics";
+import { fireXConversion, getFirstTouch, getVisitorId, getXAttribution, track, trackOncePerSession } from "@/lib/analytics";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -50,6 +50,7 @@ export default function Waitlist({ overlapMode = false }: { overlapMode?: boolea
     track("waitlist_email_submit");
 
     try {
+      const xAttribution = getXAttribution();
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -58,10 +59,12 @@ export default function Waitlist({ overlapMode = false }: { overlapMode?: boolea
           email,
           visitor_id: getVisitorId() || undefined,
           first_touch: getFirstTouch(),
+          x: xAttribution,
         }),
       });
 
       if (res.status === 201) {
+        fireXConversion("waitlist", xAttribution);
         setEmailStatus("idle");
         setStep("survey");
         track("waitlist_email_success");

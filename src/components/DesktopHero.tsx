@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState, CSSProperties, FormEvent, ReactNode } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { getFirstTouch, getVisitorId, track } from "@/lib/analytics";
+import { fireXConversion, getFirstTouch, getVisitorId, getXAttribution, track } from "@/lib/analytics";
 import { APPLY_PATH } from "@/lib/site";
 import { useSectionView } from "@/lib/useSectionView";
 import PhoneScene, { SCREEN_W, SCREEN_H } from "./hero/PhoneScene";
@@ -322,6 +322,7 @@ function EmailForm() {
     track("waitlist_email_submit", { form: "desktop_hero" });
 
     try {
+      const xAttribution = getXAttribution();
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -329,10 +330,12 @@ function EmailForm() {
           email,
           visitor_id: getVisitorId() || undefined,
           first_touch: getFirstTouch(),
+          x: xAttribution,
         }),
       });
 
       if (res.status === 201) {
+        fireXConversion("waitlist", xAttribution);
         setStatus("done");
         track("waitlist_email_success", { form: "desktop_hero" });
       } else if (res.status === 200) {

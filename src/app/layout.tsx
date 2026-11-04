@@ -4,6 +4,7 @@ import { Playfair_Display, EB_Garamond, JetBrains_Mono } from "next/font/google"
 import "./globals.css";
 import SmoothScroll from "@/components/SmoothScroll";
 import AnalyticsProvider from "@/components/AnalyticsProvider";
+import XPixel from "@/components/XPixel";
 import { SITE_URL } from "@/lib/site";
 
 const playfair = Playfair_Display({
@@ -75,6 +76,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <AnalyticsProvider />
         </Suspense>
+        <XPixel />
       </body>
     </html>
   );

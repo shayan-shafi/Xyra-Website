@@ -5,6 +5,7 @@ import { resend } from "@/lib/resend";
 import { isValidEmail } from "@/lib/emailValidation";
 import { SITE_URL } from "@/lib/site";
 import { clipStr, creditReferrer, generateRefCode, pickFirstTouch, safeVisitorId } from "@/lib/waitlistShared";
+import { sendXConversion } from "@/lib/xConversions";
 
 // ─── POST /api/alpha-apply ───────────────────────────────────────────────────
 // The alpha application (the /apply conversation — same five questions as the
@@ -161,6 +162,8 @@ export async function POST(request: Request) {
     }
 
     await notify({ name, email, whatsUp, why, payOk }, status === 200);
+    // Counts for waitlisters applying too: the application is the conversion.
+    await sendXConversion({ kind: "alpha_apply", request, email, x: body.x });
 
     return NextResponse.json({ message: "you're in the pile." }, { status });
   } catch (err) {

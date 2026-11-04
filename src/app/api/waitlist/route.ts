@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 import { creditReferrer, generateRefCode, pickFirstTouch, safeVisitorId } from "@/lib/waitlistShared";
+import { sendXConversion } from "@/lib/xConversions";
 
 // POST — join waitlist with email
 export async function POST(request: Request) {
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, email, referredBy, visitor_id, first_touch } = await request.json();
+    const { name, email, referredBy, visitor_id, first_touch, x } = await request.json();
 
     if (!email || typeof email !== "string") {
       return NextResponse.json(
@@ -94,6 +95,9 @@ export async function POST(request: Request) {
 
     // If referred by someone, increment their referral count
     await creditReferrer(supabase, effectiveReferredBy);
+
+    // New signups only — a duplicate email (200 above) is not a conversion.
+    await sendXConversion({ kind: "waitlist", request, email: normalizedEmail, x });
 
     // Welcome email intentionally disabled (2026-08-13) — no automatic send
     // on signup. To re-enable: import { resend } from "@/lib/resend", compute

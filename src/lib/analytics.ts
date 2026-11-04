@@ -1,7 +1,9 @@
 // First-party anonymous analytics utility.
 //
 // - All identifiers are random UUIDs generated locally; we never collect email,
-//   name, IP, user-agent, or any free-form input.
+//   name, IP, user-agent, or any free-form input. (The X ad pixel and the
+//   server-side X Conversion API at the bottom of this file are separate,
+//   consent-gated, and do send hashed email / IP / user-agent to X.)
 // - Visitor identity lives in localStorage; session rotates after 30 min idle.
 // - Tracking is gated by an opt-out flag and by navigator.doNotTrack.
 // - Events are sent via sendBeacon when available, with a keepalive fetch
@@ -313,6 +315,91 @@ export function trackOncePerSession(
   track(eventName, metadata);
 }
 
+// ─── X (Twitter) ad measurement ─────────────────────────────────────────────
+// The X pixel and the server-side Conversion API only run when the visitor
+// hasn't opted out (footer → privacy settings, or Do Not Track) and isn't
+// sending Global Privacy Control — GPC is a legally binding "do not share"
+// signal in California, and an ad pixel counts as sharing.
+
+const TWCLID_KEY = "xyra_twclid";
+const TWCLID_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // matches X's 30-day click window
+
+export const X_PIXEL_ID = "rihth";
+
+export type XConversionKind = "waitlist" | "alpha_apply";
+
+// Event IDs (tw-rihth-xxxxx) come from X Events Manager. They are not secret;
+// NEXT_PUBLIC_ so the browser pixel and the server send the same event.
+export const X_EVENT_IDS: Record<XConversionKind, string | undefined> = {
+  waitlist: process.env.NEXT_PUBLIC_X_EVENT_WAITLIST,
+  alpha_apply: process.env.NEXT_PUBLIC_X_EVENT_ALPHA_APPLY,
+};
+
+export function adTrackingAllowed(): boolean {
+  if (isOptedOut()) return false;
+  const gpc = (navigator as unknown as { globalPrivacyControl?: boolean }).globalPrivacyControl;
+  return gpc !== true;
+}
+
+/** Stores the twclid from an ad click's landing URL (last click wins). */
+export function captureTwclid(): void {
+  if (!isBrowser()) return;
+  const twclid = new URLSearchParams(window.location.search).get("twclid");
+  if (twclid && twclid.length <= 512) {
+    safeSet(TWCLID_KEY, JSON.stringify({ v: twclid, at: Date.now() }));
+  }
+}
+
+function getTwclid(): string | null {
+  const raw = safeGet(TWCLID_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { v?: unknown; at?: unknown };
+    if (typeof parsed.v !== "string" || typeof parsed.at !== "number") return null;
+    if (Date.now() - parsed.at > TWCLID_MAX_AGE_MS) {
+      safeRemove(TWCLID_KEY);
+      return null;
+    }
+    return parsed.v;
+  } catch {
+    return null;
+  }
+}
+
+export type XAttribution = {
+  allowed: boolean;
+  conversion_id: string;
+  twclid: string | null;
+};
+
+/**
+ * Sent in a signup request body so the server can report the conversion. The
+ * same conversion_id goes to the browser pixel via fireXConversion, so X
+ * counts the signup once.
+ */
+export function getXAttribution(): XAttribution {
+  if (!isBrowser()) return { allowed: false, conversion_id: "", twclid: null };
+  const allowed = adTrackingAllowed();
+  return {
+    allowed,
+    conversion_id: randomUUID(),
+    twclid: allowed ? getTwclid() : null,
+  };
+}
+
+/** Browser half of a conversion: fires only if the pixel loaded. */
+export function fireXConversion(kind: XConversionKind, attribution: XAttribution): void {
+  if (!isBrowser() || !attribution.allowed) return;
+  const eventId = X_EVENT_IDS[kind];
+  const twq = (window as unknown as { twq?: (...args: unknown[]) => void }).twq;
+  if (!eventId || typeof twq !== "function") return;
+  try {
+    twq("event", eventId, { conversion_id: attribution.conversion_id });
+  } catch {
+    // ad measurement must never break the page
+  }
+}
+
 // Visible to debugging / tests in the browser console.
 export const __analyticsStorageKeys = {
   VISITOR_KEY,
@@ -322,4 +409,5 @@ export const __analyticsStorageKeys = {
   OPT_OUT_KEY,
   CONSENT_SEEN_KEY,
   ONCE_SESSION_KEY,
+  TWCLID_KEY,
 };
