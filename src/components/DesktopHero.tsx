@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState, CSSProperties, FormEvent, ReactNode } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { fireXConversion, getFirstTouch, getVisitorId, getXAttribution, track } from "@/lib/analytics";
+import { fireXConversion, fireXPurchase, getFirstTouch, getVisitorId, getXAttribution, track } from "@/lib/analytics";
 import { APPLY_PATH } from "@/lib/site";
 import { useSectionView } from "@/lib/useSectionView";
 import PhoneScene, { SCREEN_W, SCREEN_H } from "./hero/PhoneScene";
@@ -336,6 +336,7 @@ function EmailForm() {
 
       if (res.status === 201) {
         fireXConversion("waitlist", xAttribution);
+        fireXPurchase(xAttribution);
         setStatus("done");
         track("waitlist_email_success", { form: "desktop_hero" });
       } else if (res.status === 200) {

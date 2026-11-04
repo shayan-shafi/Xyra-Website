@@ -400,6 +400,25 @@ export function fireXConversion(kind: XConversionKind, attribution: XAttribution
   }
 }
 
+// Test purchase event (tw-rihth-rihwp). xyra.dev has no purchase page —
+// payment happens in the app — so this fires on the post-signup success
+// state instead, once per successful signup, so the event can be tested.
+const X_PURCHASE_EVENT_ID = "tw-rihth-rihwp";
+
+export function fireXPurchase(attribution: XAttribution): void {
+  if (!isBrowser() || !attribution.allowed) return;
+  const twq = (window as unknown as { twq?: (...args: unknown[]) => void }).twq;
+  if (typeof twq !== "function") return;
+  try {
+    twq("event", X_PURCHASE_EVENT_ID, {
+      value: 1.0,
+      currency: "USD",
+    });
+  } catch {
+    // ad measurement must never break the page
+  }
+}
+
 // Visible to debugging / tests in the browser console.
 export const __analyticsStorageKeys = {
   VISITOR_KEY,

@@ -2,7 +2,7 @@
 
 import { motion, useInView } from "framer-motion";
 import { useRef, useState, useEffect, FormEvent } from "react";
-import { fireXConversion, getFirstTouch, getVisitorId, getXAttribution, track, trackOncePerSession } from "@/lib/analytics";
+import { fireXConversion, fireXPurchase, getFirstTouch, getVisitorId, getXAttribution, track, trackOncePerSession } from "@/lib/analytics";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -65,6 +65,7 @@ export default function Waitlist({ overlapMode = false }: { overlapMode?: boolea
 
       if (res.status === 201) {
         fireXConversion("waitlist", xAttribution);
+        fireXPurchase(xAttribution);
         setEmailStatus("idle");
         setStep("survey");
         track("waitlist_email_success");

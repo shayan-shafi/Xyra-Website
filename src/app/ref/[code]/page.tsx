@@ -3,7 +3,7 @@
 import { useState, FormEvent } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
-import { fireXConversion, getFirstTouch, getVisitorId, getXAttribution, track } from "@/lib/analytics";
+import { fireXConversion, fireXPurchase, getFirstTouch, getVisitorId, getXAttribution, track } from "@/lib/analytics";
 
 export default function ReferralPage() {
   const { code } = useParams<{ code: string }>();
@@ -35,6 +35,7 @@ export default function ReferralPage() {
 
       if (res.status === 201) {
         fireXConversion("waitlist", xAttribution);
+        fireXPurchase(xAttribution);
         setStatus("success");
         track("waitlist_email_success", { cta_location: "ref_page", ref_code: code ?? null });
       } else if (res.status === 200) {

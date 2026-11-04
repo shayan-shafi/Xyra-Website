@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useRef, useState, FormEvent, KeyboardEvent } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { fireXConversion, getFirstTouch, getVisitorId, getXAttribution, track } from "@/lib/analytics";
+import { fireXConversion, fireXPurchase, getFirstTouch, getVisitorId, getXAttribution, track } from "@/lib/analytics";
 import { isValidEmail } from "@/lib/emailValidation";
 import { useSectionView } from "@/lib/useSectionView";
 import { Cutout, Sticker } from "@/components/hero/Sticker";
@@ -277,6 +277,7 @@ export default function AlphaApply() {
       });
       if (!res.ok) throw new Error(`alpha-apply ${res.status}`);
       fireXConversion("alpha_apply", xAttribution);
+      fireXPurchase(xAttribution);
       setTyping(false);
       await say(
         [ok ? "dale. you're in the pile." : "fair. you're still in the pile.", `we'll be in touch soon. keep an eye on ${answers.email}.`],
