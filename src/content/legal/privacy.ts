@@ -64,7 +64,7 @@ xyra.dev uses first party analytics (pages viewed, where you came from). It also
 
 ## 3. Connected services
 
-Today you can connect **Google Calendar**, **Granola**, **Wispr Flow**, and **Apple Health**. If we add others, we will update this section before they go live.
+Today you can connect **Google Calendar**, **Granola**, **Wispr Flow**, **Apple Health**, and **Apple Calendar**. If we add others, we will update this section before they go live.
 
 ### Google Calendar
 
@@ -112,7 +112,7 @@ You can let an AI app you already use, such as **Claude**, **ChatGPT**, **Gemini
 **What we store:** the app's name, when it was last used, and the log of changes it made. Tokens for coding agents are stored only as a one way hash. Disconnect any app in Settings → agents, and it can no longer read anything.
 
 ### Disconnecting
-Disconnecting deletes your stored access, so Xyra can no longer read your calendar, your Granola notes, or your Wispr Flow meetings. Disconnecting Apple Health stops your iPhone from reading Health; to also withdraw the permission, turn Xyra off in the Health app. Memories, meeting lines, to-dos, daily health summaries, and nights Xyra already wrote stay until you delete them. To also withdraw the permission on Google's side, remove Xyra at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+Disconnecting deletes your stored access, so Xyra can no longer read your calendar, your Granola notes, or your Wispr Flow meetings. Disconnecting Apple Health stops your iPhone from reading Health; to also withdraw the permission, turn Xyra off in the Health app. Disconnecting Apple Calendar stops your iPhone from reading your calendars and deletes the events it saved to our servers; to also withdraw the permission, turn off Calendars for Xyra in your iPhone's Settings. Memories, meeting lines, to-dos, daily health summaries, and nights Xyra already wrote stay until you delete them. To also withdraw the permission on Google's side, remove Xyra at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
 
 ### Apple Health
 
@@ -123,6 +123,17 @@ Disconnecting deletes your stored access, so Xyra can no longer read your calend
 **What we store:** those daily summaries, including a short summary of each workout, so your Health board and the Apple Health page in your Brain work, plus one short line per week on your Fitness and Sleep shelves. If you have a Sleep board, Xyra also adds each night there, but never over a night you logged yourself. Xyra does not store your individual heart rate readings or other raw Health samples.
 
 **Who sees them:** when you ask Xyra about your health ("how many steps did I walk?"), your recent daily summaries are sent to our AI providers (see §5) to answer; the weekly lines and Sleep board nights are treated like your other memories and board content. If you connect an AI app (see below), it can read your Apple Health summaries, read only. They are never used for advertising, and never sold or shared for marketing.
+
+### Apple Calendar
+
+**How you connect:** on your iPhone, from Settings → connectors. iOS asks whether Xyra may see your calendars, and you can turn that off at any time in your iPhone's Settings → Xyra → Calendars. **Xyra only reads; it never adds, changes, or deletes events.** It never asks for your Reminders.
+
+**What we read, and why:** your iPhone reads the events on the calendars it holds, such as iCloud, a work account, or calendars you subscribe to, but never the Birthdays calendar. For each event it reads the title, start and end time, whether it lasts all day, its location, and the name of its calendar. **Never notes, attendees, or links.**
+- **To show your events in Xyra's Schedule** on your iPhone, the app reads your calendar directly for the days on screen.
+- **So the laptop shows them too**, your iPhone saves those events to our servers each time you open the app.
+- **To learn about your routine**, Xyra sends event **titles and dates** (up to a year back and three months ahead when you first connect, about a month either side of today after that) to OpenAI (see §5) to write up to fifteen short memories, such as "boxing most Saturdays". Those memories are saved to your Brain, where you can see, edit, or delete them.
+
+**What we store:** the event details above, for the last three months and the next three months, kept in step with your iPhone: an event you move or delete there is changed or removed the next time your iPhone syncs. When you first connect, your iPhone also saves up to a year of past events so Xyra can learn your routine; those older than three months are deleted at the next sync. Plus the memories described above. The events are never shown to AI apps you connect.
 
 ---
 
@@ -147,7 +158,7 @@ Xyra is an AI product, so your information is processed by service providers act
 | Provider | What it receives | Why |
 |---|---|---|
 | **Supabase** | Everything in §2 | Our database, sign-in, and servers |
-| **OpenAI** | Your messages, board contents, your memories, calendar titles, Granola and Wispr Flow meeting summaries and notes, and recent Apple Health summaries when you ask about your health (§3) | Understanding what you say, writing memories, and drafting emails you ask for (Xyra never sends them) |
+| **OpenAI** | Your messages, board contents, your memories, Google and Apple Calendar event titles, Granola and Wispr Flow meeting summaries and notes, and recent Apple Health summaries when you ask about your health (§3) | Understanding what you say, writing memories, and drafting emails you ask for (Xyra never sends them) |
 | **Anthropic** | Your messages and the same context | Writing Xyra's replies |
 | **Groq** | Your voice audio | Speech to text |
 | **Expo** | Your push token and notification text | Delivering notifications |
@@ -190,7 +201,7 @@ We keep your information for as long as your account exists. Memories you correc
 ## 8. Your choices and rights
 
 - **See and edit what Xyra knows**, in the Brain.
-- **Disconnect Google Calendar, Granola, Wispr Flow, Apple Health, or any AI app** at any time.
+- **Disconnect Google Calendar, Granola, Wispr Flow, Apple Health, Apple Calendar, or any AI app** at any time.
 - **Turn off notifications**, set quiet hours, or pause check-ins.
 - **Delete your account** from Settings.
 - **Get a copy of your data** by emailing privacy@xyra.dev.
