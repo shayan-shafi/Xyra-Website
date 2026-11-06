@@ -2,10 +2,11 @@
 // against the app's code and the live database on 2026-10-17 (the Granola
 // section against granola-sync on 2026-10-22, AI apps against api/mcp and
 // settings → agents on 2026-10-23, Wispr Flow against wispr-sync /
-// wisprText.ts on 2026-10-23) — change the code and this
+// wisprText.ts on 2026-10-23, notes against brain_notes / chatNotes.ts
+// on 2026-11-06) — change the code and this
 // together. Google's OAuth review reads §3 and §4 line by line.
 
-export const PRIVACY_UPDATED = "4 November 2026";
+export const PRIVACY_UPDATED = "6 November 2026";
 
 export const PRIVACY_MD = `
 ## The short version
@@ -38,6 +39,7 @@ When you create an account we collect your **email address**, **name**, **age**,
 - **Voice.** When you speak, the audio is sent to a transcription provider (see §5). We do not keep the audio. We do keep the transcript.
 - **Your boards and everything in them.** Titles, entries, notes, numbers, dates, and tags.
 - **A rolling summary of your conversations**, so Xyra does not lose the thread.
+- **Your notes.** Text you want kept word for word, such as a script, an outline, or meeting notes, up to 20,000 characters each, filed in your Brain. You can write one yourself. When you send Xyra a long piece of writing, it keeps it as a note and tells you. AI apps you allow to write can save and edit notes too (§3). Xyra never rewrites or summarises a note: it changes only when you, or an AI app you allowed to write, edit it. Up to five memories may be taken from a note, and each one points back to it.
 
 ### What Xyra learns about you
 Xyra keeps short written memories about you (for example "prefers morning workouts" or "sister is named Ana"), the message each one came from, and where it is filed in your Brain. You can see, edit, move, and delete every memory in the app.
@@ -105,7 +107,7 @@ All of these can be seen, edited, or deleted in the app. The summaries and notes
 
 You can let an AI app you already use, such as **Claude**, **ChatGPT**, **Gemini**, or Meta's **Muse**, or a coding agent like Claude Code, read your Brain. You start this yourself, from Settings → agents, and approve it on a Xyra sign-in page.
 
-**What it can see:** your memories, your boards, and your Apple Health summaries if you've connected Health, the same things you see in the Brain. **Passwords boards are never shown.** It can add or change anything only if you allowed writing when you connected it, and every change it makes is listed in Settings → agents with an undo.
+**What it can see:** your memories, your notes, your boards, and your Apple Health summaries if you've connected Health, the same things you see in the Brain. **Passwords boards are never shown.** It can add or change anything only if you allowed writing when you connected it, and every change it makes is listed in Settings → agents with an undo.
 
 **Where your data goes:** what the app reads leaves Xyra and is handled under **that company's** terms and privacy policy, not ours. Check them before you connect. In particular, **Meta says it uses what Muse reads through a connector to improve AI at Meta.**
 
@@ -158,7 +160,7 @@ Xyra is an AI product, so your information is processed by service providers act
 | Provider | What it receives | Why |
 |---|---|---|
 | **Supabase** | Everything in §2 | Our database, sign-in, and servers |
-| **OpenAI** | Your messages, board contents, your memories, Google and Apple Calendar event titles, Granola and Wispr Flow meeting summaries and notes, and recent Apple Health summaries when you ask about your health (§3) | Understanding what you say, writing memories, and drafting emails you ask for (Xyra never sends them) |
+| **OpenAI** | Your messages, board contents, your memories and notes, Google and Apple Calendar event titles, Granola and Wispr Flow meeting summaries and notes, and recent Apple Health summaries when you ask about your health (§3) | Understanding what you say, writing memories, and drafting emails you ask for (Xyra never sends them) |
 | **Anthropic** | Your messages and the same context | Writing Xyra's replies |
 | **Groq** | Your voice audio | Speech to text |
 | **Expo** | Your push token and notification text | Delivering notifications |
@@ -194,7 +196,9 @@ We may also disclose information if the law requires it, or to protect the safet
 
 We keep your information for as long as your account exists. Memories you correct are kept as replaced and hidden from Xyra, not deleted, unless you delete them.
 
-**Deleting your account** from Settings in the app removes your boards, conversations, memories, connection tokens, and reminders. You do not need to email anyone. Feedback screenshots are the exception (§2): email us and we will remove them.
+**Notes.** A note you delete disappears at once and is erased for good about five minutes later, which is the time you have to undo it. A note an AI app you connected deletes is hidden, not erased, so you can bring it back from Settings → agents.
+
+**Deleting your account** from Settings in the app removes your boards, conversations, memories, notes, connection tokens, and reminders. You do not need to email anyone. Feedback screenshots are the exception (§2): email us and we will remove them.
 
 ---
 
