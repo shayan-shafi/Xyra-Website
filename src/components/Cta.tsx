@@ -5,9 +5,8 @@
 // which also links out to the track), the tester form, and the sticker kit
 // scattered around them, draggable like the hero's.
 
-import Link from "next/link";
 import { track } from "@/lib/analytics";
-import { APPLY_PATH, signUpUrl } from "@/lib/site";
+import { signUpUrl } from "@/lib/site";
 import { useSectionView } from "@/lib/useSectionView";
 import { Chip } from "@/components/PhoneCanvas";
 import { Cutout, Sticker } from "@/components/hero/Sticker";
@@ -110,13 +109,6 @@ export default function Cta() {
           >
             start your brain
           </a>
-          <Link
-            href={APPLY_PATH}
-            onClick={() => track("cta_click", { cta_location: "cta_bottom", button_label: "apply to test it" })}
-            className="inline-flex items-center px-7 py-3.5 rounded-full border border-black/15 bg-[#fbfaf8]/80 font-[family-name:var(--font-jetbrains)] text-sm tracking-wide text-black/70 hover:border-black/40 hover:text-black transition-colors"
-          >
-            apply to test it
-          </Link>
         </div>
       </div>
     </section>

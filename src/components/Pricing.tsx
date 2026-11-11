@@ -7,11 +7,10 @@
 // (billed monthly through Stripe, cancel any time, access to the end of the
 // paid period). Sits between the reels and the last ask.
 
-import Link from "next/link";
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
 import { track } from "@/lib/analytics";
-import { APPLY_PATH, signUpUrl } from "@/lib/site";
+import { signUpUrl } from "@/lib/site";
 import { useSectionView } from "@/lib/useSectionView";
 
 const MONO = "font-[family-name:var(--font-jetbrains)]";
@@ -92,14 +91,7 @@ export default function Pricing() {
         </motion.div>
 
         <p className={`${MONO} mt-5 text-[11px] text-black/40`}>
-          got an invite from a friend? their link gives you a week free.{" "}
-          <Link
-            href={APPLY_PATH}
-            onClick={() => track("cta_click", { cta_location: "pricing", button_label: "apply to test it" })}
-            className="underline underline-offset-4 decoration-black/20 hover:text-black hover:decoration-black transition-colors"
-          >
-            or apply to test it.
-          </Link>
+          got an invite from a friend? their link gives you a week free.
         </p>
       </div>
     </section>

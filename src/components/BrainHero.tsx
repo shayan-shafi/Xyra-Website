@@ -10,13 +10,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { track } from "@/lib/analytics";
-import { APPLY_PATH, SIGN_IN_URL, signUpUrl } from "@/lib/site";
+import { SIGN_IN_URL, signUpUrl } from "@/lib/site";
 import { useSectionView } from "@/lib/useSectionView";
 import BrainFile from "./hero/BrainFile";
-import { AgentMark } from "./hero/stickers";
+import { AGENT_NAMES, AgentMark } from "./hero/stickers";
 import { MEMORY_COUNT, SOURCES, selId, type Selection } from "./hero/heroWorld";
 import type { WorldApi } from "./hero/BrainWorld3D";
 
@@ -141,21 +140,6 @@ export default function BrainHero() {
             see it work
           </a>
         </motion.div>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.7, delay: 0.4 }}
-          className="mt-4 pointer-events-auto"
-        >
-          <Link
-            href={APPLY_PATH}
-            onClick={() => track("cta_click", { cta_location: "brain_hero", button_label: "apply to test it" })}
-            className={`${MONO} text-[11px] text-black/45 underline underline-offset-4 decoration-black/20 hover:text-black hover:decoration-black transition-colors`}
-            style={{ textShadow: "0 0 8px #fbfaf8, 0 0 3px #fbfaf8" }}
-          >
-            or apply to test it
-          </Link>
-        </motion.div>
       </div>
 
       {/* what you're looking at, along the bottom; steps aside for the file */}
@@ -169,11 +153,11 @@ export default function BrainHero() {
           {MEMORY_COUNT} memories <span className="text-black/20">·</span> {SOURCES.length} sources
         </span>
         <span className={`hidden md:inline transition-opacity duration-500 ${touched ? "opacity-0" : "text-black/35"}`}>tap a node</span>
-        <span className="flex items-center gap-3">
+        <span className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 md:justify-end">
           read by
-          <span className="flex items-center gap-1.5 normal-case tracking-normal text-black/70"><AgentMark name="claude" />claude</span>
-          <span className="flex items-center gap-1.5 normal-case tracking-normal text-black/70"><AgentMark name="chatgpt" />chatgpt</span>
-          <span className="flex items-center gap-1.5 normal-case tracking-normal text-black/70"><AgentMark name="gemini" />gemini</span>
+          {AGENT_NAMES.map((name) => (
+            <span key={name} className="flex items-center gap-1.5 normal-case tracking-normal text-black/70"><AgentMark name={name} />{name}</span>
+          ))}
         </span>
       </motion.div>
 
