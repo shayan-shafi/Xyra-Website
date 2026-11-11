@@ -8,7 +8,7 @@
 
 import { ReactNode } from "react";
 import { motion } from "framer-motion";
-import { Chip } from "@/components/DesktopHero";
+import { Chip } from "@/components/PhoneCanvas";
 import { RecordingPillSticker } from "./stickers";
 
 function Sticker({ className = "", tilt = 0, children }: { className?: string; tilt?: number; children: ReactNode }) {

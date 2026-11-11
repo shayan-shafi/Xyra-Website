@@ -14,3 +14,10 @@ export function absoluteUrl(path: string): string {
 
 /** The alpha application — the in-site form that replaced the Google Form (2026-09-27). */
 export const APPLY_PATH = "/apply";
+
+/** The web app. "start your brain" lands on its create-account page (google, github or email);
+ *  from there: the brain, a short tour, a first connection, then the $10 a seat ask. */
+export const APP_ORIGIN = "https://app.xyra.dev";
+/** Where a "start your brain" button on the site lands. `from` names the button, so the app's logs can tell them apart. */
+export const signUpUrl = (from: string) => `${APP_ORIGIN}/create-account?src=${encodeURIComponent(`site_${from}`)}`;
+export const SIGN_IN_URL = `${APP_ORIGIN}/sign-in`;

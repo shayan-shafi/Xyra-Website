@@ -1,26 +1,25 @@
 "use client";
 
-// ─── DesktopHero ─────────────────────────────────────────────────────────────
-// Xyra's hero canvas: a conversation with your life scattered around it.
+// ─── PhoneCanvas ─────────────────────────────────────────────────────────────
+// The phone on its canvas: a conversation with your life scattered around it.
+// It was the page's hero until 2026-11-10; the brain (BrainHero) took the top
+// and this moved down into the slot the laptop held, stickers and all.
 // The scatter-canvas + hover-focus interaction was inspired by heyclicky.com,
-// but the metaphor here is Xyra's own — this is NOT a mac desktop. Everything
-// floating on the canvas is a real product artifact: lowercase chat bubbles,
-// receipt chips, phone-framed screen recordings, a hold-to-talk mic pill, a
-// typing indicator. Center stack = wordmark → one-liner → THE PHONE: a
-// center-stage iPhone running the app's chat surface. That phone is the stage
-// running the scripted loop in hero/PhoneScene.tsx (greet → braindump →
-// routing preview → receipt → dashboards → To-Do → Workout; the brain beat is
-// next). The screen renders at the app's native 390pt width and is scaled to
-// fit, so everything inside uses the app's real pixel values. The demo video lives in
-// the "a day with xyra" floater (click → plays big, with sound).
+// but the metaphor here is Xyra's own. Everything floating on the canvas is a
+// real product artifact: lowercase chat bubbles, receipt chips, phone-framed
+// screen recordings, a hold-to-talk mic pill, a typing indicator. Center stack
+// = the line, then THE PHONE: an iPhone running the app's chat surface, the
+// stage for the scripted loop in hero/PhoneScene.tsx (greet → braindump →
+// routing preview → receipt → dashboards → To-Do → Workout). The screen
+// renders at the app's native 390pt width and is scaled to fit, so everything
+// inside uses the app's real pixel values. The demo video lives in the "a day
+// with xyra" floater (click → plays big, with sound).
 // Xyra design language: Playfair display, EB Garamond prose, JetBrains Mono
 // chips, black/white, rounded-soft.
 
 import { useEffect, useRef, useState, CSSProperties, FormEvent, ReactNode } from "react";
-import Link from "next/link";
 import { motion } from "framer-motion";
 import { fireXConversion, fireXPurchase, getFirstTouch, getVisitorId, getXAttribution, track } from "@/lib/analytics";
-import { APPLY_PATH } from "@/lib/site";
 import { useSectionView } from "@/lib/useSectionView";
 import PhoneScene, { SCREEN_W, SCREEN_H } from "./hero/PhoneScene";
 import { TornSticker } from "./hero/TornSticker";
@@ -280,31 +279,6 @@ export const CONNECTOR_SCRAPS = [
   { src: "/assets/connectors-4.png", alt: "notion, bank of america, luma, contacts", seed: 43, w: 72, h: 67, rotate: 5, left: "16.3%", top: "41.6%" },
 ];
 
-/* ── nav ────────────────────────────────────────────────────────────────── */
-
-// "apply to test it" used to open a Google Form in a new tab; since
-// 2026-09-27 it's the /apply conversation on the site (APPLY_PATH).
-function Nav() {
-  return (
-    <div className="absolute top-0 inset-x-0 z-[70] flex items-center justify-between px-5 sm:px-8 h-12">
-      <div className="flex items-baseline gap-5">
-        <span className="font-[family-name:var(--font-playfair)] text-lg font-semibold text-black">
-          xyra
-        </span>
-        {/* blog link hidden until the blog is ready — route still exists at /blog */}
-      </div>
-
-      <Link
-        href={APPLY_PATH}
-        onClick={() => track("cta_click", { cta_location: "hero_nav", button_label: "apply to test it" })}
-        className="font-[family-name:var(--font-jetbrains)] text-xs text-black underline underline-offset-4 decoration-black/30 hover:decoration-black transition-all"
-      >
-        apply to test it
-      </Link>
-    </div>
-  );
-}
-
 /* ── email-only waitlist form ───────────────────────────────────────────── */
 
 type FormStatus = "idle" | "loading" | "done" | "exists" | "error";
@@ -419,31 +393,29 @@ function LoopCountdown({ loop }: { loop: { start: number; ms: number } | null })
   );
 }
 
-/* ── the hero ───────────────────────────────────────────────────────────── */
+/* ── the canvas ─────────────────────────────────────────────────────────── */
 // At-rest positions = Shayan's hand-dragged arrangement (2026-09-12), read off
 // a 1600px-wide viewport: left/right in % of width, top in % of the section.
 // Left-side items anchor left, right-side items anchor right, so the canvas
 // spreads symmetrically around the center phone on wider screens.
 
-export default function DesktopHero() {
-  const sectionRef = useSectionView<HTMLElement>("desktop_hero");
+export default function PhoneCanvas({ active = true }: { active?: boolean }) {
+  const sectionRef = useSectionView<HTMLElement>("phone_canvas");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{ kind: "video" | "image"; src: string } | null>(null);
   const [loop, setLoop] = useState<{ start: number; ms: number } | null>(null);
 
   const openLightbox = (kind: "video" | "image", src: string, label: string) => {
-    track("cta_click", { cta_location: "desktop_hero", button_label: `floater_open_${label}` });
+    track("cta_click", { cta_location: "phone_canvas", button_label: `floater_open_${label}` });
     setLightbox({ kind, src });
   };
 
   return (
     <section
       ref={sectionRef}
-      id="waitlist"
-      className="relative w-full min-h-screen overflow-hidden"
+      id="phone"
+      className="relative w-full min-h-screen overflow-hidden scroll-mt-0"
     >
-      <Nav />
-
       {/* ── floating phone screens (desktop only) ── */}
 
       {/* braindump recording (Sofia's CapCut cut, 2026-09-14) — left, above the
@@ -595,6 +567,12 @@ export default function DesktopHero() {
         </Decor>
       ))}
 
+      {/* Shayan's robot (2026-10-29), from beside the laptop: low on the left */}
+      <Decor id="robot" className="hidden lg:block left-[17.5%] top-[75%]" tilt={8} activeId={activeId}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/assets/stk-robot.png" alt="" width={86} className="block h-auto" draggable={false} style={{ filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.10))" }} />
+      </Decor>
+
       {/* stray receipt chips — dashboards being born */}
       <Decor id="chips" className="hidden lg:block right-[27.2%] top-[36.2%]" tilt={3} activeId={activeId}>
         <div className="flex flex-col items-start gap-1.5">
@@ -609,38 +587,26 @@ export default function DesktopHero() {
       {/* pointer-events-none so the full-width column doesn't block hover/drag
           on the floaters behind it; re-enabled per interactive child. */}
       <div
-        id="join"
-        className="relative z-30 flex flex-col items-center px-6 pt-14 md:pt-16 pb-10 pointer-events-none scroll-mt-24"
+        className="relative z-30 flex flex-col items-center px-6 pt-14 md:pt-16 pb-10 pointer-events-none"
       >
-        <motion.h1
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7 }}
-          className="font-[family-name:var(--font-playfair)] text-[64px] sm:text-[84px] md:text-[96px] font-medium text-black leading-none tracking-tight"
-        >
-          xyra
-        </motion.h1>
+        {/* two short lines, about as wide as the wordmark that stood here, so
+            the floaters placed around it by hand still clear it */}
+        <h2 className="font-[family-name:var(--font-playfair)] text-[44px] sm:text-[52px] font-medium text-black tracking-tight leading-[1.02] text-center">
+          it sorts
+          <br />
+          the rest.
+        </h2>
 
-        <motion.p
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.12 }}
-          className="font-[family-name:var(--font-eb-garamond)] text-lg sm:text-xl text-black/60 mt-3 text-center max-w-md"
-        >
-          the outlet for your ambitious mind
-        </motion.p>
+        <p className="font-[family-name:var(--font-eb-garamond)] text-lg sm:text-xl text-black/60 mt-3 text-center max-w-md">
+          say it once. xyra files it where it belongs.
+        </p>
 
         {/* ── the phone — xyra lives here ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.24 }}
-          className="mt-6 pointer-events-auto"
-        >
+        <div className="mt-6 pointer-events-auto">
           <HeroPhone>
-            <PhoneScene onLoopStart={(start, ms) => setLoop({ start, ms })} />
+            {active && <PhoneScene onLoopStart={(start, ms) => setLoop({ start, ms })} />}
           </HeroPhone>
-        </motion.div>
+        </div>
 
         <LoopCountdown loop={loop} />
       </div>

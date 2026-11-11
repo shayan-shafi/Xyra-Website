@@ -5,9 +5,10 @@ import { useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 import { useSectionView } from "@/lib/useSectionView";
 import VentStickers from "@/components/hero/VentStickers";
-import LaptopShowcase from "@/components/hero/LaptopShowcase";
+import PhoneCanvas from "@/components/PhoneCanvas";
 import Socials from "@/components/Socials";
 import Cta from "@/components/Cta";
+import Pricing from "@/components/Pricing";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -84,15 +85,11 @@ function Section({
   );
 }
 
-type WorldCard = "visualize" | "advisor" | "learns" | null;
-
 
 export default function Explainer() {
   const explainerRef = useSectionView<HTMLDivElement>("explainer");
-  const worldRef = useSectionView<HTMLElement>("world");
-  // mount the GL world only once it's near the viewport
-  const brainRef = useRef<HTMLDivElement>(null);
-  const brainNear = useInView(brainRef, { once: true, margin: "300px" });
+  const phoneRef = useRef<HTMLDivElement>(null);
+  const phoneNear = useInView(phoneRef, { once: true, margin: "300px" });
 
   return (
     <div ref={explainerRef}>
@@ -109,20 +106,22 @@ export default function Explainer() {
         </section>
       </div>
 
-      {/* ── Section 2: Your World — context for agents ───────────── */}
-      {/* A laptop running the web app: connect two AIs and three tools, it all
-          lands in one brain, and a third AI knows you. (The old zoom-into-
-          Finance world, hero/BrainShowcase.tsx, stays on disk.) */}
-      <section id="world" ref={worldRef} className="scroll-mt-20 px-6 sm:px-12 lg:px-20 py-12 md:py-20 overflow-x-clip">
-        <div ref={brainRef} className="relative mx-auto w-full max-w-[1200px]">
-          <LaptopShowcase active={brainNear} />
-        </div>
-      </section>
+      {/* ── Section 2: the phone on its canvas ───────────────────── */}
+      {/* The page's old hero, in the slot the laptop held: the phone running
+          its loop, the floating screens and every sticker. The loop only
+          starts once the section is near the viewport. (The laptop,
+          hero/LaptopShowcase.tsx, stays on disk.) */}
+      <div ref={phoneRef}>
+        <PhoneCanvas active={phoneNear} />
+      </div>
 
       {/* ── Section 3: socials — feedback ticker + reels ─────────── */}
       <Socials />
 
-      {/* ── Section 4: the ask ──────────────────────────────────── */}
+      {/* ── Section 4: one plan, $10 a seat ──────────────────────── */}
+      <Pricing />
+
+      {/* ── Section 5: the ask ──────────────────────────────────── */}
       <Cta />
     </div>
   );

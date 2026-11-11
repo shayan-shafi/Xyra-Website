@@ -7,9 +7,9 @@
 
 import Link from "next/link";
 import { track } from "@/lib/analytics";
-import { APPLY_PATH } from "@/lib/site";
+import { APPLY_PATH, signUpUrl } from "@/lib/site";
 import { useSectionView } from "@/lib/useSectionView";
-import { Chip } from "@/components/DesktopHero";
+import { Chip } from "@/components/PhoneCanvas";
 import { Cutout, Sticker } from "@/components/hero/Sticker";
 import { TornSticker } from "@/components/hero/TornSticker";
 import { RecordingPillSticker } from "@/components/hero/stickers";
@@ -102,13 +102,22 @@ export default function Cta() {
             onLoad={() => track("section_view", { section: "cta_spotify" })}
           />
         </div>
-        <Link
-          href={APPLY_PATH}
-          onClick={() => track("cta_click", { cta_location: "cta_bottom", button_label: "apply to test it" })}
-          className="mt-[72px] inline-flex items-center px-7 py-3.5 bg-black text-white rounded-full font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-black/85 transition-colors"
-        >
-          apply to test it
-        </Link>
+        <div className="mt-[72px] flex flex-wrap items-center justify-center gap-3">
+          <a
+            href={signUpUrl("cta_bottom")}
+            onClick={() => track("cta_click", { cta_location: "cta_bottom", button_label: "start your brain" })}
+            className="inline-flex items-center px-7 py-3.5 bg-black text-white rounded-full font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-black/85 transition-colors"
+          >
+            start your brain
+          </a>
+          <Link
+            href={APPLY_PATH}
+            onClick={() => track("cta_click", { cta_location: "cta_bottom", button_label: "apply to test it" })}
+            className="inline-flex items-center px-7 py-3.5 rounded-full border border-black/15 bg-[#fbfaf8]/80 font-[family-name:var(--font-jetbrains)] text-sm tracking-wide text-black/70 hover:border-black/40 hover:text-black transition-colors"
+          >
+            apply to test it
+          </Link>
+        </div>
       </div>
     </section>
   );
