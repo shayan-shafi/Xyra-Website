@@ -1,7 +1,6 @@
 import BrainHero from "@/components/BrainHero";
 import Explainer from "@/components/Explainer";
 import Footer from "@/components/Footer";
-import HowItStarts from "@/components/HowItStarts";
 import LogoMarquee from "@/components/LogoMarquee";
 
 // Top to bottom: the brain (the app's world, live: tap a node and its file
@@ -15,7 +14,6 @@ export default function Home() {
     <div className="xyra-canvas min-h-screen">
       <BrainHero />
       <LogoMarquee />
-      <HowItStarts />
       <div id="learn">
         <Explainer />
       </div>
