@@ -148,10 +148,24 @@ const TIMELINE = [
   ["click_send", 24900],
   ["tools", 25200],
   ["answer", 26300],
-  ["end", 33500],
+  // the phone: the gemini window goes, settings scrolls to "the phone app",
+  // and the cursor opens the testflight link
+  // work, saved: a claude window, a competitor analysis of the side project,
+  // and claude files it in xyra as a note on its own
+  ["claude_open", 30600],
+  ["typing2", 31300],
+  ["move_send2", 33400],
+  ["click_send2", 33900],
+  ["tools2", 34200],
+  ["answer2", 35200],
+  ["saved", 38200],
+  ["phone", 41400],
+  ["move_testflight", 42500],
+  ["click_testflight", 43300],
+  ["end", 46800],
 ] as const;
 type Beat = (typeof TIMELINE)[number][0];
-export const LAPTOP_LOOP_MS = 34300;
+export const LAPTOP_LOOP_MS = 47600;
 const ORDER = TIMELINE.map(([b]) => b) as readonly Beat[];
 const isBeat = (s: string | null): s is Beat => !!s && (ORDER as readonly string[]).includes(s);
 
@@ -175,12 +189,14 @@ const AIM: Partial<Record<Beat, string>> = {
   move_gemini: "agent-gemini",
   move_allow3: "allow",
   move_send: "send",
+  move_send2: "send2",
+  move_testflight: "testflight",
 };
 // … and which beats are clicks.
 const CLICKS = new Set<Beat>([
   "click_settings", "click_claude", "click_allow1", "click_chatgpt", "click_allow2", "click_gcal", "click_gotit1",
   "click_granola", "click_gotit2", "click_canvas", "click_gotit3", "click_close", "click_node", "click_node_close", "click_settings2", "click_gemini",
-  "click_allow3", "click_send",
+  "click_allow3", "click_send", "click_send2", "click_testflight",
 ]);
 
 function useTimeline(onLoopStart?: (startedAt: number, loopMs: number) => void) {
@@ -363,13 +379,22 @@ const IMPORTS = [
   { from: "chatgpt", line: "imported 25 memories onto /health/runs.md, /learning/essays.md and 5 more" },
 ];
 
+/** How far the settings body rolls up to bring "the phone app" into view. */
+const PHONE_SCROLL = 296;
+
+/** What settings shows once claude has filed the competitor analysis. */
+const NOTE_SAVED = { from: "claude", line: "saved the note \"competitor analysis\" onto /work/side-project.md" };
+
 function SettingsPane({ at, beat }: { at: (b: Beat) => boolean; beat: Beat }) {
   const connected = [
     at("click_allow1") && "claude",
     at("click_allow2") && "chatgpt",
     at("click_allow3") && "gemini",
   ].filter(Boolean) as string[];
-  const imports = IMPORTS.filter((_, i) => at(i === 0 ? "import_claude" : "import_chatgpt")).reverse(); // newest first
+  const imports = [
+    ...IMPORTS.filter((_, i) => at(i === 0 ? "import_claude" : "import_chatgpt")),
+    ...(at("saved") ? [NOTE_SAVED] : []),
+  ].reverse(); // newest first
   const conn: Record<string, boolean> = { gcal: at("click_gcal"), granola: at("click_granola"), canvas: at("click_canvas") };
   const pressed = (b: Beat) => beat === b;
 
@@ -383,7 +408,10 @@ function SettingsPane({ at, beat }: { at: (b: Beat) => boolean; beat: Beat }) {
         <span data-tap="pane-close" className="flex items-center justify-center" style={{ width: 30, height: 30, border: `1px solid ${pressed("click_close") ? T.white : T.border}`, marginTop: 4 }}><CloseIcon /></span>
       </div>
 
-      <div style={{ borderTop: `1px solid ${T.hairline}`, marginTop: 18, paddingTop: 16 }}>
+      {/* everything under the title scrolls: at "phone" it rolls up to the phone app */}
+      <div className="overflow-hidden" style={{ marginTop: 18, height: 660 }}>
+      <motion.div initial={false} animate={{ y: at("phone") ? -PHONE_SCROLL : 0 }} transition={{ duration: 0.7, ease: [0.65, 0, 0.35, 1] }}>
+      <div style={{ borderTop: `1px solid ${T.hairline}`, paddingTop: 16 }}>
         <Kicker>agents</Kicker>
         <div style={{ fontFamily: MONO, fontSize: 10.5, lineHeight: "16px", color: "#bdbdbd", marginTop: 8 }}>
           let the ai you already use read your brain: every shelf, every memory, every board, live from xyra.
@@ -430,7 +458,7 @@ function SettingsPane({ at, beat }: { at: (b: Beat) => boolean; beat: Beat }) {
               <Kicker>what agents changed</Kicker>
               {imports.map((im) => (
                 <motion.div
-                  key={im.from}
+                  key={im.line}
                   layout
                   initial={{ opacity: 0, y: -6, backgroundColor: "rgba(237,233,220,0.12)" }}
                   animate={{ opacity: 1, y: 0, backgroundColor: "rgba(237,233,220,0)" }}
@@ -439,7 +467,7 @@ function SettingsPane({ at, beat }: { at: (b: Beat) => boolean; beat: Beat }) {
                   style={{ gap: 12, padding: "7px 0", borderBottom: `1px solid ${T.hairline}`, fontFamily: MONO, fontSize: 9.5, lineHeight: "14px" }}
                 >
                   <span style={{ color: "#d4d4d4" }}>{im.line}<span style={{ color: T.muted }}> · {im.from} · just now</span></span>
-                  <span className="shrink-0" style={{ fontSize: 8, letterSpacing: 1.6, color: T.faint }}>UNDO IMPORT</span>
+                  <span className="shrink-0" style={{ fontSize: 8, letterSpacing: 1.6, color: T.faint }}>{im === NOTE_SAVED ? "UNDO" : "UNDO IMPORT"}</span>
                 </motion.div>
               ))}
             </motion.div>
@@ -479,6 +507,34 @@ function SettingsPane({ at, beat }: { at: (b: Beat) => boolean; beat: Beat }) {
             </div>
           );
         })}
+      </div>
+
+      {/* the phone app (the app's PhoneAppSection: the public testflight invite) */}
+      <div style={{ borderTop: `1px solid ${T.hairline}`, marginTop: 16, paddingTop: 14 }}>
+        <Kicker>the phone app</Kicker>
+        <div style={{ fontFamily: MONO, fontSize: 10.5, lineHeight: "16px", color: "#bdbdbd", marginTop: 8 }}>
+          xyra on your iphone: text it, get reminders, log on the go. it&apos;s in beta on testflight, apple&apos;s app for early versions.
+          open the link on your phone, install testflight if it asks, then xyra. sign in with this same account.
+        </div>
+        <div style={{ fontFamily: MONO, fontSize: 10, color: T.muted, marginTop: 10 }}>testflight.apple.com/join/sk5utQVN</div>
+        <div className="flex items-center" style={{ gap: 10, marginTop: 14 }}>
+          <span
+            data-tap="testflight"
+            style={{
+              padding: "7px 12px",
+              border: `1px solid ${pressed("click_testflight") || at("click_testflight") ? T.white : T.border}`,
+              background: pressed("click_testflight") ? T.white : "transparent",
+              fontFamily: MONO, fontSize: 8.5, letterSpacing: 1.6,
+              color: pressed("click_testflight") ? "#000" : at("click_testflight") ? T.white : T.muted,
+            }}
+          >
+            OPEN TESTFLIGHT
+          </span>
+          <span style={{ padding: "7px 12px", border: `1px solid ${T.border}`, fontFamily: MONO, fontSize: 8.5, letterSpacing: 1.6, color: T.muted }}>COPY LINK</span>
+        </div>
+        <div style={{ fontFamily: MONO, fontSize: 8.5, color: T.muted, marginTop: 12 }}>iphone only for now.</div>
+      </div>
+      </motion.div>
       </div>
     </div>
   );
@@ -753,6 +809,127 @@ function GeminiWindow({ at, beat }: { at: (b: Beat) => boolean; beat: Beat }) {
   );
 }
 
+/* ── a claude window: work done there, saved to xyra as a note ───────────── */
+
+const QUESTION2 = "run a competitor analysis for my budgeting app";
+
+const ANALYSIS: { label: string; text: string }[] = [
+  { label: "ynab", text: "the serious budgeter's pick. powerful, with a real learning curve." },
+  { label: "copilot", text: "the polished one. iphone-first, built around tracking what you spent." },
+  { label: "rocket money", text: "strong on subscriptions and bills, lighter on planning ahead." },
+  { label: "your gap", text: "none are built for students: irregular income, split rent, a goal like the summer trip." },
+];
+
+function ClaudeWindow({ at, beat }: { at: (b: Beat) => boolean; beat: Beat }) {
+  const [typed, setTyped] = useState(0);
+  const started = at("typing2");
+  const typing = started && !at("click_send2");
+  useEffect(() => {
+    if (!started) { setTyped(0); return; }
+    if (!typing) { setTyped(QUESTION2.length); return; }
+    const id = window.setInterval(() => setTyped((n) => Math.min(QUESTION2.length, n + 1)), 42);
+    return () => window.clearInterval(id);
+  }, [started, typing]);
+  const sent = at("click_send2");
+  const tool = (name: string, arg: string, done: boolean) => (
+    <motion.span initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} className="flex items-center" style={{ gap: 8, fontFamily: MONO, fontSize: 11, color: "#6b6b6b" }}>
+      <span className="rounded-full" style={{ width: 6, height: 6, background: done ? "#22c55e" : "#d4d4d4" }} />
+      used <span style={{ color: "#1f1f1f" }}>{name}</span> {arg}
+    </motion.span>
+  );
+
+  return (
+    <motion.div
+      className="absolute z-40 flex flex-col overflow-hidden"
+      style={{ left: 230, top: 70, width: 820, height: 660, background: "#faf9f5", borderRadius: 14, boxShadow: "0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.08)", color: "#1f1f1f", fontFamily: SANS }}
+      initial={{ opacity: 0, y: 40, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 30 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+    >
+      {/* title bar */}
+      <div className="relative flex items-center shrink-0" style={{ height: 40, padding: "0 14px", background: "#f0eee6", borderBottom: "1px solid #e3e0d5" }}>
+        <span className="flex" style={{ gap: 7 }}>
+          {["#ff5f57", "#febc2e", "#28c840"].map((c) => <span key={c} className="rounded-full" style={{ width: 11, height: 11, background: c }} />)}
+        </span>
+        <span className="absolute left-1/2 -translate-x-1/2 flex items-center" style={{ gap: 7, fontSize: 13, fontWeight: 600, color: "#444" }}>
+          <ClaudeMark size={15} />claude
+        </span>
+        <span className="ml-auto flex items-center" style={{ gap: 6, padding: "3px 10px", borderRadius: 999, background: "#111", color: "#ede9dc", fontFamily: SERIF, fontSize: 13 }}>
+          <span className="rounded-full" style={{ width: 6, height: 6, background: "#22c55e" }} />xyra
+        </span>
+      </div>
+
+      {/* thread */}
+      <div className="flex-1 overflow-hidden" style={{ padding: "26px 40px 0" }}>
+        {sent && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end">
+            <span style={{ padding: "10px 16px", borderRadius: 20, background: "#ece9df", fontSize: 15 }}>{QUESTION2}</span>
+          </motion.div>
+        )}
+        {at("tools2") && (
+          <div className="flex flex-col" style={{ marginTop: 18, gap: 6 }}>
+            {tool("xyra_read", "/work/side-project.md", at("answer2"))}
+          </div>
+        )}
+        {at("answer2") && (
+          <div className="flex" style={{ gap: 14, marginTop: 18 }}>
+            <span className="shrink-0" style={{ marginTop: 2 }}><ClaudeMark size={22} /></span>
+            <div className="flex-1 min-w-0">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ fontSize: 15.5, lineHeight: "22px" }}>
+                here&apos;s who your budgeting app is up against:
+              </motion.div>
+              <div className="flex flex-col" style={{ marginTop: 10 }}>
+                {ANALYSIS.map((a, i) => (
+                  <motion.div
+                    key={a.label}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.35 + i * 0.5, duration: 0.35 }}
+                    className="flex items-baseline"
+                    style={{ gap: 12, padding: "8px 0", borderBottom: i < ANALYSIS.length - 1 ? "1px solid #ebe8dd" : "none" }}
+                  >
+                    <span className="shrink-0" style={{ width: 108, fontSize: 14, fontWeight: 600 }}>{a.label}</span>
+                    <span className="flex-1 min-w-0" style={{ fontSize: 14.5, lineHeight: "21px", color: "#2b2b2b" }}>{a.text}</span>
+                  </motion.div>
+                ))}
+              </div>
+              {at("saved") && (
+                <div style={{ marginTop: 14 }}>
+                  {tool("xyra_write_note", "competitor analysis → /work/side-project.md", true)}
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.45, duration: 0.35 }}
+                    className="inline-flex items-center"
+                    style={{ gap: 9, marginTop: 12, padding: "8px 14px 8px 10px", borderRadius: 999, background: "#111", color: "#ede9dc", fontSize: 14.5 }}
+                  >
+                    <span className="flex items-center justify-center rounded-full" style={{ width: 18, height: 18, background: "#22c55e", color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>
+                    saved to xyra as a note
+                  </motion.div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* composer */}
+      <div className="shrink-0" style={{ padding: "12px 40px 22px" }}>
+        <div className="flex items-center" style={{ height: 52, padding: "0 8px 0 20px", borderRadius: 26, border: "1px solid #e0ddd2", background: "#ffffff" }}>
+          <span className="flex-1 truncate" style={{ fontSize: 15, color: sent || typed ? "#1f1f1f" : "#9a9a9a" }}>
+            {sent ? "" : typed ? QUESTION2.slice(0, typed) : "reply to claude"}
+            {typing && <span className="inline-block align-middle" style={{ width: 1.5, height: 18, marginLeft: 1, background: "#1f1f1f" }} />}
+          </span>
+          <span data-tap="send2" className="flex items-center justify-center rounded-full" style={{ width: 36, height: 36, background: beat === "click_send2" ? "#7a3d24" : typed && !sent ? "#c96442" : "#d9d5c8" }}>
+            <ArrowUpIcon />
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 /* ── the scene ───────────────────────────────────────────────────────────── */
 
 export default function LaptopScene({ onLoopStart }: { onLoopStart?: (startedAt: number, loopMs: number) => void } = {}) {
@@ -872,7 +1049,8 @@ export default function LaptopScene({ onLoopStart }: { onLoopStart?: (startedAt:
         {receipt && <Receipt key={`receipt-${receipt}`} which={receipt} />}
       </AnimatePresence>
 
-      <AnimatePresence>{at("gemini_open") && !at("end") && <GeminiWindow key="gemini" at={at} beat={beat} />}</AnimatePresence>
+      <AnimatePresence>{at("gemini_open") && !at("claude_open") && <GeminiWindow key="gemini" at={at} beat={beat} />}</AnimatePresence>
+      <AnimatePresence>{at("claude_open") && !at("phone") && <ClaudeWindow key="claude" at={at} beat={beat} />}</AnimatePresence>
 
       <Cursor beat={beat} canvasRef={canvasRef} />
 

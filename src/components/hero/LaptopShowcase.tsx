@@ -10,16 +10,29 @@
 // re-renders).
 
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import LaptopScene, { LAPTOP_W, LAPTOP_H } from "./LaptopScene";
 import { Sticker } from "./Sticker";
 
 // when each step starts, in the loop's ms (LaptopScene's TIMELINE beats:
-// move_gcal, click_close, move_settings2)
+// move_gcal, click_close, move_settings2, claude_open, phone)
 const STEPS: [string, number][] = [
   ["connect your ai", 0],
   ["plug in your tools", 8200],
   ["one brain", 16100],
   ["any agent knows you", 19200],
+  ["your work saves itself", 30600],
+  ["get it on your phone", 41400],
+];
+
+/** The hero's caption for each step: what's happening on the laptop right now. */
+const STEP_NOTES = [
+  "claude and chatgpt connect in a click, and what they already know about you comes over.",
+  "google calendar, granola and canvas feed it. each import shows you exactly what landed.",
+  "it all sits on shelves around you. open a node and it reads like a file.",
+  "a new ai connects, asks what xyra knows about you, and answers from your brain.",
+  "ask claude for a competitor analysis of your startup. it saves it to xyra as a note, without being asked.",
+  "settings has the testflight link. install the iphone app and sign in with the same account.",
 ];
 
 function Laptop({ children }: { children: React.ReactNode }) {
@@ -82,7 +95,10 @@ function SideStickers() {
   );
 }
 
-export default function LaptopShowcase({ active }: { active: boolean }) {
+/** `hero`: the laptop at the top of the page. No headline of its own (the hero
+ *  has the wordmark); the steps sit under the laptop, and it's sized to show
+ *  whole under the hero's text on a laptop screen. */
+export default function LaptopShowcase({ active, hero = false }: { active: boolean; hero?: boolean }) {
   const [loop, setLoop] = useState<{ start: number; ms: number } | null>(null);
   const [step, setStep] = useState(0);
   const bars = useRef<(HTMLSpanElement | null)[]>([]);
@@ -111,12 +127,10 @@ export default function LaptopShowcase({ active }: { active: boolean }) {
     return () => cancelAnimationFrame(raf);
   }, [loop]);
 
-  return (
-    <div className="relative mx-auto w-full flex flex-col items-center">
-      <div className="w-full flex flex-col-reverse md:flex-row md:items-end md:justify-between gap-6 mb-8 md:mb-10">
-        <ol className="grid grid-cols-2 md:flex gap-x-6 gap-y-3 font-[family-name:var(--font-jetbrains)] text-[11px] tracking-wide">
+  const steps = (
+        <ol className={`grid grid-cols-2 md:flex gap-x-6 gap-y-3 font-[family-name:var(--font-jetbrains)] text-[11px] tracking-wide ${hero ? "w-full max-w-[780px] md:justify-center" : ""}`}>
           {STEPS.map(([label], i) => (
-            <li key={label} className={`w-full md:w-36 transition-colors duration-500 ${i === step ? "text-black" : "text-black/35"}`}>
+            <li key={label} className={`w-full ${hero ? "md:w-44" : "md:w-36"} transition-colors duration-500 ${i === step ? "text-black" : "text-black/35"}`}>
               <span className="tabular-nums">0{i + 1}</span> {label}
               <span className="block mt-2 h-[2px] w-full bg-black/10 overflow-hidden">
                 <span ref={(el) => { bars.current[i] = el; }} className="block h-full bg-black origin-left" style={{ transform: "scaleX(0)" }} />
@@ -124,6 +138,54 @@ export default function LaptopShowcase({ active }: { active: boolean }) {
             </li>
           ))}
         </ol>
+  );
+
+  if (hero) {
+    // The laptop, and beside it (under it on a phone) what the step on screen
+    // is doing: the caption changes as each step starts.
+    return (
+      <div className="relative mx-auto flex w-full flex-col items-center gap-7 lg:flex-row lg:items-center lg:justify-center lg:gap-12">
+        <div className="relative shrink-0" style={{ width: "min(900px, 100%, max(300px, calc((100svh - 320px) / 0.66)))" }}>
+          <Laptop>{active && <LaptopScene onLoopStart={(start, ms) => setLoop({ start, ms })} />}</Laptop>
+        </div>
+        <div className="w-full max-w-[420px] lg:w-[270px] lg:shrink-0">
+          <div className="relative min-h-[150px] lg:min-h-[210px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={step}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.35 }}
+              >
+                <div className="font-[family-name:var(--font-jetbrains)] text-[10px] uppercase tracking-[0.2em] text-black/45">
+                  step 0{step + 1} of 0{STEPS.length}
+                </div>
+                <div className="mt-3 font-[family-name:var(--font-playfair)] text-[30px] font-medium leading-[1.08] tracking-tight text-black lg:text-[34px]">
+                  {STEPS[step][0]}
+                </div>
+                <p className="mt-3 font-[family-name:var(--font-eb-garamond)] text-[18px] leading-snug text-black/60">
+                  {STEP_NOTES[step]}
+                </p>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+          <div className="mt-5 flex gap-1.5" aria-hidden>
+            {STEPS.map(([label], i) => (
+              <span key={label} className="block h-[2px] flex-1 overflow-hidden bg-black/10">
+                <span ref={(el) => { bars.current[i] = el; }} className="block h-full origin-left bg-black" style={{ transform: "scaleX(0)" }} />
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative mx-auto w-full flex flex-col items-center">
+      <div className="w-full flex flex-col-reverse md:flex-row md:items-end md:justify-between gap-6 mb-8 md:mb-10">
+        {steps}
         <h3 className="font-[family-name:var(--font-playfair)] text-4xl sm:text-5xl font-medium text-black tracking-tight leading-[1.05] md:text-right max-w-[440px]">
           seamless context for agents.
         </h3>
