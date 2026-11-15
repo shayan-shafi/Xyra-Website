@@ -6,7 +6,7 @@
 // on 2026-11-06) — change the code and this
 // together. Google's OAuth review reads §3 and §4 line by line.
 
-export const PRIVACY_UPDATED = "6 November 2026";
+export const PRIVACY_UPDATED = "14 November 2026";
 
 export const PRIVACY_MD = `
 ## The short version
@@ -60,7 +60,9 @@ If you send feedback we store your message, the board you were on, your app vers
 We record a small, fixed set of product events (for example "a board was created"). This is restricted in our database to a list of allowed event names and simple values. **Your board titles, entries, messages, Xyra's replies, and your email address cannot enter our analytics.**
 
 ### Our website
-xyra.dev uses first party analytics (pages viewed, where you came from). It also uses the X (Twitter) conversion pixel so we can see which of our ads on X lead to signups. The pixel loads from X and can set X cookies in your browser. When you join the waitlist or apply for the alpha, our server tells X a signup happened and sends a hashed (SHA-256) copy of your email, your IP address, your browser's user agent, and the X click ID if you arrived from an X ad. X uses this to match the signup to an ad. You can turn both off at any time with "privacy settings" in the site footer. We also turn both off automatically if your browser sends Do Not Track or Global Privacy Control. None of this runs in the app.
+xyra.dev uses first party analytics (pages viewed, where you came from). It also uses the X (Twitter) conversion pixel so we can see which of our ads on X lead to signups. The pixel loads from X and can set X cookies in your browser. When you join the waitlist, apply for the alpha, or ask us to send the sign-up link to your laptop, our server tells X a signup happened and sends a hashed (SHA-256) copy of your email, your IP address, your browser's user agent, and the X click ID if you arrived from an X ad. X uses this to match the signup to an ad. You can turn both off at any time with "privacy settings" in the site footer. We also turn both off automatically if your browser sends Do Not Track or Global Privacy Control. None of this runs in the app.
+
+**"Send it to my laptop."** If you are on a phone, the "start your brain" button can email you the sign-up link so you can open it on a laptop. We keep your email address, a random code that is in the link, the ad tags of the page you came from (for example which of our ads you clicked), the X click ID if you arrived from an X ad and ad measurement is on, and when you opened the link and whether that was on a phone or a laptop. We send the link, then at most two reminders (about a day and about three days later). Every reminder has a link that stops them, and they stop by themselves once you make your account. When you make your account from the link, the app tells our website, which then erases your email from this list and keeps only the code and the ad tags, so we can see which ad led to the account. If you never make an account, the whole entry is deleted after 30 days.
 
 ---
 
@@ -164,10 +166,10 @@ Xyra is an AI product, so your information is processed by service providers act
 | **Anthropic** | Your messages and the same context | Writing Xyra's replies |
 | **Groq** | Your voice audio | Speech to text |
 | **Expo** | Your push token and notification text | Delivering notifications |
-| **Resend** | Your email address and name | Sign-in and account emails |
+| **Resend** | Your email address and name | Sign-in and account emails, and the "send it to my laptop" link and reminders (§2, Our website) |
 | **Stripe** | Your payment details | Subscriptions |
 | **Vercel** | Requests to our website and web app | Hosting |
-| **X (Twitter)** | On xyra.dev only: pixel page visits, and at signup a hashed email, IP address, user agent, and X click ID (§2, Our website) | Measuring our ads on X |
+| **X (Twitter)** | On xyra.dev only: pixel page visits, and at signup (including "send it to my laptop") a hashed email, IP address, user agent, and X click ID (§2, Our website) | Measuring our ads on X |
 | **Google** | Your Google access token | Reading and updating your calendar (§3) |
 | **Granola** | Your Granola access token | Reading your meeting notes (§3) |
 | **Wispr Flow** | Your Wispr Flow access token | Reading your Notetaker meetings (§3) |
@@ -197,6 +199,8 @@ We may also disclose information if the law requires it, or to protect the safet
 We keep your information for as long as your account exists. Memories you correct are kept as replaced and hidden from Xyra, not deleted, unless you delete them.
 
 **Notes.** A note you delete disappears at once and is erased for good about five minutes later, which is the time you have to undo it. A note an AI app you connected deletes is hidden, not erased, so you can bring it back from Settings → agents.
+
+**"Send it to my laptop" emails.** Your email address is erased as soon as you make your account from the link, and the whole entry is deleted after 30 days if you never do (§2, Our website).
 
 **Deleting your account** from Settings in the app removes your boards, conversations, memories, notes, connection tokens, and reminders. You do not need to email anyone. Feedback screenshots are the exception (§2): email us and we will remove them.
 

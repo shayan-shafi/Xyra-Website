@@ -11,7 +11,8 @@
 import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { track } from "@/lib/analytics";
-import { SIGN_IN_URL, signUpUrl } from "@/lib/site";
+import { SIGN_IN_URL } from "@/lib/site";
+import StartButton from "@/components/StartButton";
 import { useSectionView } from "@/lib/useSectionView";
 import LaptopShowcase from "./hero/LaptopShowcase";
 import { Sticker } from "./hero/Sticker";
@@ -38,13 +39,11 @@ function Nav() {
         >
           sign in
         </a>
-        <a
-          href={signUpUrl("nav")}
-          onClick={() => track("cta_click", { cta_location: "hero_nav", button_label: "start your brain" })}
+        <StartButton
+          from="nav"
+          location="hero_nav"
           className="text-black underline underline-offset-4 decoration-black/30 hover:decoration-black transition-all"
-        >
-          start your brain
-        </a>
+        />
       </div>
     </div>
   );
@@ -93,13 +92,11 @@ export default function BrainHero() {
           transition={{ duration: 0.7, delay: 0.24 }}
           className="mt-5 flex items-center gap-3"
         >
-          <a
-            href={signUpUrl("hero")}
-            onClick={() => track("cta_click", { cta_location: "brain_hero", button_label: "start your brain" })}
+          <StartButton
+            from="hero"
+            location="brain_hero"
             className={`${MONO} inline-flex items-center px-6 py-3 bg-black text-white rounded-full text-xs tracking-wide hover:bg-black/85 transition-colors`}
-          >
-            start your brain
-          </a>
+          />
           <a
             href="#phone"
             onClick={() => track("cta_click", { cta_location: "brain_hero", button_label: "phone companion" })}

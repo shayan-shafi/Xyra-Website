@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useInView } from "framer-motion";
 import { track } from "@/lib/analytics";
-import { signUpUrl } from "@/lib/site";
+import StartButton from "@/components/StartButton";
 import { useSectionView } from "@/lib/useSectionView";
 import { AgentMark } from "./hero/stickers";
 import { MEMORY_COUNT, WORLD } from "./hero/heroWorld";
@@ -191,13 +191,11 @@ export default function HowItStarts() {
         </ol>
 
         <div className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-3">
-          <a
-            href={signUpUrl("how")}
-            onClick={() => track("cta_click", { cta_location: "how_it_starts", button_label: "start your brain" })}
+          <StartButton
+            from="how"
+            location="how_it_starts"
             className={`${MONO} inline-flex items-center rounded-full bg-black px-6 py-3 text-xs tracking-wide text-white transition-colors hover:bg-black/85`}
-          >
-            start your brain
-          </a>
+          />
           <span className={`${MONO} text-[11px] text-black/45`}>no card to start. $10 a seat a month once you&apos;ve seen it.</span>
         </div>
       </div>

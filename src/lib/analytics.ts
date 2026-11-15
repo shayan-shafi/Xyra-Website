@@ -326,13 +326,15 @@ const TWCLID_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // matches X's 30-day click 
 
 export const X_PIXEL_ID = "rihth";
 
-export type XConversionKind = "waitlist" | "alpha_apply";
+export type XConversionKind = "waitlist" | "alpha_apply" | "signup";
 
 // Event IDs (tw-rihth-xxxxx) come from X Events Manager. They are not secret;
 // NEXT_PUBLIC_ so the browser pixel and the server send the same event.
 export const X_EVENT_IDS: Record<XConversionKind, string | undefined> = {
   waitlist: process.env.NEXT_PUBLIC_X_EVENT_WAITLIST,
   alpha_apply: process.env.NEXT_PUBLIC_X_EVENT_ALPHA_APPLY,
+  // "send it to my laptop" email captured (and, later, app sign-up). Unset = not sent.
+  signup: process.env.NEXT_PUBLIC_X_EVENT_SIGNUP,
 };
 
 export function adTrackingAllowed(): boolean {

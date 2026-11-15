@@ -6,7 +6,7 @@
 // scattered around them, draggable like the hero's.
 
 import { track } from "@/lib/analytics";
-import { signUpUrl } from "@/lib/site";
+import StartButton from "@/components/StartButton";
 import { useSectionView } from "@/lib/useSectionView";
 import { Chip } from "@/components/PhoneCanvas";
 import { Cutout, Sticker } from "@/components/hero/Sticker";
@@ -102,13 +102,11 @@ export default function Cta() {
           />
         </div>
         <div className="mt-[72px] flex flex-wrap items-center justify-center gap-3">
-          <a
-            href={signUpUrl("cta_bottom")}
-            onClick={() => track("cta_click", { cta_location: "cta_bottom", button_label: "start your brain" })}
+          <StartButton
+            from="cta_bottom"
+            location="cta_bottom"
             className="inline-flex items-center px-7 py-3.5 bg-black text-white rounded-full font-[family-name:var(--font-jetbrains)] text-sm tracking-wide hover:bg-black/85 transition-colors"
-          >
-            start your brain
-          </a>
+          />
         </div>
       </div>
     </section>

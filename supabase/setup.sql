@@ -498,3 +498,35 @@ ALTER TABLE waitlist ADD COLUMN IF NOT EXISTS alpha_pay_ok     BOOLEAN;     -- "
 
 CREATE INDEX IF NOT EXISTS idx_waitlist_alpha_applied
   ON waitlist (alpha_applied_at DESC) WHERE alpha_applied_at IS NOT NULL;
+
+
+-- ── handoff_requests ("send it to my laptop", 2026-11-14) ── see supabase/2026-11-14-handoff.sql
+CREATE TABLE IF NOT EXISTS handoff_requests (
+  id                  BIGSERIAL PRIMARY KEY,
+  email               TEXT UNIQUE,              -- lowercased; NULL once claimed
+  token               TEXT NOT NULL UNIQUE,     -- random, in the emailed link
+  visitor_id          UUID,                     -- the site's anonymous visitor id
+  first_utm_source    TEXT,
+  first_utm_medium    TEXT,
+  first_utm_campaign  TEXT,
+  first_utm_content   TEXT,
+  first_referrer      TEXT,
+  first_landing_page  TEXT,
+  first_ref_code      TEXT,
+  twclid              TEXT,                     -- only when ad measurement was allowed
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  first_sent_at       TIMESTAMPTZ,              -- when email #1 went (reminders count from here)
+  last_email_at       TIMESTAMPTZ,
+  emails_sent         SMALLINT NOT NULL DEFAULT 0,
+  opened_at           TIMESTAMPTZ,              -- first time the link was opened, any device
+  laptop_opened_at    TIMESTAMPTZ,              -- first time it was opened on a laptop/desktop
+  claimed_at          TIMESTAMPTZ,              -- account created on app.xyra.dev with this token
+  unsubscribed_at     TIMESTAMPTZ               -- "stop these" link
+);
+
+CREATE INDEX IF NOT EXISTS handoff_requests_reminders_idx
+  ON handoff_requests (emails_sent, first_sent_at)
+  WHERE claimed_at IS NULL AND unsubscribed_at IS NULL;
+
+ALTER TABLE handoff_requests ENABLE ROW LEVEL SECURITY;
+-- No policies on purpose: anon and authenticated roles get nothing.

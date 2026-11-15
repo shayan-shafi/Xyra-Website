@@ -18,6 +18,24 @@ const ALLOWED_EVENTS = new Set([
   "waitlist_survey_skip",
   "waitlist_done_view",
   "ref_link_visit",
+  // /apply (were sent but dropped until 2026-11-14)
+  "alpha_apply_start",
+  "alpha_apply_step",
+  "alpha_apply_submit",
+  "alpha_apply_success",
+  "alpha_apply_error",
+  "alpha_apply_invalid_email",
+  // the bouncer
+  "bouncer_view",
+  "bouncer_open",
+  "bouncer_message_sent",
+  "bouncer_granted",
+  // "send it to my laptop" (handoff_link_open is written by the server, /l/<token>)
+  "handoff_open",
+  "handoff_submit",
+  "handoff_success",
+  "handoff_error",
+  "handoff_skip",
 ]);
 
 const UUID_RE =

@@ -10,7 +10,7 @@
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
 import { track } from "@/lib/analytics";
-import { signUpUrl } from "@/lib/site";
+import StartButton from "@/components/StartButton";
 import { useSectionView } from "@/lib/useSectionView";
 import CoffeeScene from "./CoffeeScene";
 
@@ -51,13 +51,11 @@ export default function Pricing() {
               <p className={`${PROSE} mt-6 text-lg leading-snug text-white/70`}>no tiers and nothing held back for a bigger plan.</p>
             </div>
             <div>
-              <a
-                href={signUpUrl("pricing")}
-                onClick={() => track("cta_click", { cta_location: "pricing", button_label: "start your brain" })}
+              <StartButton
+                from="pricing"
+                location="pricing"
                 className={`${MONO} inline-flex w-full items-center justify-center rounded-full bg-white px-6 py-3.5 text-xs tracking-wide text-black transition-colors hover:bg-white/85`}
-              >
-                start your brain
-              </a>
+              />
               <p className={`${MONO} mt-4 text-[10px] leading-relaxed text-white/45`}>
                 billed monthly through stripe. cancel any time in settings and keep access to the end of the month you paid for.
               </p>
