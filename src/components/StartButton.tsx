@@ -207,6 +207,9 @@ function HandoffSheet({ from, location, onClose }: { from: string; location: str
             <p className={`${PROSE} mt-3 text-[17px] leading-snug text-black/60`}>
               leave your email and we&apos;ll send the link there. no card until you&apos;ve seen it.
             </p>
+            <p className={`${PROSE} mt-2 text-[17px] leading-snug text-black/60`}>
+              don&apos;t worry, you can download the phone version after you sign in on your laptop.
+            </p>
             <input
               ref={inputRef}
               type="email"
