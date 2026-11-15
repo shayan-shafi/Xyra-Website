@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isValidEmail } from "@/lib/emailValidation";
 import { clipStr, pickFirstTouch, safeVisitorId } from "@/lib/waitlistShared";
 import { sendXConversion } from "@/lib/xConversions";
-import { newToken, sendHandoffEmail } from "@/lib/handoff";
+import { newToken, rememberEmailId, sendHandoffEmail } from "@/lib/handoff";
 
 // POST /api/handoff — "send it to my laptop" (see src/lib/handoff.ts).
 // Body: { email, visitor_id?, first_touch?, x? }
@@ -47,6 +47,7 @@ export async function POST(request: Request) {
         .from("handoff_requests")
         .update({ emails_sent: 1, first_sent_at: now.toISOString(), last_email_at: now.toISOString(), unsubscribed_at: null })
         .eq("id", existing.id);
+      await rememberEmailId(db, existing.id, sent);
       return NextResponse.json({ ok: true, resent: true });
     }
 
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
       .from("handoff_requests")
       .update({ emails_sent: 1, first_sent_at: now.toISOString(), last_email_at: now.toISOString() })
       .eq("id", row.id);
+    await rememberEmailId(db, row.id, sent);
 
     await sendXConversion({ kind: "signup", request, email, x: body.x });
 

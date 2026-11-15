@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { sendHandoffEmail, type EmailNumber } from "@/lib/handoff";
+import { lastEmailFailed, rememberEmailId, sendHandoffEmail, type EmailNumber } from "@/lib/handoff";
 
 // Daily (vercel.json): the "send it to my laptop" reminders.
 //   email 2 — at least 20h after email 1
 //   email 3 — at least 68h after email 1 (the last one)
-// Never to anyone who made the account (claimed) or tapped "stop".
+// Never to anyone who made the account (claimed) or tapped "stop", and never
+// again to an address whose last email bounced or was marked as spam (that
+// row gets unsubscribed_at, so it drops out for good).
 // Also deletes rows that never became an account, 30 days on.
 //
 // Same cron-secret pattern as /api/cron/daily-signups.
@@ -32,13 +34,14 @@ export async function GET(request: Request) {
 
   const now = Date.now();
   const sent: Record<string, number> = { "2": 0, "3": 0 };
+  let bounced = 0;
   const failed: Record<string, number> = { "2": 0, "3": 0 };
 
   for (const step of STEPS) {
     const cutoff = new Date(now - step.afterMs).toISOString();
     const { data: rows, error } = await db
       .from("handoff_requests")
-      .select("id, email, token")
+      .select("*") // not a column list: last_email_id may not exist yet
       .eq("emails_sent", step.from)
       .lte("first_sent_at", cutoff)
       .is("claimed_at", null)
@@ -50,6 +53,11 @@ export async function GET(request: Request) {
       continue;
     }
     for (const r of rows ?? []) {
+      if (await lastEmailFailed(r.last_email_id as string | undefined)) {
+        bounced++;
+        await db.from("handoff_requests").update({ unsubscribed_at: new Date().toISOString() }).eq("id", r.id);
+        continue;
+      }
       const ok = await sendHandoffEmail(step.to, r.email as string, r.token as string);
       if (!ok) {
         failed[step.to]++;
@@ -62,6 +70,7 @@ export async function GET(request: Request) {
         .update({ emails_sent: step.to, last_email_at: new Date().toISOString() })
         .eq("id", r.id)
         .eq("emails_sent", step.from);
+      await rememberEmailId(db, r.id as number, ok);
     }
   }
 
@@ -72,5 +81,5 @@ export async function GET(request: Request) {
     .lt("created_at", new Date(now - PURGE_AFTER_MS).toISOString());
   if (purgeErr) console.error("handoff purge error:", purgeErr);
 
-  return NextResponse.json({ sent, failed, purged: purged ?? 0 });
+  return NextResponse.json({ sent, failed, bounced, purged: purged ?? 0 });
 }

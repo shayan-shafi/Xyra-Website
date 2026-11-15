@@ -36,6 +36,8 @@ const ALLOWED_EVENTS = new Set([
   "handoff_success",
   "handoff_error",
   "handoff_skip",
+  "handoff_fix_email",
+  "handoff_typo_fix",
 ]);
 
 const UUID_RE =

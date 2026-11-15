@@ -48,6 +48,23 @@ function adTouch() {
   };
 }
 
+// Common phone-keyboard slips in the big inboxes: offered as "did you mean …?", never forced.
+const DOMAIN_FIXES: Record<string, string> = {
+  "gmial.com": "gmail.com", "gmai.com": "gmail.com", "gmal.com": "gmail.com", "gnail.com": "gmail.com",
+  "gmail.co": "gmail.com", "gmail.cm": "gmail.com", "gmail.con": "gmail.com", "gamil.com": "gmail.com",
+  "gmaill.com": "gmail.com", "gmali.com": "gmail.com", "hotmial.com": "hotmail.com", "hotmai.com": "hotmail.com",
+  "hotmail.co": "hotmail.com", "yahooo.com": "yahoo.com", "yaho.com": "yahoo.com", "yahoo.co": "yahoo.com",
+  "icloud.co": "icloud.com", "iclod.com": "icloud.com", "icoud.com": "icloud.com", "outlok.com": "outlook.com",
+  "outlook.co": "outlook.com",
+};
+
+function suggestEmail(value: string): string | null {
+  const at = value.lastIndexOf("@");
+  if (at < 1) return null;
+  const fix = DOMAIN_FIXES[value.slice(at + 1).toLowerCase()];
+  return fix ? `${value.slice(0, at)}@${fix}` : null;
+}
+
 /** The app sign-up link for this button, carrying the visit's UTM tags (no personal data). */
 function signUpHref(from: string): string {
   const base = signUpUrl(from);
@@ -106,7 +123,9 @@ function HandoffSheet({ from, location, onClose }: { from: string; location: str
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [problem, setProblem] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const suggestion = state !== "sent" ? suggestEmail(email.trim()) : null;
 
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 250);
@@ -149,6 +168,7 @@ function HandoffSheet({ from, location, onClose }: { from: string; location: str
         // doesn't starve it; drop once the campaign optimizes on "Sign up".
         fireXPurchase(x);
       }
+      setSentTo(value);
       setState("sent");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "something went wrong";
@@ -190,6 +210,21 @@ function HandoffSheet({ from, location, onClose }: { from: string; location: str
         {state === "sent" ? (
           <div>
             <p className={`${SERIF} text-[28px] font-medium leading-[1.1] tracking-tight text-black`}>sent. open it on your laptop.</p>
+            <p className={`${MONO} mt-4 break-all rounded-full border border-black/10 bg-white px-4 py-2.5 text-[13px] text-black`}>{sentTo}</p>
+            <button
+              type="button"
+              onClick={() => {
+                track("handoff_fix_email", { cta_location: location });
+                setState("idle");
+                setTimeout(() => {
+                  inputRef.current?.focus();
+                  inputRef.current?.select();
+                }, 50);
+              }}
+              className={`${MONO} mt-2 px-1 text-[11px] text-black/55 underline underline-offset-4 decoration-black/25`}
+            >
+              wrong email? fix it
+            </button>
             <p className={`${PROSE} mt-3 text-[17px] leading-snug text-black/60`}>
               it&apos;s from shayan@xyra.dev. not there in a minute? check promotions or spam.
             </p>
@@ -226,6 +261,18 @@ function HandoffSheet({ from, location, onClose }: { from: string; location: str
               className={`${MONO} mt-6 w-full rounded-full border border-black/15 bg-white px-5 py-3.5 text-[16px] text-black outline-none placeholder:text-black/30 focus:border-black/50`}
             />
             {problem && <p className={`${MONO} mt-2 px-2 text-[11px] text-red-600`}>{problem}</p>}
+            {suggestion && (
+              <button
+                type="button"
+                onClick={() => {
+                  track("handoff_typo_fix", { cta_location: location });
+                  setEmail(suggestion);
+                }}
+                className={`${MONO} mt-2 px-2 text-left text-[11px] text-black/60`}
+              >
+                did you mean <span className="text-black underline underline-offset-4">{suggestion}</span>?
+              </button>
+            )}
             <button
               type="submit"
               disabled={state === "sending"}

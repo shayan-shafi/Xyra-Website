@@ -140,16 +140,19 @@ ${c.lines.map(p).join("\n")}
   return { subject: c.subject, text, html };
 }
 
-/** Sends one email of the sequence. Returns false (and logs) if Resend refuses or isn't configured. */
-export async function sendHandoffEmail(n: EmailNumber, to: string, token: string): Promise<boolean> {
+/** Sends one email of the sequence. Returns Resend's message id, or null (and logs)
+ *  if Resend refuses or isn't configured. */
+export async function sendHandoffEmail(n: EmailNumber, to: string, token: string): Promise<string | null> {
   if (!resend) {
     console.error("handoff: RESEND_API_KEY not set");
-    return false;
+    return null;
   }
-  const from = process.env.HANDOFF_FROM_EMAIL ?? process.env.ANALYTICS_REPORT_FROM_EMAIL ?? "shayan@xyra.dev";
+  // Not ANALYTICS_REPORT_FROM_EMAIL: that is analytics@xyra.dev in production, and the
+  // sheet tells people to look for shayan@xyra.dev.
+  const from = process.env.HANDOFF_FROM_EMAIL ?? "shayan@xyra.dev";
   const { subject, text, html } = buildEmail(n, token);
   try {
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: `shayan from xyra <${from}>`,
       to: [to],
       subject,
@@ -157,13 +160,41 @@ export async function sendHandoffEmail(n: EmailNumber, to: string, token: string
       html,
       headers: n < 3 ? { "List-Unsubscribe": `<${stopLinkFor(token)}>` } : undefined,
     });
-    if (error) {
+    if (error || !data?.id) {
       console.error(`handoff email ${n} failed:`, JSON.stringify(error));
-      return false;
+      return null;
     }
-    return true;
+    return data.id;
   } catch (err) {
     console.error(`handoff email ${n} error:`, err);
+    return null;
+  }
+}
+
+/** Did the last email to this address bounce or get marked as spam? (Resend's delivery status.)
+ *  Unknown (no id, Resend unreachable) counts as no, so a hiccup never blocks a reminder. */
+export async function lastEmailFailed(emailId: string | null | undefined): Promise<boolean> {
+  if (!resend || !emailId) return false;
+  try {
+    const { data } = await resend.emails.get(emailId);
+    const ev = (data as { last_event?: string } | null)?.last_event;
+    return ev === "bounced" || ev === "complained";
+  } catch {
     return false;
+  }
+}
+
+/** Saves the Resend id of the email just sent. Its own write, so a database without the
+ *  last_email_id column yet (supabase/2026-11-15-handoff-bounces.sql) loses nothing else. */
+export async function rememberEmailId(
+  db: { from: (t: string) => { update: (v: Record<string, unknown>) => { eq: (c: string, v: unknown) => PromiseLike<{ error: unknown }> } } },
+  rowId: number,
+  emailId: string,
+): Promise<void> {
+  try {
+    const { error } = await db.from("handoff_requests").update({ last_email_id: emailId }).eq("id", rowId);
+    if (error) console.error("handoff: couldn't save last_email_id (column missing?)", JSON.stringify(error));
+  } catch {
+    /* never in the way */
   }
 }

@@ -530,3 +530,6 @@ CREATE INDEX IF NOT EXISTS handoff_requests_reminders_idx
 
 ALTER TABLE handoff_requests ENABLE ROW LEVEL SECURITY;
 -- No policies on purpose: anon and authenticated roles get nothing.
+
+-- 2026-11-15: see supabase/2026-11-15-handoff-bounces.sql
+ALTER TABLE handoff_requests ADD COLUMN IF NOT EXISTS last_email_id TEXT;
