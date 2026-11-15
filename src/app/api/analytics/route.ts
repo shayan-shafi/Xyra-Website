@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { NextResponse } from "next/server";
+import { isPhoneUserAgent } from "@/lib/handoff";
 
 // Always return 204 on success/expected failure so sendBeacon doesn't retry
 // and the browser never sees a noisy response. Only real server errors return 5xx.
@@ -128,7 +129,12 @@ export async function POST(request: Request) {
       utm_medium: clipString(b.utm_medium, MAX_UTM),
       utm_campaign: clipString(b.utm_campaign, MAX_UTM),
       utm_content: clipString(b.utm_content, MAX_UTM),
-      metadata: sanitizeMetadata(b.metadata),
+      // phone | desktop from the request's user agent (sendBeacon carries it), so
+      // the funnel can split the phone path from the laptop path (2026-11-15).
+      metadata: {
+        ...(sanitizeMetadata(b.metadata) ?? {}),
+        device: isPhoneUserAgent(request.headers.get("user-agent")) ? "phone" : "desktop",
+      },
     };
 
     const { error } = await supabase.from("analytics_events").insert(row);
