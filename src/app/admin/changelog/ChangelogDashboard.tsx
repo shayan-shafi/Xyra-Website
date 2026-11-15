@@ -208,6 +208,8 @@ function Delta({ label, before, after }: { label: string; before: number; after:
 }
 
 function CompareRow({ c }: { c: Compare }) {
+  if (c.days === 0)
+    return <div className="text-xs text-gray-500">before/after shows once the first full day after this release is done</div>;
   return (
     <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
       <span className="text-gray-500">

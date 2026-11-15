@@ -109,7 +109,9 @@ function compareFor(series: DayPoint[], day: string): Compare | null {
   const i = series.findIndex((p) => p.day === day);
   if (i < COMPARE_DAYS) return null; // not enough "before" in the window
   const before = series.slice(i - COMPARE_DAYS, i);
-  const after = series.slice(i, i + COMPARE_DAYS);
+  // The last point is today, still in progress: comparing a few hours against
+  // full days read as a fake crash (-86% at 2am). Only finished days count.
+  const after = series.slice(i, Math.min(i + COMPARE_DAYS, series.length - 1));
   const avg = (xs: DayPoint[], k: keyof Omit<DayPoint, "day">) => (xs.length ? xs.reduce((s, p) => s + p[k], 0) / xs.length : 0);
   return {
     days: after.length,
