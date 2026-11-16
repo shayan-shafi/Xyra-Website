@@ -5,15 +5,16 @@ import { isAdminRequest } from "@/lib/adminApiAuth";
 import { getGrowthTemplate, buildRecipientValues, missingRequiredGlobals, PER_RECIPIENT_KEYS, NAME_PLACEHOLDER, resolveSenderFrom } from "@/lib/growthEmailTemplates";
 import { issueDryRunToken, verifyDryRunToken } from "@/lib/growthDryRunToken";
 import { isValidEmail } from "@/lib/emailValidation";
+import { resolveRecipients, type KnownRecipient } from "@/lib/emailRecipients";
 
-// ── Guarded real send to SELECTED waitlist users ────────────────────────────
+// ── Guarded real send to SELECTED people (accounts or waitlist) ─────────────
 //
 // Safety model (all enforced server-side):
 //  1. Admin auth required.
 //  2. Hard-disabled unless ENABLE_GROWTH_EMAIL_SENDS === "true".
 //  3. Recipients must be an explicit, non-empty list. There is no "send to all"
 //     path — the route only ever emails the emails it is handed, after
-//     verifying each one exists on the waitlist.
+//     verifying each one has a xyra account or a waitlist row.
 //  4. Capped at GROWTH_MAX_SEND (default 1000) recipients per call.
 //  5. A dry run (dryRun:true) is required first and returns exactly who would
 //     be emailed / skipped, without sending or writing anything.
@@ -22,7 +23,7 @@ import { isValidEmail } from "@/lib/emailValidation";
 //     email_campaign_recipients (unique on campaign_key+email) BEFORE sending,
 //     so the same campaign can never email the same person twice.
 //  8. Per-recipient personalization (first_name, referral_link) is derived from
-//     waitlist data here — never trusted from the client.
+//     their account / waitlist data here — never trusted from the client.
 
 const MAX_SEND = (() => {
   const n = parseInt(process.env.GROWTH_MAX_SEND ?? "", 10);
@@ -48,7 +49,6 @@ function serializeError(err: unknown): Record<string, unknown> {
   return out;
 }
 
-type WaitlistLite = { email: string; name: string | null; ref_code: string | null };
 
 export async function POST(request: Request) {
   if (!isAdminRequest()) {
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
   const dryRun = body.dryRun === true;
 
   // Global values from the admin; per-recipient keys are stripped so they can
-  // never be injected from the client — they're rebuilt from waitlist data.
+  // never be injected from the client — they're rebuilt from server data.
   const globalValues: Record<string, string> = {};
   if (body.values && typeof body.values === "object") {
     for (const [k, v] of Object.entries(body.values as Record<string, unknown>)) {
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
   const allRecipients = Array.from(
     new Set(rawRecipients.filter((e): e is string => typeof e === "string" && e.trim().length > 0).map(e => e.trim().toLowerCase()))
   );
-  // Malformed addresses are excluded here, server-side, BEFORE any waitlist
+  // Malformed addresses are excluded here, server-side, BEFORE any recipient
   // lookup or send — they are never handed to Resend. Enforced independent of
   // any UI filtering. The known bad legacy addresses (no dot in the domain)
   // are caught here.
@@ -137,16 +137,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not configured." }, { status: 500 });
   }
 
-  // Authoritative recipient data — only waitlist members can be emailed.
-  const { data: wlRows, error: wlErr } = await supabaseAdmin
-    .from("waitlist")
-    .select("email,name,ref_code")
-    .in("email", recipients);
-  if (wlErr) {
-    return NextResponse.json({ error: "Failed to load waitlist recipients.", detail: wlErr.message }, { status: 500 });
+  // Authoritative recipient data: only people with a xyra account or a
+  // waitlist row can be emailed (see lib/emailRecipients.ts).
+  const { known: byEmail, error: lookupErr } = await resolveRecipients(recipients);
+  if (lookupErr) {
+    return NextResponse.json({ error: "Failed to look up recipients.", detail: lookupErr }, { status: 500 });
   }
-  const byEmail = new Map<string, WaitlistLite>();
-  for (const r of (wlRows ?? []) as WaitlistLite[]) byEmail.set(r.email.toLowerCase(), r);
 
   // Already-sent for this campaign (idempotency).
   const { data: sentRows, error: sentErr } = await supabaseAdmin
@@ -164,7 +160,7 @@ export async function POST(request: Request) {
   const willSend = recipients.filter(e => byEmail.has(e) && !alreadySent.has(e));
 
   // Recipients who will receive a neutral greeting (no usable name) because
-  // their waitlist name is blank or the import placeholder. Surfaced in the
+  // their name is blank or the import placeholder. Surfaced in the
   // dry run so the sender knows; personalization suppression itself happens in
   // buildRecipientValues at send time.
   const isPlaceholderName = (n: string | null) => {
@@ -264,7 +260,7 @@ export async function POST(request: Request) {
   const failed: { email: string; detail: Record<string, unknown> }[] = [];
 
   for (const email of willSend) {
-    const wl = byEmail.get(email)!;
+    const who: KnownRecipient = byEmail.get(email)!;
 
     // Claim the recipient first (unique index on campaign_key+email). A
     // unique-violation here means a concurrent run already claimed it — skip.
@@ -277,7 +273,7 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const values = buildRecipientValues(globalValues, { name: wl.name, refCode: wl.ref_code }, base);
+    const values = buildRecipientValues(globalValues, { name: who.name, inviteCode: who.inviteCode }, base);
     const html = tpl.buildHtml(values, sections);
     const text = tpl.buildText(values, sections);
 
@@ -302,14 +298,6 @@ export async function POST(request: Request) {
       .eq("campaign_key", campaignKey)
       .eq("email", email);
     sent.push(email);
-
-    // For alpha invites, persist the invite state on the waitlist row.
-    if (templateId === "alpha-invite") {
-      await supabaseAdmin
-        .from("waitlist")
-        .update({ alpha_status: "invited", alpha_invited_at: new Date().toISOString() })
-        .eq("email", email);
-    }
   }
 
   return NextResponse.json({

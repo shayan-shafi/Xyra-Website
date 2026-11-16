@@ -4,16 +4,15 @@
 // Pure, dependency-free string builders — usable by both the client preview
 // (EmailOps.tsx) and the server send routes.
 //
-// Visual language mirrors Xyra's branded user-facing pages (the /ref/[code]
-// page and the site footer): white card, centered Xyra logo, serif typography
-// (Georgia stands in for Playfair/EB Garamond, which email clients can't
-// reliably load), a thin gold accent rule, generous spacing, a black pill CTA,
-// and a muted founder footer — a personal note from Cole and Shayan, not a CRM
-// blast — while staying email-client-safe (tables, inline styles, web-safe
-// fonts, absolute image URLs).
+// Visual language mirrors xyra.dev since the 2026-11 refresh: the logo is just
+// the word "xyra" (Playfair Display, lowercase, black), white card on a near-
+// white page, EB Garamond body, small mono labels, a black pill CTA, and a
+// short footer with the tagline. Fonts load in Apple Mail / iOS; everywhere
+// else they fall back to Georgia. Still email-client-safe (tables, inline
+// styles, absolute image URLs).
 //
 // Editable surface: subject, preheader, eyebrow (kicker), headline, body
-// content, optional CTA, optional image, optional referral block, and the
+// content, optional CTA, optional image, optional invite block, and the
 // sign-off (closing line + signature). Everything has a sensible default and
 // persists with saved templates.
 //
@@ -22,8 +21,9 @@
 //
 // Placeholders use {{snake_case}} tokens. Two scopes:
 //   - "global"       : one admin-entered value reused for every recipient.
-//   - "perRecipient" : filled per recipient by the SEND route from waitlist
-//                      data (first_name, referral_link).
+//   - "perRecipient" : filled per recipient by the SEND route from the
+//                      person's account or waitlist row (first_name, and
+//                      referral_link = their xyra.dev/invite/<CODE> link).
 // A missing value renders as the literal {{token}} (never a fabricated link).
 //
 // Sections: templates may declare optional sections toggled in the editor. A
@@ -64,7 +64,6 @@ export type GrowthTemplate = {
 };
 
 const XYRA_ORIGIN = "https://xyra.dev";
-const LOGO_URL = `${XYRA_ORIGIN}/assets/xyra-logo.png`;
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
 
@@ -90,20 +89,26 @@ function lines(value: string | undefined): string[] {
   return value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 }
 
-const SERIF = "Georgia,'Times New Roman',Times,serif";
+// Brand (2026-11): the logo is just the word "xyra", lowercase, in Playfair
+// Display, black on white. Apple Mail / iOS load the web fonts from the <link>
+// in the head; Gmail and Outlook fall back to Georgia, which reads the same.
+const WORDMARK = "'Playfair Display',Georgia,'Times New Roman',serif";
+const SERIF = "'EB Garamond',Georgia,'Times New Roman',Times,serif";
 const SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
-const INK = "#1a1a1a";
-const BODY_INK = "#3d3d3d";
-const FAINT = "#8a8a7a";
-const HAIRLINE = "#e7e0d4";
-const GOLD = "#c4a87c";
+const MONO = "'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace";
+const INK = "#111111";
+const BODY_INK = "#333333";
+const FAINT = "#8c8c8c";
+const HAIRLINE = "#ececec";
+const TINT = "#f7f7f5";
+const TAGLINE = "the outlet for your ambitious mind";
 
 function paragraph(html: string): string {
   return `<p style="margin:0 0 18px;font-family:${SERIF};font-size:16px;line-height:1.7;color:${BODY_INK};">${html}</p>`;
 }
 
 function headlineBlock(text: string): string {
-  return `<h1 style="margin:0 0 18px;font-family:${SERIF};font-size:26px;line-height:1.25;color:${INK};font-weight:400;">${esc(text)}</h1>`;
+  return `<h1 style="margin:0 0 18px;font-family:${WORDMARK};font-size:28px;line-height:1.2;color:${INK};font-weight:400;">${esc(text)}</h1>`;
 }
 
 function htmlList(items: string[]): string {
@@ -208,18 +213,28 @@ function behindScenesImages(v: Record<string, string>): GalleryImage[] {
 }
 
 function eyebrowHeader(text: string): string {
-  return `<p style="margin:26px 0 10px;font-family:${SANS};font-size:11px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:${FAINT};">${esc(text)}</p>`;
+  return `<p style="margin:28px 0 10px;font-family:${MONO};font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${FAINT};">${esc(text)}</p>`;
 }
 
 function pillButton(label: string, href: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 20px;"><tr>
-    <td style="border-radius:999px;background:#000000;">
-      <a href="${esc(href)}" style="display:inline-block;padding:13px 30px;color:#ffffff;text-decoration:none;font-family:${SANS};font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;">${esc(label)}</a>
+    <td style="border-radius:999px;background:${INK};">
+      <a href="${esc(href)}" style="display:inline-block;padding:13px 28px;color:#ffffff;text-decoration:none;font-family:${SANS};font-size:14px;font-weight:600;">${esc(label)}</a>
     </td></tr></table>`;
 }
 
+// The invite link (xyra.dev/invite/<CODE>) gives a friend a free week. It is
+// filled per recipient from their invite code; people without one (no account
+// yet) simply don't get the block, never a {{token}}.
+function inviteBlock(v: Record<string, string>, introHtml: string): string {
+  return has(v, "referral_link") ? referralBlock(introHtml, raw(v, "referral_link")) : "";
+}
+function inviteText(v: Record<string, string>, intro: string): string[] {
+  return has(v, "referral_link") ? [``, intro, raw(v, "referral_link")] : [];
+}
+
 function referralBlock(introHtml: string, link: string): string {
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 18px;background:#faf8f3;border:1px solid ${HAIRLINE};border-radius:12px;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:6px 0 18px;background:${TINT};border:1px solid ${HAIRLINE};border-radius:12px;">
     <tr><td style="padding:16px 18px;">
       <p style="margin:0 0 6px;font-family:${SERIF};font-size:15px;line-height:1.6;color:${BODY_INK};">${introHtml}</p>
       <a href="${esc(link)}" style="font-family:${SANS};font-size:13px;color:${INK};font-weight:600;word-break:break-all;">${esc(link)}</a>
@@ -270,6 +285,7 @@ function greetingText(v: Record<string, string>): string {
 
 function emailShell(opts: { kicker: string; preheader?: string; bodyHtml: string }): string {
   const { kicker, preheader, bodyHtml } = opts;
+  const kickerText = kicker.trim();
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -277,43 +293,42 @@ function emailShell(opts: { kicker: string; preheader?: string; bodyHtml: string
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="supported-color-schemes" content="light">
-  <title>Xyra</title>
+  <title>xyra</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=EB+Garamond:wght@400;500&family=JetBrains+Mono&display=swap" rel="stylesheet">
 </head>
-<body style="margin:0;padding:0;background:#f2eee6;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+<body style="margin:0;padding:0;background:${TINT};-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
   ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader)}</div>` : ""}
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2eee6;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${TINT};">
     <tr>
-      <td align="center" style="padding:36px 16px;">
+      <td align="center" style="padding:32px 16px;">
         <table role="presentation" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid ${HAIRLINE};border-radius:16px;overflow:hidden;">
 
-          <!-- Logo header -->
+          <!-- Wordmark: the logo is the word, nothing else -->
           <tr>
-            <td align="center" style="padding:40px 40px 0;">
-              <img src="${LOGO_URL}" alt="Xyra" width="150" height="50" style="display:block;width:150px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;" />
+            <td style="padding:32px 40px 0;">
+              <a href="${XYRA_ORIGIN}" style="font-family:${WORDMARK};font-size:26px;font-weight:600;line-height:1;color:${INK};text-decoration:none;">xyra</a>
             </td>
           </tr>
-          <!-- Gold accent rule + eyebrow -->
+          ${kickerText ? `<!-- Eyebrow -->
           <tr>
-            <td align="center" style="padding:20px 40px 0;">
-              <div style="width:36px;height:2px;background:${GOLD};margin:0 auto 16px;"></div>
-              <p style="margin:0;font-family:${SANS};font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:${FAINT};">${esc(kicker)}</p>
+            <td style="padding:22px 40px 0;">
+              <p style="margin:0;font-family:${MONO};font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:${FAINT};">${esc(kickerText)}</p>
             </td>
-          </tr>
+          </tr>` : ""}
 
           <!-- Body -->
           <tr>
-            <td style="padding:24px 40px 36px;">
+            <td style="padding:${kickerText ? "18px" : "26px"} 40px 34px;">
               ${bodyHtml}
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td style="padding:22px 40px 30px;border-top:1px solid ${HAIRLINE};">
-              <p style="margin:0;font-family:${SERIF};font-size:13px;line-height:1.6;color:${FAINT};text-align:center;">
-                Xyra, the AI-native personal operating system.<br>
-                <a href="${XYRA_ORIGIN}" style="color:${INK};font-weight:600;text-decoration:none;">xyra.dev</a><br>
-                You're receiving this because you joined the Xyra waitlist.
+            <td style="padding:20px 40px 26px;border-top:1px solid ${HAIRLINE};">
+              <p style="margin:0;font-family:${SANS};font-size:12px;line-height:1.6;color:${FAINT};">
+                <a href="${XYRA_ORIGIN}" style="font-family:${WORDMARK};font-size:14px;font-weight:600;color:${INK};text-decoration:none;">xyra</a>&nbsp; ${TAGLINE}<br>
+                You're getting this because you signed up for xyra. Just reply if you'd rather not hear from us.
               </p>
             </td>
           </tr>
@@ -329,9 +344,10 @@ function emailShell(opts: { kicker: string; preheader?: string; bodyHtml: string
 function textFooter(): string[] {
   return [
     ``,
-    `Xyra, the AI-native personal operating system.`,
+    `--`,
+    `xyra, ${TAGLINE}`,
     XYRA_ORIGIN,
-    `You're receiving this because you joined the Xyra waitlist.`,
+    `You're getting this because you signed up for xyra. Just reply if you'd rather not hear from us.`,
   ];
 }
 
@@ -355,7 +371,7 @@ function senderFields(defaultDisplay: string): PlaceholderDef[] {
 function headerFields(eyebrowExample: string, headlineExample: string): PlaceholderDef[] {
   return [
     { key: "preheader", label: "Preheader (inbox preview text)", example: "", scope: "global", help: "Optional. The grey text shown after the subject in most inboxes." },
-    { key: "eyebrow", label: "Eyebrow (small label under the logo)", example: eyebrowExample, scope: "global", required: true },
+    { key: "eyebrow", label: "Small label above the message (optional)", example: eyebrowExample, scope: "global" },
     { key: "headline", label: "Headline (optional, large title in the body)", example: headlineExample, scope: "global" },
   ];
 }
@@ -366,103 +382,12 @@ function signoffFields(): PlaceholderDef[] {
   ];
 }
 
-// ── Template 1: Alpha invite ────────────────────────────────────────────────
-
-// Default label for the optional onboarding/tutorial button. Single source of
-// truth: used both as the editable field's default and as the render-time
-// fallback if the admin clears the label while keeping a tutorial link, so the
-// button never renders an empty or {{token}} label.
-const ONBOARDING_BTN_DEFAULT = "Open the tutorial";
-
-const alphaInvite: GrowthTemplate = {
-  id: "alpha-invite",
-  name: "Alpha Invite",
-  description: "Tells a selected user they're in the Xyra Alpha, sets expectations, and links access plus their referral link.",
-  confirmPhrase: "SEND ALPHA",
-  sections: [
-    { key: "expectations", label: "What we're hoping for", defaultEnabled: true },
-    { key: "onboarding", label: "Onboarding / tutorial", defaultEnabled: true },
-    { key: "closing", label: "Closing line", defaultEnabled: true },
-    { key: "referral", label: "Referral nudge", defaultEnabled: true },
-  ],
-  placeholders: [
-    { key: "first_name", label: "First name", example: "Alex", scope: "perRecipient", required: true, help: "Auto-filled per recipient from their waitlist name on a real send." },
-    ...senderFields("Cole & Shayan from Xyra"),
-    ...headerFields("Alpha is almost here", "You're in."),
-    { key: "intro", label: "Opening line", example: "We've been reading every signup, and we'd like you in the Xyra Alpha.", scope: "global", required: true, multiline: true },
-    { key: "context", label: "Why them / context", example: "We're opening access today. We're keeping this first group small on purpose: we want real feedback from real people who'll actually use it, not a launch-day crowd. You're one of them.", scope: "global", required: true, multiline: true },
-    { key: "expectations", label: "What we're hoping for (one per line)", example: "Give it an honest go. Actually use Xyra for the things you're juggling in your head.\nWhen something breaks or feels off, tell us. Rough edges are expected.\nUse the in-app feedback option when it's there, or just reach us directly.\nBe open to a short, casual call with us at some point.", scope: "global", multiline: true, section: "expectations" },
-    { key: "access_instructions_line", label: "Access instructions line", example: "We've included setup instructions at the link below so you can get started today.", scope: "global", required: true, multiline: true, help: "The full sentence shown above the Alpha access button. Entirely editable — reword the whole line however you like for this send." },
-    { key: "alpha_access_link", label: "Alpha access / TestFlight link", example: "", scope: "global", required: true, help: "Paste the link people need to install or open Xyra Alpha (e.g. TestFlight). This is required before sending. Left blank shows the {{token}} in the preview and blocks the send, so you never send a fake link." },
-    { key: "onboarding_resource_line", label: "Onboarding/tutorial line", example: "You can find a quick onboarding tutorial here.", scope: "global", section: "onboarding", help: "Optional. The line shown above the tutorial button. Only appears in the email when a tutorial link is set below." },
-    { key: "onboarding_resource_link", label: "Onboarding/tutorial link", example: "", scope: "global", section: "onboarding", help: "Optional. Paste a video, walkthrough, or tutorial link if you want to include one. Left blank hides the whole onboarding section (it never blocks sending)." },
-    { key: "onboarding_resource_button_label", label: "Onboarding/tutorial button label", example: ONBOARDING_BTN_DEFAULT, scope: "global", section: "onboarding", help: "Optional. The text shown on the tutorial button. Only used when a tutorial link is set; blank falls back to the default and never blocks sending." },
-    { key: "feedback_contact", label: "Feedback contact", example: "hello@xyra.dev", scope: "global", required: true, help: "Where users can reach you directly." },
-    { key: "closing", label: "Closing line", example: "Genuinely excited to put this in your hands.", scope: "global", multiline: true, section: "closing" },
-    ...signoffFields(),
-    { key: "referral_link", label: "Referral link", example: "https://xyra.dev/ref/abc123", scope: "perRecipient", required: true, section: "referral", help: "Auto-filled per recipient from their ref_code on a real send." },
-  ],
-  buildSubject: () => "You're in. Xyra Alpha access is open.",
-  buildHtml: (v, sections) => {
-    const on = makeOn(sections);
-    const accessBlock = has(v, "alpha_access_link")
-      ? pillButton("Get set up for Alpha", raw(v, "alpha_access_link"))
-      : `<p style="margin:6px 0 18px;padding:12px 14px;background:#fffaf0;border:1px solid #f0e2c0;border-radius:10px;font-family:${SANS};font-size:13px;color:#8a6d3b;">Add the Alpha access link before sending. The field is currently empty.</p>`;
-    const expectations = on("expectations") ? htmlList(lines(v.expectations)) : "";
-    const onboardingBtnLabel = has(v, "onboarding_resource_button_label") ? raw(v, "onboarding_resource_button_label") : ONBOARDING_BTN_DEFAULT;
-    const body = [
-      ...(has(v, "headline") ? [headlineBlock(raw(v, "headline"))] : []),
-      greetingHtml(v),
-      paragraph(esc(raw(v, "intro"))),
-      paragraph(esc(raw(v, "context"))),
-      ...(expectations ? [eyebrowHeader("What we're hoping for"), expectations] : []),
-      eyebrowHeader("Your access"),
-      paragraph(esc(raw(v, "access_instructions_line"))),
-      accessBlock,
-      ...(on("onboarding") && has(v, "onboarding_resource_link")
-        ? [eyebrowHeader("Getting started"), paragraph(esc(raw(v, "onboarding_resource_line"))), pillButton(onboardingBtnLabel, raw(v, "onboarding_resource_link"))]
-        : []),
-      paragraph(`You can reach us anytime at <a href="mailto:${esc(raw(v, "feedback_contact"))}" style="color:${INK};font-weight:600;">${esc(raw(v, "feedback_contact"))}</a>.`),
-      ...(on("referral") ? [eyebrowHeader("Bring a friend"), referralBlock("Your referral link still works, and every friend who joins moves you up:", raw(v, "referral_link"))] : []),
-      ...(on("closing") && has(v, "closing") ? [paragraph(esc(raw(v, "closing")))] : []),
-      signoffHtml(v),
-    ].join("");
-    return emailShell({ kicker: raw(v, "eyebrow"), preheader: preheaderOf(v, "You've been selected for the Xyra Alpha."), bodyHtml: body });
-  },
-  buildText: (v, sections) => {
-    const on = makeOn(sections);
-    const access = has(v, "alpha_access_link") ? raw(v, "alpha_access_link") : "(add the access link before sending)";
-    const onboardingBtnLabel = has(v, "onboarding_resource_button_label") ? raw(v, "onboarding_resource_button_label") : ONBOARDING_BTN_DEFAULT;
-    const exp = on("expectations") ? lines(v.expectations) : [];
-    return [
-      ...(has(v, "headline") ? [raw(v, "headline"), ``] : []),
-      greetingText(v),
-      ``,
-      raw(v, "intro"),
-      ``,
-      raw(v, "context"),
-      ...(exp.length ? [``, `What we're hoping for:`, ...exp.map(e => `- ${e}`)] : []),
-      ``,
-      raw(v, "access_instructions_line"),
-      `Your access: ${access}`,
-      ...(on("onboarding") && has(v, "onboarding_resource_link")
-        ? [``, raw(v, "onboarding_resource_line"), `${onboardingBtnLabel}: ${raw(v, "onboarding_resource_link")}`]
-        : []),
-      `Reach us anytime: ${raw(v, "feedback_contact")}`,
-      ...(on("referral") ? [``, `Your referral link still works, and every friend who joins moves you up:`, raw(v, "referral_link")] : []),
-      ...(on("closing") && has(v, "closing") ? [``, raw(v, "closing")] : []),
-      ...signoffText(v),
-      ...textFooter(),
-    ].join("\n");
-  },
-};
-
 // ── Template 2: Weekly newsletter / update ──────────────────────────────────
 
 const newsletter: GrowthTemplate = {
   id: "newsletter",
   name: "Weekly Update",
-  description: "Recurring waitlist update. Toggle the sections you want for this send.",
+  description: "The regular update: what shipped, what's next, what we need. Turn sections on and off for each send.",
   confirmPhrase: "SEND NEWSLETTER",
   sections: [
     { key: "quick_update", label: "Quick update", defaultEnabled: true },
@@ -471,24 +396,24 @@ const newsletter: GrowthTemplate = {
     { key: "fixed", label: "What we fixed", defaultEnabled: true },
     { key: "behind_scenes", label: "Behind the scenes", defaultEnabled: true },
     { key: "ask", label: "What we need from you", defaultEnabled: true },
-    { key: "referral", label: "Referral reminder", defaultEnabled: true },
+    { key: "referral", label: "Invite a friend", defaultEnabled: true },
   ],
   placeholders: [
     { key: "first_name", label: "First name", example: "Alex", scope: "perRecipient", required: true, help: "Auto-filled per recipient on a real send." },
-    ...senderFields("Xyra"),
-    ...headerFields("Xyra update", "The latest from Xyra"),
-    { key: "opening", label: "Opening line", example: "Here's what we have been working on this week.", scope: "global", required: true, multiline: true },
-    { key: "quick_update", label: "Quick update", example: "We're heads-down getting the Alpha ready for Monday.", scope: "global", required: true, multiline: true, section: "quick_update" },
-    { key: "shipped", label: "What we shipped (one per line)", example: "Faster braindump capture\nReferral leaderboard in the dashboard", scope: "global", multiline: true, section: "shipped" },
-    { key: "working_on", label: "What we're working on (one per line)", example: "Mobile polish\nAlpha onboarding flow", scope: "global", multiline: true, section: "working_on" },
-    { key: "fixed", label: "What we fixed (one per line)", example: "Login edge cases\nEmail rendering on Gmail", scope: "global", multiline: true, section: "fixed" },
-    { key: "behind_scenes_note", label: "Behind the scenes note", example: "Late nights, lots of coffee, and a wall full of sticky notes.", scope: "global", multiline: true, section: "behind_scenes" },
+    ...senderFields("Cole and Shayan from xyra"),
+    ...headerFields("this week in xyra", ""),
+    { key: "opening", label: "Opening line", example: "Here's what changed in xyra this week.", scope: "global", required: true, multiline: true },
+    { key: "quick_update", label: "Quick update", example: "The big one: xyra now works on your laptop at app.xyra.dev, synced with your phone.", scope: "global", required: true, multiline: true, section: "quick_update" },
+    { key: "shipped", label: "What we shipped (one per line)", example: "Send it to your laptop from the website\nWidgets for your to-dos, schedule and classes", scope: "global", multiline: true, section: "shipped" },
+    { key: "working_on", label: "What we're working on (one per line)", example: "Faster replies when you talk to xyra\nMore of your apps feeding your brain", scope: "global", multiline: true, section: "working_on" },
+    { key: "fixed", label: "What we fixed (one per line)", example: "Reminders landing on the wrong day\nThe app hanging on the splash screen", scope: "global", multiline: true, section: "fixed" },
+    { key: "behind_scenes_note", label: "Behind the scenes note", example: "Late nights, lots of coffee, and every piece of feedback you send us read twice.", scope: "global", multiline: true, section: "behind_scenes" },
     { key: "behind_scenes_images", label: "Behind the scenes images", example: "", scope: "global", section: "behind_scenes", type: "images", help: "Upload one or more images, one at a time (e.g. one of Cole and one of Shayan). Add optional alt text and a caption for each. Two images sit side by side and stack on mobile. If none are added, no image block is shown." },
-    { key: "ask", label: "What we need from you", example: "Reply and tell us the one thing you want Xyra to handle first.", scope: "global", multiline: true, section: "ask" },
+    { key: "ask", label: "What we need from you", example: "Reply and tell us the one thing you wish xyra did for you.", scope: "global", multiline: true, section: "ask" },
     ...signoffFields(),
-    { key: "referral_link", label: "Referral link", example: "https://xyra.dev/ref/abc123", scope: "perRecipient", required: true, section: "referral", help: "Auto-filled per recipient on a real send." },
+    { key: "referral_link", label: "Invite link", example: "https://xyra.dev/invite/ABC234", scope: "perRecipient", section: "referral", help: "Each person's own invite link. People without an account don't get this block." },
   ],
-  buildSubject: () => "Xyra update",
+  buildSubject: () => "this week in xyra",
   buildHtml: (v, sections) => {
     const on = makeOn(sections);
     const shipped = on("shipped") ? htmlList(lines(v.shipped)) : "";
@@ -515,10 +440,10 @@ const newsletter: GrowthTemplate = {
       ...(fixed ? [eyebrowHeader("What we fixed"), fixed] : []),
       ...behindScenes,
       ...(on("ask") ? [eyebrowHeader("What we need from you"), paragraph(esc(raw(v, "ask")))] : []),
-      ...(on("referral") ? [referralBlock("Know someone who'd love this? Your referral link moves you up the list:", raw(v, "referral_link"))] : []),
+      ...(on("referral") ? [inviteBlock(v, "Know someone who'd love this? your invite link gives a friend a free week of xyra:")] : []),
       signoffHtml(v),
     ].join("");
-    return emailShell({ kicker: raw(v, "eyebrow"), preheader: preheaderOf(v, raw(v, "opening").slice(0, 120)), bodyHtml: body });
+    return emailShell({ kicker: v.eyebrow ?? "", preheader: preheaderOf(v, raw(v, "opening").slice(0, 120)), bodyHtml: body });
   },
   buildText: (v, sections) => {
     const on = makeOn(sections);
@@ -539,38 +464,38 @@ const newsletter: GrowthTemplate = {
         return [``, `Behind the scenes:`, ...(noteOn ? [raw(v, "behind_scenes_note")] : []), ...galleryTextLines(imgs)];
       })() : []),
       ...(on("ask") ? [``, `What we need from you:`, raw(v, "ask")] : []),
-      ...(on("referral") ? [``, `Know someone who'd love this? Your referral link moves you up:`, raw(v, "referral_link")] : []),
+      ...(on("referral") ? inviteText(v, "Know someone who'd love this? your invite link gives a friend a free week of xyra:") : []),
       ...signoffText(v),
       ...textFooter(),
     ].join("\n");
   },
 };
 
-// ── Template 3: General waitlist message ────────────────────────────────────
+// ── Template 3: General message ────────────────────────────────────
 
 const generalMessage: GrowthTemplate = {
   id: "general-message",
   name: "General Message",
-  description: "A flexible one-off message to selected waitlist users: updates, announcements, reminders, follow-ups.",
+  description: "A one-off branded message: an announcement, a reminder, a follow-up.",
   confirmPhrase: "SEND MESSAGE",
   sections: [
     { key: "images", label: "Photos", defaultEnabled: false },
     { key: "cta", label: "Call-to-action button", defaultEnabled: false },
-    { key: "referral", label: "Referral block", defaultEnabled: false },
+    { key: "referral", label: "Invite a friend", defaultEnabled: false },
   ],
   placeholders: [
     { key: "first_name", label: "First name", example: "Alex", scope: "perRecipient", required: true, help: "Auto-filled per recipient on a real send." },
-    ...senderFields("Xyra"),
-    ...headerFields("A note from Xyra", ""),
-    { key: "message_body", label: "Message body (paragraphs separated by blank lines)", example: "Thanks for being on the Xyra waitlist. We wanted to share a quick update.\n\nWe're getting close to opening things up, and we'll be in touch soon with next steps.", scope: "global", required: true, multiline: true },
+    ...senderFields("Cole and Shayan from xyra"),
+    ...headerFields("", ""),
+    { key: "message_body", label: "Message (paragraphs separated by blank lines)", example: "Thanks for using xyra. We wanted to share something quick.\n\nMore soon.", scope: "global", required: true, multiline: true },
     { key: "message_images", label: "Photos", example: "", scope: "global", section: "images", type: "images", help: "Optional. Upload one or more images, one at a time, each with optional alt text and a caption. Two images sit side by side and stack on mobile." },
     { key: "cta_label", label: "Button label", example: "Read more", scope: "global", section: "cta", help: "Shown only if both button label and link are filled." },
     { key: "cta_link", label: "Button link", example: "", scope: "global", section: "cta", help: "Public HTTPS URL." },
-    { key: "referral_intro", label: "Referral block intro", example: "Know someone who'd love Xyra? Your referral link moves you up the list:", scope: "global", section: "referral", multiline: true },
+    { key: "referral_intro", label: "Invite line", example: "Your invite link gives a friend a free week of xyra:", scope: "global", section: "referral", multiline: true },
     ...signoffFields(),
-    { key: "referral_link", label: "Referral link", example: "https://xyra.dev/ref/abc123", scope: "perRecipient", section: "referral", help: "Auto-filled per recipient on a real send." },
+    { key: "referral_link", label: "Invite link", example: "https://xyra.dev/invite/ABC234", scope: "perRecipient", section: "referral", help: "Each person's own invite link. People without an account don't get this block." },
   ],
-  buildSubject: () => "A quick note from Xyra",
+  buildSubject: () => "a quick note from xyra",
   buildHtml: (v, sections) => {
     const on = makeOn(sections);
     const paras = (v.message_body ?? "")
@@ -581,7 +506,7 @@ const generalMessage: GrowthTemplate = {
     const images = on("images") ? parseGallery(v.message_images) : [];
     const imagesHtml = images.length ? galleryHtml(images) : "";
     const cta = on("cta") && has(v, "cta_label") && has(v, "cta_link") ? pillButton(raw(v, "cta_label"), raw(v, "cta_link")) : "";
-    const referral = on("referral") && has(v, "referral_intro") ? referralBlock(esc(raw(v, "referral_intro")), raw(v, "referral_link")) : "";
+    const referral = on("referral") && has(v, "referral_intro") ? inviteBlock(v, esc(raw(v, "referral_intro"))) : "";
     const body = [
       ...(has(v, "headline") ? [headlineBlock(raw(v, "headline"))] : []),
       greetingHtml(v),
@@ -591,14 +516,14 @@ const generalMessage: GrowthTemplate = {
       referral,
       signoffHtml(v),
     ].join("");
-    return emailShell({ kicker: raw(v, "eyebrow"), preheader: preheaderOf(v, (v.message_body ?? "").slice(0, 120)), bodyHtml: body });
+    return emailShell({ kicker: v.eyebrow ?? "", preheader: preheaderOf(v, (v.message_body ?? "").slice(0, 120)), bodyHtml: body });
   },
   buildText: (v, sections) => {
     const on = makeOn(sections);
     const images = on("images") ? parseGallery(v.message_images) : [];
     const imageLines = images.length ? [``, ...galleryTextLines(images)] : [];
     const cta = on("cta") && has(v, "cta_label") && has(v, "cta_link") ? [``, `${raw(v, "cta_label")}: ${raw(v, "cta_link")}`] : [];
-    const referral = on("referral") && has(v, "referral_intro") ? [``, raw(v, "referral_intro"), raw(v, "referral_link")] : [];
+    const referral = on("referral") && has(v, "referral_intro") ? inviteText(v, raw(v, "referral_intro")) : [];
     return [
       ...(has(v, "headline") ? [raw(v, "headline"), ``] : []),
       greetingText(v),
@@ -647,10 +572,11 @@ export function resolveSenderFrom(opts: {
     return { from: displayName ? `${displayName} <${requested}>` : requested };
   }
 
-  if (fallbackAddress.includes("<")) return { from: fallbackAddress };
-  const defaultName = templateId === "alpha-invite" ? "Cole & Shayan from Xyra" : "Xyra";
-  const name = displayName || defaultName;
-  return { from: `${name} <${fallbackAddress}>` };
+  if (fallbackAddress.includes("<")) {
+    const bare = fallbackAddress.replace(/^.*<([^>]+)>.*$/, "$1");
+    return { from: displayName ? `${displayName} <${bare}>` : fallbackAddress };
+  }
+  return { from: `${displayName || "xyra"} <${fallbackAddress}>` };
 }
 
 const plainMessage: GrowthTemplate = {
@@ -662,8 +588,8 @@ const plainMessage: GrowthTemplate = {
   placeholders: [
     { key: "first_name", label: "First name", example: "Alex", scope: "perRecipient", required: true, help: "Auto-filled per recipient on a real send." },
     { key: "from_address", label: "From address", example: "team@xyra.dev", scope: "global", required: true, type: "select", options: PLAIN_FROM_WHITELIST.map(e => ({ value: e, label: e })), help: "Which address this sends from. Only these three are allowed." },
-    { key: "from_display_name", label: "From display name", example: "Cole from Xyra", scope: "global", help: "Shown as the sender name in the recipient's inbox. Blank sends as the bare address." },
-    { key: "message_body", label: "Message (paragraphs separated by blank lines)", example: "I wanted to reach out directly. We're getting close to opening Xyra up and I'd love your thoughts on a few things when we do.\n\nMore soon.", scope: "global", required: true, multiline: true },
+    { key: "from_display_name", label: "From display name", example: "Cole from xyra", scope: "global", help: "Shown as the sender name in the recipient's inbox. Blank sends as the bare address." },
+    { key: "message_body", label: "Message (paragraphs separated by blank lines)", example: "I wanted to reach out directly. You've been using xyra for a bit and I'd love to hear what's working and what isn't.\n\nAny chance you have 15 minutes this week?", scope: "global", required: true, multiline: true },
     { key: "cta_label", label: "Button label (optional)", example: "", scope: "global", help: "Optional. Shown only when both label and link are filled." },
     { key: "cta_link", label: "Button link (optional)", example: "", scope: "global", help: "Public HTTPS URL. Renders as a simple underlined link between the body and the sign-off." },
     { key: "signoff_closing", label: "Sign-off closing", example: "Thanks,", scope: "global" },
@@ -719,7 +645,7 @@ ${paraHtml}${ctaHtml}<p style="margin:14px 0 0;">${closingLine}${esc(name)}</p>$
 
 // ── Registry ─────────────────────────────────────────────────────────────────
 
-export const GROWTH_TEMPLATES: GrowthTemplate[] = [alphaInvite, newsletter, generalMessage, plainMessage];
+export const GROWTH_TEMPLATES: GrowthTemplate[] = [newsletter, generalMessage, plainMessage];
 
 export function getGrowthTemplate(id: string): GrowthTemplate | null {
   return GROWTH_TEMPLATES.find(t => t.id === id) ?? null;
@@ -765,12 +691,14 @@ export function missingRequiredGlobals(tpl: GrowthTemplate, values: Record<strin
 
 export function buildRecipientValues(
   globalValues: Record<string, string>,
-  recipient: { name: string | null; refCode: string | null },
+  recipient: { name: string | null; inviteCode: string | null },
   siteBaseUrl: string
 ): Record<string, string> {
   // Empty when the name is blank or the import placeholder — the greeting then
   // falls back to a neutral "Hey," instead of "Hi Xyra waitlist member,".
   const firstName = usableFirstName(recipient.name);
-  const referralLink = recipient.refCode ? `${siteBaseUrl.replace(/\/$/, "")}/ref/${recipient.refCode}` : "";
+  // Their own invite link (a friend gets a free week). The old waitlist /ref/
+  // links only moved people up a list that no longer exists, so they're gone.
+  const referralLink = recipient.inviteCode ? `${siteBaseUrl.replace(/\/$/, "")}/invite/${encodeURIComponent(recipient.inviteCode)}` : "";
   return { ...globalValues, first_name: firstName, referral_link: referralLink };
 }

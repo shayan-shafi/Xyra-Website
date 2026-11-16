@@ -19,6 +19,8 @@ import {
 const RECIPIENTS_KEY = "xyra_growth_recipients";
 const draftKey = (id: string) => `xyra_email_draft_${id}`;
 
+export type RecentRun = { campaignKey: string; templateId: string; subject: string; count: number; at: string };
+
 type StagedRecipient = { name: string | null; email: string; refCode: string | null };
 type Draft = { subject: string; values: Record<string, string>; sections: Record<string, boolean> };
 type DryRunResult = {
@@ -287,6 +289,7 @@ export default function EmailOps({
   aiDraftReady,
   growthFromEmail,
   usingFallbackSender,
+  recentRuns,
 }: {
   sendsEnabled: boolean;
   hasInternalRecipients: boolean;
@@ -295,6 +298,7 @@ export default function EmailOps({
   aiDraftReady: boolean;
   growthFromEmail: string;
   usingFallbackSender: boolean;
+  recentRuns: RecentRun[];
 }) {
   const [templateId, setTemplateId] = useState(GROWTH_TEMPLATES[0].id);
   const tpl = getGrowthTemplate(templateId)!;
@@ -312,6 +316,8 @@ export default function EmailOps({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<"html" | "text">("html");
+  const [device, setDevice] = useState<"desktop" | "phone">("desktop");
+  const [showAi, setShowAi] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
 
@@ -370,6 +376,10 @@ export default function EmailOps({
   }, []);
 
   useEffect(() => { setDryRunResult(null); }, [templateId, campaignKey, recipients, draft]);
+  // A campaign key only exists so nobody gets the same email twice. Suggest
+  // one (template + today) instead of making the sender invent it.
+  const suggestedKey = useMemo(() => `${templateId}-${new Date().toLocaleDateString("en-CA")}`, [templateId]);
+  const effectiveKey = campaignKey.trim() || suggestedKey;
 
   const setSubject = useCallback((subject: string) => setDrafts(prev => ({ ...prev, [templateId]: { ...prev[templateId], subject } })), [templateId]);
   const setValue = useCallback((key: string, val: string) => setDrafts(prev => ({ ...prev, [templateId]: { ...prev[templateId], values: { ...prev[templateId].values, [key]: val } } })), [templateId]);
@@ -469,13 +479,13 @@ export default function EmailOps({
     try {
       const res = await fetch("/admin/growth/email/send", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateId, subject, values, sections: draft.sections, recipients: recipientEmails, campaignKey, dryRun: true }),
+        body: JSON.stringify({ templateId, subject, values, sections: draft.sections, recipients: recipientEmails, campaignKey: effectiveKey, dryRun: true }),
       });
       const json = await res.json();
       if (!res.ok) setMessage(`Dry run failed: ${json.error ?? res.status}`);
-      else { setDryRunResult(json as DryRunResult); setMessage(`Dry run OK — ${json.counts.willSend} would send · ${json.counts.skippedInvalid} malformed (skipped) · ${json.counts.skippedDuplicate} already sent · ${json.counts.skippedUnknown} not on waitlist · ${json.counts.placeholderName} no-name (neutral greeting).`); }
+      else { setDryRunResult(json as DryRunResult); setMessage(null); }
     } catch (e) { setMessage(`Dry run error: ${String(e)}`); } finally { setBusy(false); }
-  }, [templateId, subject, values, draft.sections, recipientEmails, campaignKey]);
+  }, [templateId, subject, values, draft.sections, recipientEmails, effectiveKey]);
 
   const realSend = useCallback(async () => {
     if (confirmText !== tpl.confirmPhrase) { setMessage(`Type "${tpl.confirmPhrase}" exactly to confirm.`); return; }
@@ -483,13 +493,13 @@ export default function EmailOps({
     try {
       const res = await fetch("/admin/growth/email/send", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateId, subject, values, sections: draft.sections, recipients: recipientEmails, campaignKey, confirm: confirmText, dryRunToken: dryRunResult?.dryRunToken }),
+        body: JSON.stringify({ templateId, subject, values, sections: draft.sections, recipients: recipientEmails, campaignKey: effectiveKey, confirm: confirmText, dryRunToken: dryRunResult?.dryRunToken }),
       });
       const json = await res.json();
       if (!res.ok) setMessage(`Send failed: ${json.error ?? res.status}`);
-      else { setMessage(`Sent ${json.counts.sent} · failed ${json.counts.failed} · skipped dup ${json.counts.skippedDuplicate} · unknown ${json.counts.skippedUnknown}.`); setConfirmText(""); setDryRunResult(null); }
+      else { setMessage(`Sent to ${json.counts.sent}${json.counts.failed ? `, ${json.counts.failed} failed` : ""}${json.counts.skippedDuplicate ? `, ${json.counts.skippedDuplicate} skipped (already had it)` : ""}${json.counts.skippedUnknown ? `, ${json.counts.skippedUnknown} skipped (not a xyra user)` : ""}. Refresh to see it under Past sends.`); setConfirmText(""); setDryRunResult(null); }
     } catch (e) { setMessage(`Send error: ${String(e)}`); } finally { setBusy(false); }
-  }, [confirmText, tpl, templateId, subject, values, draft.sections, recipientEmails, campaignKey, dryRunResult]);
+  }, [confirmText, tpl, templateId, subject, values, draft.sections, recipientEmails, effectiveKey, dryRunResult]);
 
   const clearRecipients = useCallback(() => {
     setRecipients([]);
@@ -548,95 +558,145 @@ export default function EmailOps({
   const labelCls = "font-[family-name:var(--font-jetbrains)] text-[10px] uppercase tracking-[0.12em] text-gray-400";
   const cardCls = "bg-white rounded-2xl border border-gray-200 p-5";
   const h2Cls = "font-[family-name:var(--font-playfair)] text-lg text-gray-900";
-  const canRealSend = sendsEnabled && !!dryRunResult && dryRunResult.counts.willSend > 0 && (dryRunResult.missingGlobals?.length ?? 0) === 0 && confirmText === tpl.confirmPhrase && campaignKey.trim().length > 0 && !busy;
+  const canRealSend = sendsEnabled && !!dryRunResult && dryRunResult.counts.willSend > 0 && (dryRunResult.missingGlobals?.length ?? 0) === 0 && confirmText === tpl.confirmPhrase && !busy;
+  const fromLine = (() => {
+    const name = (values.from_display_name ?? "").trim();
+    if (templateId === "plain-message") { const a = (values.from_address ?? "").trim(); return name ? `${name} <${a}>` : a; }
+    const bare = growthFromEmail.replace(/^.*<([^>]+)>.*$/, "$1");
+    return name ? `${name} <${bare}>` : growthFromEmail.includes("<") ? growthFromEmail : `xyra <${bare}>`;
+  })();
+  const preheaderLine = (values.preheader ?? "").trim();
+  const stepCls = "font-[family-name:var(--font-jetbrains)] text-[10px] uppercase tracking-[0.16em] text-gray-400";
 
   const visibleGlobal = tpl.placeholders.filter(p => !isPerRecipient(p.key) && sectionEnabled(p));
   const visiblePerRecipient = tpl.placeholders.filter(p => isPerRecipient(p.key) && sectionEnabled(p));
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* ── Left: template + editor + recipients ───────────────────────── */}
-      <div className="space-y-6">
-        {/* Template selector */}
-        <div className={cardCls}>
-          <h2 className={h2Cls}>Template</h2>
-          <div className="flex flex-wrap gap-2 mt-3 mb-2">
-            {GROWTH_TEMPLATES.map(t => (
-              <button key={t.id} onClick={() => setTemplateId(t.id)} className={`px-3.5 py-1.5 rounded-full text-xs font-medium font-[family-name:var(--font-jetbrains)] tracking-wide transition-colors ${templateId === t.id ? "bg-black text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
-                {t.name}
-              </button>
-            ))}
-          </div>
-          <p className="font-[family-name:var(--font-eb-garamond)] text-sm text-gray-500 leading-snug">{tpl.description}</p>
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
-            <button onClick={saveDraft} disabled={busy} className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-black text-white hover:bg-gray-800 disabled:opacity-50">Save draft</button>
-            <button onClick={resetDraft} disabled={busy} className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50">Reset to default</button>
-            <span className="text-[11px] text-gray-400">
-              {persistence === "db" ? "Saves to database" : persistence === "local" ? "Saves to this browser (DB table not applied)" : "Checking persistence…"}
-            </span>
-          </div>
-        </div>
+  const templatesById: Record<string, string> = { "alpha-invite": "Alpha Invite (retired)", ...Object.fromEntries(GROWTH_TEMPLATES.map(t => [t.id, t.name])) };
 
-        {/* AI draft assist */}
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] gap-6 items-start">
+      {/* ── Left: who + what ───────────────────────────────────────────── */}
+      <div className="space-y-6 min-w-0">
+        {/* 1 · Who */}
         <div className={cardCls}>
-          <h2 className={h2Cls}>Draft with AI</h2>
-          <p className="font-[family-name:var(--font-eb-garamond)] text-sm text-gray-500 mt-0.5 mb-3">
-            Describe what you want to say. It fills the fields below in Xyra&apos;s voice. It never sends, and every field stays editable.
-          </p>
-          {aiDraftReady ? (
-            <>
-              <textarea
-                className={inputCls + " resize-y"}
-                rows={3}
-                value={aiPrompt}
-                onChange={e => setAiPrompt(e.target.value)}
-                placeholder="e.g. Tell the waitlist alpha opens Monday, we polished reminders this week, and ask people to reply if they want early access."
-              />
-              <button onClick={generateDraft} disabled={aiBusy || busy} className="mt-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-black text-white hover:bg-gray-800 disabled:opacity-50">
-                {aiBusy ? "Generating…" : "Generate draft"}
-              </button>
-            </>
+          <p className={stepCls}>1 · who&apos;s getting it</p>
+          <div className="flex items-baseline justify-between mt-1">
+            <h2 className={h2Cls}>{recipients.length === 0 ? "No one picked yet" : `${recipients.length} ${recipients.length === 1 ? "person" : "people"}`}</h2>
+            {recipients.length > 0 && <button onClick={clearRecipients} className="text-xs text-gray-500 hover:text-gray-800 underline">Clear</button>}
+          </div>
+          {loadedGroupName && <p className="text-[11px] text-gray-400 mt-0.5">from the group <span className="font-medium text-gray-600">“{loadedGroupName}”</span></p>}
+
+          {recipients.length === 0 ? (
+            <p className="font-[family-name:var(--font-eb-garamond)] text-[15px] text-gray-500 leading-snug mt-1">
+              Pick people on the <a href="/admin/users" className="text-gray-900 underline">Users</a> tab (filter or use a segment, then <span className="font-semibold">“Email selected”</span>), or load a saved group below. Preview and test sends work without anyone picked.
+            </p>
           ) : (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-snug">
-              AI draft assist needs a one-time setup: set <span className="font-mono">ANTHROPIC_API_KEY</span> in the server environment. Until then, write drafts manually below. The key stays server-side and is never exposed to the browser.
+            <div className="mt-2 max-h-36 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 p-2 text-xs text-gray-600 leading-relaxed">
+              {recipients.map(r => (
+                <div key={r.email} className="flex justify-between gap-3"><span className="truncate">{r.name || "—"}</span><span className="font-mono text-gray-500 truncate">{r.email}</span></div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <select
+              value=""
+              onChange={e => { const id = Number(e.target.value); if (id) void loadGroup(id); e.currentTarget.value = ""; }}
+              disabled={busy || groups.length === 0}
+              className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white disabled:opacity-50"
+            >
+              <option value="">{groups.length === 0 ? "No saved groups" : "Load a saved group…"}</option>
+              {groups.map(g => <option key={g.id} value={g.id}>{g.name} ({g.memberCount})</option>)}
+            </select>
+            <button type="button" onClick={() => setShowSaveGroup(s => !s)} disabled={recipients.length === 0} className="px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50">
+              Save as group
+            </button>
+            <a href="/admin/growth/email/groups" className="text-xs text-gray-500 underline hover:text-gray-800">Manage groups</a>
+          </div>
+          {showSaveGroup && (
+            <div className="mt-3 rounded-xl border border-gray-200 p-3 space-y-2">
+              <input className={inputCls} value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Group name (e.g. Weekly update list)" />
+              <input className={inputCls} value={groupDesc} onChange={e => setGroupDesc(e.target.value)} placeholder="Description (optional)" />
+              <div className="flex gap-2">
+                <button type="button" onClick={saveAsGroup} disabled={busy || recipients.length === 0} className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-black text-white hover:bg-gray-800 disabled:opacity-50">
+                  Save {recipients.length} as group
+                </button>
+                <button type="button" onClick={() => setShowSaveGroup(false)} className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200">Cancel</button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Sections */}
-        {tpl.sections.length > 0 && (
-          <div className={cardCls}>
-            <h2 className={h2Cls}>Sections</h2>
-            <p className="font-[family-name:var(--font-eb-garamond)] text-sm text-gray-500 mt-0.5 mb-3">Choose what to include in this email. Disabled sections are removed from the preview and the sent email.</p>
-            <div className="flex flex-wrap gap-2">
-              {tpl.sections.map(s => {
-                const enabled = sections[s.key] !== false;
-                return (
-                  <button key={s.key} onClick={() => toggleSection(s.key)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${enabled ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"}`}>
-                    {enabled ? "✓ " : ""}{s.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Editor */}
+        {/* 2 · Write */}
         <div className={cardCls}>
-          <h2 className={h2Cls}>Edit content</h2>
-          <p className="font-[family-name:var(--font-eb-garamond)] text-sm text-gray-500 mb-4">Subject and body are fully editable. Required fields are marked <span className="text-red-400">*</span>.</p>
+          <p className={stepCls}>2 · write it</p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {GROWTH_TEMPLATES.map(t => (
+              <button key={t.id} onClick={() => setTemplateId(t.id)} className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${templateId === t.id ? "bg-black text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
+                {t.name}
+              </button>
+            ))}
+          </div>
+          <p className="font-[family-name:var(--font-eb-garamond)] text-[15px] text-gray-500 leading-snug mt-2">{tpl.description}</p>
 
-          <div className="mb-4">
-            <label className={labelCls}>Subject{subjectMissing && <span className="text-red-400"> *</span>}</label>
-            <input className={`${inputCls} mt-1`} value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject line" />
+          {/* AI draft, tucked away until wanted */}
+          <div className="mt-4 rounded-xl border border-gray-200">
+            <button type="button" onClick={() => setShowAi(v => !v)} className="w-full flex items-center justify-between px-3.5 py-2.5 text-left">
+              <span className="text-sm text-gray-800"><span className="font-semibold">Draft it with AI</span> <span className="text-gray-400">· say what you want, it fills the fields</span></span>
+              <span className="text-gray-400 text-xs">{showAi ? "hide" : "open"}</span>
+            </button>
+            {showAi && (
+              <div className="px-3.5 pb-3.5">
+                {aiDraftReady ? (
+                  <>
+                    <textarea
+                      className={inputCls + " resize-y"}
+                      rows={3}
+                      value={aiPrompt}
+                      onChange={e => setAiPrompt(e.target.value)}
+                      placeholder="e.g. Tell everyone xyra works on their laptop now, mention the new widgets, and ask them to reply with what they'd want next."
+                    />
+                    <div className="flex items-center gap-3 mt-2">
+                      <button onClick={generateDraft} disabled={aiBusy || busy} className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-black text-white hover:bg-gray-800 disabled:opacity-50">
+                        {aiBusy ? "Writing…" : "Write draft"}
+                      </button>
+                      <span className="text-[11px] text-gray-400">Never sends. Never makes up links.</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 leading-snug">
+                    Needs <span className="font-mono">ANTHROPIC_API_KEY</span> on the server.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="space-y-3">
+          {tpl.sections.length > 0 && (
+            <div className="mt-4">
+              <p className={labelCls}>Include</p>
+              <div className="flex flex-wrap gap-2 mt-1.5">
+                {tpl.sections.map(s => {
+                  const enabled = sections[s.key] !== false;
+                  return (
+                    <button key={s.key} onClick={() => toggleSection(s.key)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${enabled ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"}`}>
+                      {enabled ? "✓ " : ""}{s.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-5 pt-5 border-t border-gray-100 space-y-3">
+            <div>
+              <label className={labelCls}>Subject{subjectMissing && <span className="text-red-400"> *</span>}</label>
+              <input className={`${inputCls} mt-1`} value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject line" />
+            </div>
             {visibleGlobal.map(p => (
               <div key={p.key}>
-                <label className="flex items-center justify-between mb-1">
+                <label className="block mb-1">
                   <span className={labelCls}>{p.label} {p.required && <span className="text-red-400">*</span>}</span>
-                  <span className="font-mono text-[10px] text-gray-300">{`{{${p.key}}}`}</span>
                 </label>
                 {p.type === "images" ? (
                   <ImageGalleryField value={values[p.key] ?? ""} onChange={val => setValue(p.key, val)} ready={imageUploadReady} />
@@ -649,7 +709,7 @@ export default function EmailOps({
                 ) : p.multiline ? (
                   <textarea className={inputCls + " resize-y"} rows={3} value={values[p.key] ?? ""} onChange={e => setValue(p.key, e.target.value)} placeholder={p.example} />
                 ) : (
-                  <input className={inputCls} value={values[p.key] ?? ""} onChange={e => setValue(p.key, e.target.value)} placeholder={p.example || `{{${p.key}}}`} />
+                  <input className={inputCls} value={values[p.key] ?? ""} onChange={e => setValue(p.key, e.target.value)} placeholder={p.example} />
                 )}
                 {p.help && p.type === "images" && <p className="text-[11px] text-gray-400 mt-2 leading-snug">{p.help}</p>}
                 {p.help && p.type !== "image" && p.type !== "images" && <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{p.help}</p>}
@@ -658,167 +718,161 @@ export default function EmailOps({
           </div>
 
           {visiblePerRecipient.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className={labelCls}>Auto-filled per recipient</p>
-              <p className="font-[family-name:var(--font-eb-garamond)] text-sm text-gray-500 mt-1 mb-3">On a real send these come from each recipient&apos;s waitlist record — the values below are only sample text for the preview.</p>
+            <div className="mt-5 pt-4 border-t border-gray-100">
+              <p className={labelCls}>Filled in for each person</p>
+              <p className="font-[family-name:var(--font-eb-garamond)] text-[15px] text-gray-500 mt-1 mb-3">On a real send these come from each person&apos;s account. What you type here only changes the preview.</p>
               <div className="space-y-3">
                 {visiblePerRecipient.map(p => (
                   <div key={p.key}>
-                    <label className="flex items-center justify-between mb-1">
-                      <span className={labelCls}>{p.label}</span>
-                      <span className="font-[family-name:var(--font-jetbrains)] text-[9px] uppercase tracking-wide text-blue-400">auto on send</span>
-                    </label>
+                    <label className="block mb-1"><span className={labelCls}>{p.label}</span></label>
                     <input className={inputCls} value={values[p.key] ?? ""} onChange={e => setValue(p.key, e.target.value)} placeholder={p.example} />
+                    {p.help && <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{p.help}</p>}
                   </div>
                 ))}
               </div>
             </div>
           )}
+
+          <div className="mt-5 pt-4 border-t border-gray-100 flex items-center gap-2 flex-wrap">
+            <button onClick={saveDraft} disabled={busy} className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-black text-white hover:bg-gray-800 disabled:opacity-50">Save draft</button>
+            <button onClick={resetDraft} disabled={busy} className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50">Start over from the default</button>
+            <span className="text-[11px] text-gray-400">
+              {persistence === "db" ? "Drafts save for everyone on the team" : persistence === "local" ? "Drafts save in this browser only" : ""}
+            </span>
+          </div>
         </div>
 
-        {/* Recipients */}
+        {/* Past sends */}
         <div className={cardCls}>
-          <div className="flex items-center justify-between mb-1">
-            <h2 className={h2Cls}>Selected recipients</h2>
-            <span className="font-[family-name:var(--font-jetbrains)] text-xs text-gray-500">{recipients.length} staged</span>
-          </div>
-
-          {/* Saved recipient groups — load into / save from this list */}
-          <div className="flex flex-wrap items-center gap-2 mt-2 mb-3">
-            <select
-              value=""
-              onChange={e => { const id = Number(e.target.value); if (id) void loadGroup(id); e.currentTarget.value = ""; }}
-              disabled={busy || groups.length === 0}
-              className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-700 bg-white disabled:opacity-50"
-            >
-              <option value="">{groups.length === 0 ? "No saved groups" : "Load saved group…"}</option>
-              {groups.map(g => <option key={g.id} value={g.id}>{g.name} ({g.memberCount})</option>)}
-            </select>
-            <button type="button" onClick={() => setShowSaveGroup(s => !s)} disabled={recipients.length === 0} className="px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50">
-              Save current as group
-            </button>
-            <a href="/admin/growth/email/groups" className="text-xs text-gray-500 underline hover:text-gray-800">Manage groups</a>
-          </div>
-          {loadedGroupName && (
-            <p className="text-[11px] text-gray-400 mb-2">Loaded from group <span className="font-medium text-gray-600">“{loadedGroupName}”</span> — edit freely before sending.</p>
-          )}
-          {showSaveGroup && (
-            <div className="mb-3 rounded-xl border border-gray-200 p-3 space-y-2">
-              <input className={inputCls} value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="Group name (e.g. Alpha Group 1)" />
-              <input className={inputCls} value={groupDesc} onChange={e => setGroupDesc(e.target.value)} placeholder="Description (optional)" />
-              <div className="flex gap-2">
-                <button type="button" onClick={saveAsGroup} disabled={busy || recipients.length === 0} className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-black text-white hover:bg-gray-800 disabled:opacity-50">
-                  Save {recipients.length} as group
-                </button>
-                <button type="button" onClick={() => setShowSaveGroup(false)} className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200">Cancel</button>
-              </div>
-            </div>
-          )}
-
-          {recipients.length === 0 ? (
-            <p className="font-[family-name:var(--font-eb-garamond)] text-sm text-gray-500 leading-snug">
-              None staged. Go to <span className="font-semibold">Growth</span>, select users, and click <span className="font-semibold">“Email selected →”</span>. Preview and test-send work without recipients.
-            </p>
+          <h2 className={h2Cls}>Past sends</h2>
+          {recentRuns.length === 0 ? (
+            <p className="font-[family-name:var(--font-eb-garamond)] text-[15px] text-gray-500 mt-1">Nothing sent from here yet.</p>
           ) : (
-            <>
-              <div className="max-h-40 overflow-y-auto text-xs text-gray-600 font-mono leading-relaxed border border-gray-100 rounded-lg p-2 bg-gray-50">
-                {recipients.map(r => <div key={r.email}>{r.email}</div>)}
-              </div>
-              <button onClick={clearRecipients} className="mt-2 text-xs text-gray-500 hover:text-gray-800 underline">Clear staged recipients</button>
-            </>
+            <ul className="mt-2 divide-y divide-gray-100">
+              {recentRuns.map(r => (
+                <li key={`${r.campaignKey}-${r.at}`} className="py-2 flex items-baseline justify-between gap-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="text-gray-900 truncate">{r.subject}</p>
+                    <p className="text-[11px] text-gray-400 truncate">{templatesById[r.templateId] ?? r.templateId} · {r.campaignKey}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-gray-700 tabular-nums">{r.count} {r.count === 1 ? "person" : "people"}</p>
+                    <p className="text-[11px] text-gray-400">{new Date(r.at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </div>
 
-      {/* ── Right: preview + sending ───────────────────────────────────── */}
-      <div className="space-y-6">
+      {/* ── Right: preview + send, stays in view while you edit ───────────── */}
+      <div className="space-y-6 min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1">
         {/* Preview */}
         <div className={cardCls}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className={h2Cls}>Preview</h2>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <p className={stepCls}>3 · check it</p>
             <div className="flex gap-1">
-              <button onClick={() => setPreviewMode("html")} className={`px-2.5 py-1 rounded-full text-xs font-semibold ${previewMode === "html" ? "bg-black text-white" : "bg-gray-100 text-gray-600"}`}>HTML</button>
-              <button onClick={() => setPreviewMode("text")} className={`px-2.5 py-1 rounded-full text-xs font-semibold ${previewMode === "text" ? "bg-black text-white" : "bg-gray-100 text-gray-600"}`}>Plain text</button>
+              <button onClick={() => setDevice("desktop")} className={`px-2.5 py-1 rounded-full text-xs font-semibold ${device === "desktop" ? "bg-black text-white" : "bg-gray-100 text-gray-600"}`}>Laptop</button>
+              <button onClick={() => setDevice("phone")} className={`px-2.5 py-1 rounded-full text-xs font-semibold ${device === "phone" ? "bg-black text-white" : "bg-gray-100 text-gray-600"}`}>Phone</button>
+              <span className="w-2" />
+              <button onClick={() => setPreviewMode("html")} className={`px-2.5 py-1 rounded-full text-xs font-semibold ${previewMode === "html" ? "bg-black text-white" : "bg-gray-100 text-gray-600"}`}>Email</button>
+              <button onClick={() => setPreviewMode("text")} className={`px-2.5 py-1 rounded-full text-xs font-semibold ${previewMode === "text" ? "bg-black text-white" : "bg-gray-100 text-gray-600"}`}>Text only</button>
             </div>
           </div>
-          <div className="mb-2">
-            <span className={labelCls}>Subject</span>
-            <p className="text-sm font-medium text-gray-900">{subject || <span className="text-red-400 italic">No subject set</span>}</p>
+
+          {/* What it looks like in the inbox list */}
+          <div className="rounded-xl border border-gray-200 px-3.5 py-2.5 mb-3">
+            <div className="flex justify-between gap-3">
+              <p className="text-sm font-semibold text-gray-900 truncate">{fromLine.replace(/\s*<[^>]+>$/, "") || fromLine}</p>
+              <p className="text-[11px] text-gray-400 shrink-0">now</p>
+            </div>
+            <p className="text-sm text-gray-900 truncate">{subject || <span className="text-red-400 italic">No subject yet</span>}</p>
+            <p className="text-sm text-gray-500 truncate">{preheaderLine || <span className="text-gray-300">no preview text: the inbox shows the first line instead</span>}</p>
           </div>
+
           {(missing.length > 0 || subjectMissing) && (
-            <div className="mb-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-              {subjectMissing && <div>Subject is required.</div>}
-              {missing.length > 0 && <div>Missing required: {missing.map(m => `{{${m}}}`).join(", ")} — shown as literal tokens until filled.</div>}
+            <div className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              Still needed: {[...(subjectMissing ? ["Subject"] : []), ...missing.map(m => tpl.placeholders.find(p => p.key === m)?.label ?? m)].join(", ")}
             </div>
           )}
-          {previewMode === "html" ? (
-            <iframe title="Email preview" srcDoc={html} className="w-full h-[560px] border border-gray-200 rounded-lg bg-white" />
-          ) : (
-            <pre className="w-full h-[560px] overflow-auto border border-gray-200 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 whitespace-pre-wrap">{text}</pre>
-          )}
-        </div>
-
-        {/* Test send */}
-        <div className={cardCls}>
-          <h2 className={h2Cls}>Test send</h2>
-          <p className="font-[family-name:var(--font-eb-garamond)] text-sm text-gray-600 leading-snug mb-2">
-            Test sends go <strong>only to internal admin recipients</strong> — never to waitlist users. The subject line
-            will start with <span className="font-mono text-xs bg-gray-100 px-1 rounded">[TEST]</span> so it&apos;s clearly marked.
-          </p>
-          {hasInternalRecipients ? (
-            <p className="text-xs text-gray-500 mb-1">Will send to: <span className="font-mono text-gray-700">{internalRecipients.join(", ")}</span></p>
-          ) : (
-            <p className="text-xs text-amber-600 mb-1">No internal recipients configured — set GROWTH_EMAIL_TEST_RECIPIENTS or ANALYTICS_REPORT_RECIPIENTS.</p>
-          )}
-          <p className="text-xs text-gray-500 mb-3">
-            From: <span className="font-mono text-gray-700">{growthFromEmail}</span>
-            {usingFallbackSender && (
-              <span className="text-amber-600"> · using the analytics fallback sender — set <span className="font-mono">GROWTH_EMAIL_FROM</span> to send Growth emails from a dedicated address.</span>
+          <div className={`mx-auto transition-all ${device === "phone" ? "max-w-[390px]" : "max-w-none"}`}>
+            {previewMode === "html" ? (
+              <iframe title="Email preview" srcDoc={html} className="w-full h-[max(380px,calc(100vh-400px))] border border-gray-200 rounded-lg bg-white" />
+            ) : (
+              <pre className="w-full h-[max(380px,calc(100vh-400px))] overflow-auto border border-gray-200 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 whitespace-pre-wrap">{text}</pre>
             )}
-          </p>
-          <button onClick={testSend} disabled={busy || !hasInternalRecipients} className="px-4 py-2 rounded-full text-sm font-semibold bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed">
-            {busy ? "Working…" : "Send test to myself"}
-          </button>
+          </div>
         </div>
 
-        {/* Real send (guarded) */}
-        <div className={`rounded-2xl border p-5 ${sendsEnabled ? "bg-white border-red-200" : "bg-gray-50 border-gray-200"}`}>
-          <h2 className={h2Cls}>Real send to selected recipients</h2>
-          {!sendsEnabled ? (
-            <div className="font-[family-name:var(--font-eb-garamond)] text-sm text-gray-600 leading-relaxed space-y-2">
-              <p><strong>Disabled.</strong> Real sends to waitlist users stay off unless <span className="font-mono text-xs bg-gray-100 px-1 rounded">ENABLE_GROWTH_EMAIL_SENDS=true</span> is set on the server. Don&apos;t turn this on until we&apos;ve explicitly decided to send from the app and tested it.</p>
-              <p>For a true bulk newsletter, <strong>Zoho remains the recommended channel</strong> for now — use <span className="font-semibold">Copy / Export CSV</span> on the Growth page to get the recipient list.</p>
+        {/* Send */}
+        <div className={cardCls}>
+          <p className={stepCls}>4 · send it</p>
+
+          {/* Test */}
+          <div className="mt-2 flex items-center justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <p className="text-sm text-gray-900 font-medium">Send a test first</p>
+              <p className="text-xs text-gray-500 truncate">
+                {hasInternalRecipients ? <>to {internalRecipients.join(", ")} · subject starts with [TEST]</> : <span className="text-amber-600">No test inbox set: add GROWTH_EMAIL_TEST_RECIPIENTS</span>}
+              </p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2 leading-snug">
-                ⚠ This emails real waitlist users via Resend. Only the {recipients.length} staged recipient(s) are considered; unknown or already-sent addresses are skipped. Run a dry run first.
-              </div>
-              <div>
-                <label className={labelCls}>Campaign key (for dedup logging)</label>
-                <input className={`${inputCls} mt-1`} value={campaignKey} onChange={e => setCampaignKey(e.target.value)} placeholder="e.g. alpha-2026-06-29" />
-              </div>
-              <button onClick={runDry} disabled={busy || recipients.length === 0 || !campaignKey.trim()} className="px-4 py-2 rounded-full text-sm font-semibold bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed">
-                {busy ? "Working…" : "1 · Run dry run"}
-              </button>
-              {dryRunResult && (
-                <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
-                  <div><strong>{dryRunResult.counts.willSend}</strong> will send · <strong>{dryRunResult.counts.skippedInvalid}</strong> malformed · <strong>{dryRunResult.counts.skippedDuplicate}</strong> already sent · <strong>{dryRunResult.counts.skippedUnknown}</strong> not on waitlist</div>
-                  {(dryRunResult.missingGlobals?.length ?? 0) > 0 && <div className="text-red-600">Fill required fields before sending: {dryRunResult.missingGlobals!.map(k => `{{${k}}}`).join(", ")}</div>}
-                  {dryRunResult.skippedInvalid.length > 0 && <div className="text-red-600">Malformed (excluded, never sent): {dryRunResult.skippedInvalid.join(", ")}</div>}
-                  {dryRunResult.skippedUnknown.length > 0 && <div className="text-amber-600">Unknown: {dryRunResult.skippedUnknown.join(", ")}</div>}
-                  {dryRunResult.counts.placeholderName > 0 && <div className="text-gray-500">{dryRunResult.counts.placeholderName} recipient(s) have no usable name — they&apos;ll get a neutral greeting (no &quot;Hi Xyra waitlist member,&quot;).</div>}
+            <button onClick={testSend} disabled={busy || !hasInternalRecipients} className="px-4 py-2 rounded-full text-sm font-semibold bg-gray-100 text-gray-900 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">
+              {busy ? "Working…" : "Send test"}
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1">From {fromLine}{usingFallbackSender && <span className="text-amber-600"> · set GROWTH_EMAIL_FROM for a dedicated sender</span>}</p>
+
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            {!sendsEnabled ? (
+              <p className="font-[family-name:var(--font-eb-garamond)] text-[15px] text-gray-600 leading-relaxed">
+                Real sends are off. Set <span className="font-mono text-xs bg-gray-100 px-1 rounded">ENABLE_GROWTH_EMAIL_SENDS=true</span> on the server to turn them on.
+              </p>
+            ) : recipients.length === 0 ? (
+              <p className="font-[family-name:var(--font-eb-garamond)] text-[15px] text-gray-500">Pick people in step 1 to send for real.</p>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-sm text-gray-900 font-medium">Send to {recipients.length} {recipients.length === 1 ? "person" : "people"}</p>
+                    <p className="text-xs text-gray-500">First check who it will actually reach. Nothing sends yet.</p>
+                  </div>
+                  <button onClick={runDry} disabled={busy} className="px-4 py-2 rounded-full text-sm font-semibold bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed">
+                    {busy && !dryRunResult ? "Checking…" : "Check recipients"}
+                  </button>
                 </div>
-              )}
-              <div>
-                <label className={labelCls}>Type <span className="font-mono text-red-600">{tpl.confirmPhrase}</span> to confirm</label>
-                <input className={`${inputCls} mt-1`} value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder={tpl.confirmPhrase} />
+
+                {dryRunResult && (
+                  <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
+                    <div className="text-sm text-gray-900"><strong>{dryRunResult.counts.willSend}</strong> will get it</div>
+                    {dryRunResult.counts.skippedDuplicate > 0 && <div>{dryRunResult.counts.skippedDuplicate} already got this one, skipped: {dryRunResult.skippedDuplicate.join(", ")}</div>}
+                    {dryRunResult.skippedUnknown.length > 0 && <div className="text-amber-700">{dryRunResult.skippedUnknown.length} aren&apos;t xyra users, skipped: {dryRunResult.skippedUnknown.join(", ")}</div>}
+                    {dryRunResult.skippedInvalid.length > 0 && <div className="text-red-600">Not real email addresses, skipped: {dryRunResult.skippedInvalid.join(", ")}</div>}
+                    {dryRunResult.counts.placeholderName > 0 && <div className="text-gray-500">{dryRunResult.counts.placeholderName} have no name on file and get &quot;Hey,&quot; instead of &quot;Hi Alex,&quot;.</div>}
+                    {(dryRunResult.missingGlobals?.length ?? 0) > 0 && <div className="text-red-600">Fill these in first: {dryRunResult.missingGlobals!.map(k => tpl.placeholders.find(p => p.key === k)?.label ?? k).join(", ")}</div>}
+                  </div>
+                )}
+
+                {dryRunResult && dryRunResult.counts.willSend > 0 && (
+                  <>
+                    <div>
+                      <label className={labelCls}>Type <span className="font-mono text-red-600 normal-case">{tpl.confirmPhrase}</span> to send</label>
+                      <input className={`${inputCls} mt-1`} value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder={tpl.confirmPhrase} />
+                    </div>
+                    <button onClick={realSend} disabled={!canRealSend} className="w-full px-4 py-2.5 rounded-full text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                      Send to {dryRunResult.counts.willSend} {dryRunResult.counts.willSend === 1 ? "person" : "people"}
+                    </button>
+                  </>
+                )}
+
+                <details className="text-[11px] text-gray-400">
+                  <summary className="cursor-pointer">Campaign key: {effectiveKey}</summary>
+                  <p className="mt-1">Nobody gets the same campaign twice. Change it to send this again to people who already got it.</p>
+                  <input className={`${inputCls} mt-1`} value={campaignKey} onChange={e => setCampaignKey(e.target.value)} placeholder={suggestedKey} />
+                </details>
               </div>
-              <button onClick={realSend} disabled={!canRealSend} className="px-4 py-2 rounded-full text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                2 · Send to {dryRunResult ? dryRunResult.counts.willSend : recipients.length} recipient(s)
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {message && <div className="bg-white rounded-2xl border border-gray-200 p-4 text-sm text-gray-700">{message}</div>}

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import LogoutButton from "./LogoutButton";
 
 // Branded admin header + section nav. Server-rendered, reused by
@@ -24,8 +23,7 @@ export default function AdminNav({ current }: { current: AdminSection }) {
     <div className="flex flex-wrap items-center justify-between gap-3 mb-8 pb-4 border-b border-gray-200">
       {/* Wordmark */}
       <Link href="/admin/analytics" className="flex items-center gap-2.5 group">
-        <Image src="/assets/xyra-logo-square.png" alt="Xyra" width={28} height={28} className="h-6 w-6" />
-        <span className="font-[family-name:var(--font-playfair)] text-lg text-gray-900 leading-none">Xyra</span>
+        <span className="font-[family-name:var(--font-playfair)] text-xl font-semibold text-black leading-none">xyra</span>
         <span className="font-[family-name:var(--font-jetbrains)] text-[10px] uppercase tracking-[0.18em] text-gray-400 mt-0.5">Admin</span>
       </Link>
 

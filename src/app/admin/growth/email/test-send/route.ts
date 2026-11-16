@@ -7,7 +7,7 @@ import { isValidEmail } from "@/lib/emailValidation";
 // ── Test send ────────────────────────────────────────────────────────────────
 // Renders a template and sends it ONLY to internal/admin recipients (from env),
 // with a [TEST] subject prefix. It deliberately ignores any recipient list in
-// the request body — there is no code path here that can email a waitlist user.
+// the request body — there is no code path here that can email a user.
 // It never writes the email_campaign_* logs, so test sends can't interfere with
 // real-send duplicate protection.
 
