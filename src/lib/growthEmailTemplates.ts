@@ -107,6 +107,21 @@ function paragraph(html: string): string {
   return `<p style="margin:0 0 18px;font-family:${SERIF};font-size:16px;line-height:1.7;color:${BODY_INK};">${html}</p>`;
 }
 
+// Free text as typed: a blank line starts a new paragraph, a single line break
+// stays a line break (numbered points, short lists), and https:// links are
+// clickable. Empty text renders nothing.
+function linkify(escaped: string): string {
+  return escaped.replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)"']/g, (u) => `<a href="${u}" style="color:${INK};text-decoration:underline;">${u}</a>`);
+}
+function prose(text: string | undefined): string {
+  return (text ?? "")
+    .split(/\r?\n\s*\r?\n/)
+    .map(p => p.trim())
+    .filter(Boolean)
+    .map(p => paragraph(linkify(esc(p)).replace(/\r?\n/g, "<br>")))
+    .join("");
+}
+
 function headlineBlock(text: string): string {
   return `<h1 style="margin:0 0 18px;font-family:${WORDMARK};font-size:28px;line-height:1.2;color:${INK};font-weight:400;">${esc(text)}</h1>`;
 }
@@ -440,8 +455,8 @@ const newsletter: GrowthTemplate = {
     { key: "first_name", label: "First name", example: "Alex", scope: "perRecipient", required: true, help: "Auto-filled per recipient on a real send." },
     ...senderFields("Cole and Shayan from xyra"),
     ...headerFields("this week in xyra", ""),
-    { key: "opening", label: "Opening line", example: "Here's what changed in xyra this week.", scope: "global", required: true, multiline: true },
-    { key: "quick_update", label: "Quick update", example: "The big one: xyra now works on your laptop at app.xyra.dev, synced with your phone.", scope: "global", required: true, multiline: true, section: "quick_update" },
+    { key: "opening", label: "Opening line", example: "Here's what changed in xyra this week.", scope: "global", multiline: true },
+    { key: "quick_update", label: "Quick update", example: "The big one: xyra now works on your laptop at app.xyra.dev, synced with your phone.", scope: "global", multiline: true, section: "quick_update", help: "Write as much as you like. A blank line starts a new paragraph." },
     { key: "video_link", label: "Video link", example: "", scope: "global", section: "video", help: "YouTube, Loom, X, Google Drive, anything with a public link. YouTube and Loom show their thumbnail on their own." },
     { key: "video_title", label: "Line above the video (optional)", example: "Two minutes of how I actually use xyra this week.", scope: "global", section: "video" },
     { key: "video_thumbnail", label: "Thumbnail (optional)", example: "", scope: "global", section: "video", type: "image", help: "Only needed for links that aren't YouTube or Loom. Without one, the email shows just the Watch button." },
@@ -470,24 +485,24 @@ const newsletter: GrowthTemplate = {
         ? [
             eyebrowHeader("Behind the scenes"),
             ...(hasImg ? [galleryHtml(bsImages)] : []),
-            ...(hasNote ? [paragraph(esc(raw(v, "behind_scenes_note")))] : []),
+            ...(hasNote ? [prose(v.behind_scenes_note)] : []),
           ]
         : [];
     const body = [
       ...(has(v, "headline") ? [headlineBlock(raw(v, "headline"))] : []),
       greetingHtml(v),
-      paragraph(esc(raw(v, "opening"))),
-      ...(on("quick_update") ? [eyebrowHeader("Quick update"), paragraph(esc(raw(v, "quick_update")))] : []),
+      prose(v.opening),
+      ...(on("quick_update") && has(v, "quick_update") ? [eyebrowHeader("Quick update"), prose(v.quick_update)] : []),
       ...(on("video") ? [videoHtml(v)] : []),
       ...(shipped ? [eyebrowHeader("What we shipped"), shipped] : []),
       ...(working ? [eyebrowHeader("What we're working on"), working] : []),
       ...(fixed ? [eyebrowHeader("What we fixed"), fixed] : []),
       ...behindScenes,
-      ...(on("ask") ? [eyebrowHeader("What we need from you"), paragraph(esc(raw(v, "ask")))] : []),
-      ...(on("referral") ? [inviteBlock(v, "Know someone who'd love this? your invite link gives a friend a free week of xyra:")] : []),
+      ...(on("ask") && has(v, "ask") ? [eyebrowHeader("What we need from you"), prose(v.ask)] : []),
+      ...(on("referral") ? [inviteBlock(v, "Know someone who'd love this? Your invite link gives a friend a free week of xyra:")] : []),
       signoffHtml(v),
     ].join("");
-    return emailShell({ kicker: v.eyebrow ?? "", preheader: preheaderOf(v, raw(v, "opening").slice(0, 120)), bodyHtml: body });
+    return emailShell({ kicker: v.eyebrow ?? "", preheader: preheaderOf(v, (v.opening || v.quick_update || "").trim().slice(0, 120)), bodyHtml: body });
   },
   buildText: (v, sections) => {
     const on = makeOn(sections);
@@ -496,8 +511,8 @@ const newsletter: GrowthTemplate = {
       ...(has(v, "headline") ? [raw(v, "headline"), ``] : []),
       greetingText(v),
       ``,
-      raw(v, "opening"),
-      ...(on("quick_update") ? [``, `Quick update:`, raw(v, "quick_update")] : []),
+      ...(has(v, "opening") ? [v.opening.trim()] : []),
+      ...(on("quick_update") && has(v, "quick_update") ? [``, `Quick update:`, v.quick_update.trim()] : []),
       ...(on("video") ? videoText(v) : []),
       ...(on("shipped") ? block("What we shipped", lines(v.shipped)) : []),
       ...(on("working_on") ? block("What we're working on", lines(v.working_on)) : []),
@@ -508,8 +523,8 @@ const newsletter: GrowthTemplate = {
         if (!imgs.length && !noteOn) return [];
         return [``, `Behind the scenes:`, ...(noteOn ? [raw(v, "behind_scenes_note")] : []), ...galleryTextLines(imgs)];
       })() : []),
-      ...(on("ask") ? [``, `What we need from you:`, raw(v, "ask")] : []),
-      ...(on("referral") ? inviteText(v, "Know someone who'd love this? your invite link gives a friend a free week of xyra:") : []),
+      ...(on("ask") && has(v, "ask") ? [``, `What we need from you:`, v.ask.trim()] : []),
+      ...(on("referral") ? inviteText(v, "Know someone who'd love this? Your invite link gives a friend a free week of xyra:") : []),
       ...signoffText(v),
       ...textFooter(),
     ].join("\n");
@@ -548,11 +563,11 @@ const generalMessage: GrowthTemplate = {
       .split(/\n\s*\n/)
       .map(p => p.trim())
       .filter(Boolean)
-      .map(p => paragraph(esc(p).replace(/\n/g, "<br>")));
+      .map(p => paragraph(linkify(esc(p)).replace(/\n/g, "<br>")));
     const images = on("images") ? parseGallery(v.message_images) : [];
     const imagesHtml = images.length ? galleryHtml(images) : "";
     const cta = on("cta") && has(v, "cta_label") && has(v, "cta_link") ? pillButton(raw(v, "cta_label"), raw(v, "cta_link")) : "";
-    const referral = on("referral") && has(v, "referral_intro") ? inviteBlock(v, esc(raw(v, "referral_intro"))) : "";
+    const referral = on("referral") && has(v, "referral_intro") ? inviteBlock(v, linkify(esc(raw(v, "referral_intro"))).replace(/\r?\n/g, "<br>")) : "";
     const body = [
       ...(has(v, "headline") ? [headlineBlock(raw(v, "headline"))] : []),
       greetingHtml(v),
@@ -649,7 +664,7 @@ const plainMessage: GrowthTemplate = {
     const paras = (v.message_body ?? "").split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
     const bodyParas = paras.length ? paras : [(v.message_body ?? "").trim()];
     const paraHtml = bodyParas
-      .map(p => `<p style="margin:0 0 14px;">${esc(p).replace(/\n/g, "<br>")}</p>`)
+      .map(p => `<p style="margin:0 0 14px;">${linkify(esc(p)).replace(/\n/g, "<br>")}</p>`)
       .join("");
     const ctaLabel = (v.cta_label ?? "").trim();
     const ctaLink = (v.cta_link ?? "").trim();
@@ -660,10 +675,9 @@ const plainMessage: GrowthTemplate = {
     const name = (v.signoff_name ?? "").trim() || "Cole";
     const closingLine = closing ? `${esc(closing)}<br>` : "";
     const postscript = (v.postscript ?? "").trim();
-    const linkify = (s: string) => esc(s).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" style="color:#111;">${u}</a>`);
     const psParas = postscript.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
     const psHtml = psParas
-      .map(p => `<p style="margin:18px 0 0;color:#555;">${linkify(p).replace(/\n/g, "<br>")}</p>`)
+      .map(p => `<p style="margin:18px 0 0;color:#555;">${linkify(esc(p)).replace(/\n/g, "<br>")}</p>`)
       .join("");
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   GROWTH_TEMPLATES,
   getGrowthTemplate,
@@ -42,6 +42,34 @@ function isPerRecipient(key: string): boolean {
 function codeDraft(id: string): Draft {
   const tpl = getGrowthTemplate(id)!;
   return { subject: defaultSubject(tpl), values: defaultValues(tpl), sections: defaultSections(tpl) };
+}
+
+// A textarea that grows with what you write, so a long update is readable
+// while you write it instead of hiding behind a 3-line scroll box.
+function AutoTextarea({ value, onChange, placeholder, className, minRows = 3 }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  className: string;
+  minRows?: number;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      rows={minRows}
+      className={`${className} resize-none overflow-hidden leading-relaxed`}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+    />
+  );
 }
 
 // ── Drag-and-drop image field ───────────────────────────────────────────────
@@ -376,7 +404,9 @@ export default function EmailOps({
     })();
   }, []);
 
-  useEffect(() => { setDryRunResult(null); }, [templateId, campaignKey, recipients, draft]);
+  // Any edit invalidates the last recipient check. Only touch state when there
+  // is one, so typing doesn't queue an update per keystroke.
+  useEffect(() => { setDryRunResult(prev => (prev ? null : prev)); }, [templateId, campaignKey, recipients, draft]);
   // A campaign key only exists so nobody gets the same email twice. Suggest
   // one (template + today) instead of making the sender invent it.
   const suggestedKey = useMemo(() => `${templateId}-${new Date().toLocaleDateString("en-CA")}`, [templateId]);
@@ -650,11 +680,10 @@ export default function EmailOps({
               <div className="px-3.5 pb-3.5">
                 {aiDraftReady ? (
                   <>
-                    <textarea
-                      className={inputCls + " resize-y"}
-                      rows={3}
+                    <AutoTextarea
+                      className={inputCls}
                       value={aiPrompt}
-                      onChange={e => setAiPrompt(e.target.value)}
+                      onChange={setAiPrompt}
                       placeholder="e.g. Tell everyone xyra works on their laptop now, mention the new widgets, and ask them to reply with what they'd want next."
                     />
                     <div className="flex items-center gap-3 mt-2">
@@ -708,7 +737,7 @@ export default function EmailOps({
                     {(p.options ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 ) : p.multiline ? (
-                  <textarea className={inputCls + " resize-y"} rows={3} value={values[p.key] ?? ""} onChange={e => setValue(p.key, e.target.value)} placeholder={p.example} />
+                  <AutoTextarea className={inputCls} value={values[p.key] ?? ""} onChange={val => setValue(p.key, val)} placeholder={p.example} />
                 ) : (
                   <input className={inputCls} value={values[p.key] ?? ""} onChange={e => setValue(p.key, e.target.value)} placeholder={p.example} />
                 )}
