@@ -43,9 +43,9 @@ export const metadata: Metadata = {
   alternates: {
     types: { "application/rss+xml": "/blog/rss.xml" },
   },
-  title: "Xyra — The AI-Native Personal Operating System",
+  title: "xyra — iCloud storage but for AI",
   description:
-    "You speak, Xyra builds. Replace fragmented productivity tools with a single conversational interface. Join the beta waitlist.",
+    "One brain for every AI you use. Tell xyra about your life once, and Claude, ChatGPT and Gemini all know you. Start your brain at xyra.dev.",
   keywords: [
     "AI dashboard",
     "productivity",
@@ -54,10 +54,16 @@ export const metadata: Metadata = {
     "AI assistant",
   ],
   openGraph: {
-    title: "Xyra — You speak, Xyra builds.",
-    description:
-      "The AI-native personal operating system that replaces fragmented tools with a single conversational interface.",
+    title: "xyra — iCloud storage but for AI",
+    description: "One brain for every AI you use. Tell xyra once, and Claude, ChatGPT and Gemini all know you.",
     type: "website",
+    siteName: "xyra",
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "xyra — iCloud storage but for AI",
+    description: "One brain for every AI you use. Tell xyra once, and Claude, ChatGPT and Gemini all know you.",
   },
 };
 
