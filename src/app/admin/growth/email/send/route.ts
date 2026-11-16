@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { resend } from "@/lib/resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/adminApiAuth";
-import { getGrowthTemplate, buildRecipientValues, missingRequiredGlobals, PER_RECIPIENT_KEYS, NAME_PLACEHOLDER, resolveSenderFrom } from "@/lib/growthEmailTemplates";
+import { getGrowthTemplate, buildRecipientValues, cleanCode, missingRequiredGlobals, PER_RECIPIENT_KEYS, NAME_PLACEHOLDER, resolveSenderFrom } from "@/lib/growthEmailTemplates";
 import { issueDryRunToken, verifyDryRunToken } from "@/lib/growthDryRunToken";
 import { isValidEmail } from "@/lib/emailValidation";
-import { resolveRecipients, type KnownRecipient } from "@/lib/emailRecipients";
+import { resolveRecipients, isLiveInviteCode, type KnownRecipient } from "@/lib/emailRecipients";
 
 // ── Guarded real send to SELECTED people (accounts or waitlist) ─────────────
 //
@@ -176,6 +176,17 @@ export async function POST(request: Request) {
   // Disabled sections are excluded from the requirement.
   const missingGlobals = missingRequiredGlobals(tpl, globalValues, sections);
 
+  // People without their own invite code get the shared fallback code. Make
+  // sure it's real before anyone is sent a link that goes nowhere.
+  const inviteOn = tpl.sections.some(s => s.key === "referral") && sections.referral !== false && (templateId !== "general-message" || Boolean(globalValues.referral_intro?.trim()));
+  const fallbackCode = cleanCode(globalValues.fallback_invite_code);
+  const needFallback = inviteOn ? willSend.filter(e => !byEmail.get(e)?.inviteCode) : [];
+  const fallbackLive = fallbackCode && needFallback.length ? await isLiveInviteCode(fallbackCode) : true;
+  const inviteFallback = inviteOn ? { code: fallbackCode, people: needFallback.length, live: fallbackLive } : null;
+  if (inviteOn && fallbackCode && needFallback.length && !fallbackLive) {
+    missingGlobals.push("fallback_invite_code");
+  }
+
   // Bind a signed token to the exact send payload (template, campaign key,
   // subject, global content, sections, and requested recipients). The real send
   // requires it back and re-verifies, so a send can't be made directly without
@@ -189,6 +200,7 @@ export async function POST(request: Request) {
       campaignKey,
       subject,
       missingGlobals,
+      inviteFallback,
       counts: {
         requested: allRecipients.length,
         valid: recipients.length,

@@ -12,6 +12,8 @@ export const APP_ORIGIN = "https://app.xyra.dev";
 export interface InviteInfo {
   firstName: string;
   open: boolean;
+  /** Free days; personal invites are always 7. */
+  days?: number;
 }
 
 export function cleanInviteCode(raw: string): string | null {

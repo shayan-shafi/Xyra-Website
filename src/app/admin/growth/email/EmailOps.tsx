@@ -31,6 +31,7 @@ type DryRunResult = {
   skippedInvalid: string[];
   placeholderNameRecipients: string[];
   missingGlobals?: string[];
+  inviteFallback?: { code: string | null; people: number; live: boolean } | null;
   dryRunToken?: string;
 };
 
@@ -849,6 +850,13 @@ export default function EmailOps({
                     {dryRunResult.skippedUnknown.length > 0 && <div className="text-amber-700">{dryRunResult.skippedUnknown.length} aren&apos;t xyra users, skipped: {dryRunResult.skippedUnknown.join(", ")}</div>}
                     {dryRunResult.skippedInvalid.length > 0 && <div className="text-red-600">Not real email addresses, skipped: {dryRunResult.skippedInvalid.join(", ")}</div>}
                     {dryRunResult.counts.placeholderName > 0 && <div className="text-gray-500">{dryRunResult.counts.placeholderName} have no name on file and get &quot;Hey,&quot; instead of &quot;Hi Alex,&quot;.</div>}
+                    {dryRunResult.inviteFallback && dryRunResult.inviteFallback.people > 0 && (
+                      dryRunResult.inviteFallback.code
+                        ? dryRunResult.inviteFallback.live
+                          ? <div>{dryRunResult.inviteFallback.people} don&apos;t have an account, so their invite link uses the shared code {dryRunResult.inviteFallback.code}.</div>
+                          : <div className="text-red-600">The code {dryRunResult.inviteFallback.code} isn&apos;t a working code, so {dryRunResult.inviteFallback.people} people would get a dead invite link. Fix it in “Code for people without an account”.</div>
+                        : <div>{dryRunResult.inviteFallback.people} don&apos;t have an account and no shared code is set, so they get no invite block.</div>
+                    )}
                     {(dryRunResult.missingGlobals?.length ?? 0) > 0 && <div className="text-red-600">Fill these in first: {dryRunResult.missingGlobals!.map(k => tpl.placeholders.find(p => p.key === k)?.label ?? k).join(", ")}</div>}
                   </div>
                 )}

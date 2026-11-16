@@ -224,8 +224,9 @@ function pillButton(label: string, href: string): string {
 }
 
 // The invite link (xyra.dev/invite/<CODE>) gives a friend a free week. It is
-// filled per recipient from their invite code; people without one (no account
-// yet) simply don't get the block, never a {{token}}.
+// filled per recipient: their own invite code, or for people without an
+// account the shared fallback code (a trial code). Neither → no block, never
+// a {{token}}.
 function inviteBlock(v: Record<string, string>, introHtml: string): string {
   return has(v, "referral_link") ? referralBlock(introHtml, raw(v, "referral_link")) : "";
 }
@@ -382,6 +383,42 @@ function signoffFields(): PlaceholderDef[] {
   ];
 }
 
+// ── Video block ──────────────────────────────────────────────────────────────
+// Email can't play video, so a video is a clickable thumbnail plus a "Watch"
+// button that opens the link. YouTube and Loom links get their thumbnail for
+// free; anything else (X, Drive, a raw .mp4) uses an uploaded thumbnail, or
+// just the button when there is none.
+
+export function videoThumbnail(link: string): string | null {
+  const u = link.trim();
+  const yt = u.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/i);
+  if (yt) return `https://i.ytimg.com/vi/${yt[1]}/hqdefault.jpg`;
+  const loom = u.match(/loom\.com\/(?:share|embed)\/([0-9a-f]{32})/i);
+  if (loom) return `https://cdn.loom.com/sessions/thumbnails/${loom[1]}-with-play.gif`;
+  return null;
+}
+
+function videoHtml(v: Record<string, string>): string {
+  if (!has(v, "video_link")) return "";
+  const link = raw(v, "video_link");
+  const thumb = has(v, "video_thumbnail") && HTTP_RE.test(v.video_thumbnail.trim()) ? v.video_thumbnail.trim() : videoThumbnail(link);
+  const title = has(v, "video_title") ? raw(v, "video_title") : "";
+  const label = has(v, "video_button") ? raw(v, "video_button") : "▶  Watch the video";
+  return [
+    eyebrowHeader("Watch"),
+    ...(title ? [paragraph(esc(title))] : []),
+    thumb
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;"><tr><td align="center"><a href="${esc(link)}" style="text-decoration:none;"><img src="${esc(thumb)}" alt="${esc(title || "Watch the video")}" style="display:block;width:100%;max-width:480px;height:auto;border-radius:12px;border:1px solid ${HAIRLINE};" /></a></td></tr></table>`
+      : "",
+    pillButton(label, link),
+  ].join("");
+}
+
+function videoText(v: Record<string, string>): string[] {
+  if (!has(v, "video_link")) return [];
+  return [``, `Watch${has(v, "video_title") ? `: ${raw(v, "video_title")}` : ""}`, raw(v, "video_link")];
+}
+
 // ── Template 2: Weekly newsletter / update ──────────────────────────────────
 
 const newsletter: GrowthTemplate = {
@@ -391,6 +428,7 @@ const newsletter: GrowthTemplate = {
   confirmPhrase: "SEND NEWSLETTER",
   sections: [
     { key: "quick_update", label: "Quick update", defaultEnabled: true },
+    { key: "video", label: "Video", defaultEnabled: false },
     { key: "shipped", label: "What we shipped", defaultEnabled: true },
     { key: "working_on", label: "What we're working on", defaultEnabled: true },
     { key: "fixed", label: "What we fixed", defaultEnabled: true },
@@ -404,6 +442,10 @@ const newsletter: GrowthTemplate = {
     ...headerFields("this week in xyra", ""),
     { key: "opening", label: "Opening line", example: "Here's what changed in xyra this week.", scope: "global", required: true, multiline: true },
     { key: "quick_update", label: "Quick update", example: "The big one: xyra now works on your laptop at app.xyra.dev, synced with your phone.", scope: "global", required: true, multiline: true, section: "quick_update" },
+    { key: "video_link", label: "Video link", example: "", scope: "global", section: "video", help: "YouTube, Loom, X, Google Drive, anything with a public link. YouTube and Loom show their thumbnail on their own." },
+    { key: "video_title", label: "Line above the video (optional)", example: "Two minutes of how I actually use xyra this week.", scope: "global", section: "video" },
+    { key: "video_thumbnail", label: "Thumbnail (optional)", example: "", scope: "global", section: "video", type: "image", help: "Only needed for links that aren't YouTube or Loom. Without one, the email shows just the Watch button." },
+    { key: "video_button", label: "Button label", example: "▶  Watch the video", scope: "global", section: "video" },
     { key: "shipped", label: "What we shipped (one per line)", example: "Send it to your laptop from the website\nWidgets for your to-dos, schedule and classes", scope: "global", multiline: true, section: "shipped" },
     { key: "working_on", label: "What we're working on (one per line)", example: "Faster replies when you talk to xyra\nMore of your apps feeding your brain", scope: "global", multiline: true, section: "working_on" },
     { key: "fixed", label: "What we fixed (one per line)", example: "Reminders landing on the wrong day\nThe app hanging on the splash screen", scope: "global", multiline: true, section: "fixed" },
@@ -411,7 +453,8 @@ const newsletter: GrowthTemplate = {
     { key: "behind_scenes_images", label: "Behind the scenes images", example: "", scope: "global", section: "behind_scenes", type: "images", help: "Upload one or more images, one at a time (e.g. one of Cole and one of Shayan). Add optional alt text and a caption for each. Two images sit side by side and stack on mobile. If none are added, no image block is shown." },
     { key: "ask", label: "What we need from you", example: "Reply and tell us the one thing you wish xyra did for you.", scope: "global", multiline: true, section: "ask" },
     ...signoffFields(),
-    { key: "referral_link", label: "Invite link", example: "https://xyra.dev/invite/ABC234", scope: "perRecipient", section: "referral", help: "Each person's own invite link. People without an account don't get this block." },
+    { key: "fallback_invite_code", label: "Code for people without an account", example: "FRIENDWEEK", scope: "global", section: "referral", help: "People with an account get their own invite link. Everyone else gets xyra.dev/invite/ this code (a shared free-week code). Blank = they get no invite block." },
+    { key: "referral_link", label: "Invite link", example: "https://xyra.dev/invite/ABC234", scope: "perRecipient", section: "referral", help: "Each person's own invite link, or the shared code above for people without an account." },
   ],
   buildSubject: () => "this week in xyra",
   buildHtml: (v, sections) => {
@@ -435,6 +478,7 @@ const newsletter: GrowthTemplate = {
       greetingHtml(v),
       paragraph(esc(raw(v, "opening"))),
       ...(on("quick_update") ? [eyebrowHeader("Quick update"), paragraph(esc(raw(v, "quick_update")))] : []),
+      ...(on("video") ? [videoHtml(v)] : []),
       ...(shipped ? [eyebrowHeader("What we shipped"), shipped] : []),
       ...(working ? [eyebrowHeader("What we're working on"), working] : []),
       ...(fixed ? [eyebrowHeader("What we fixed"), fixed] : []),
@@ -454,6 +498,7 @@ const newsletter: GrowthTemplate = {
       ``,
       raw(v, "opening"),
       ...(on("quick_update") ? [``, `Quick update:`, raw(v, "quick_update")] : []),
+      ...(on("video") ? videoText(v) : []),
       ...(on("shipped") ? block("What we shipped", lines(v.shipped)) : []),
       ...(on("working_on") ? block("What we're working on", lines(v.working_on)) : []),
       ...(on("fixed") ? block("What we fixed", lines(v.fixed)) : []),
@@ -493,7 +538,8 @@ const generalMessage: GrowthTemplate = {
     { key: "cta_link", label: "Button link", example: "", scope: "global", section: "cta", help: "Public HTTPS URL." },
     { key: "referral_intro", label: "Invite line", example: "Your invite link gives a friend a free week of xyra:", scope: "global", section: "referral", multiline: true },
     ...signoffFields(),
-    { key: "referral_link", label: "Invite link", example: "https://xyra.dev/invite/ABC234", scope: "perRecipient", section: "referral", help: "Each person's own invite link. People without an account don't get this block." },
+    { key: "fallback_invite_code", label: "Code for people without an account", example: "FRIENDWEEK", scope: "global", section: "referral", help: "People with an account get their own invite link. Everyone else gets xyra.dev/invite/ this code (a shared free-week code). Blank = they get no invite block." },
+    { key: "referral_link", label: "Invite link", example: "https://xyra.dev/invite/ABC234", scope: "perRecipient", section: "referral", help: "Each person's own invite link, or the shared code above for people without an account." },
   ],
   buildSubject: () => "a quick note from xyra",
   buildHtml: (v, sections) => {
@@ -689,6 +735,12 @@ export function missingRequiredGlobals(tpl: GrowthTemplate, values: Record<strin
     .map(p => p.key);
 }
 
+/** Invite / trial codes are 4–16 letters or digits, stored upper case. */
+export function cleanCode(raw: string | null | undefined): string | null {
+  const c = String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return /^[A-Z0-9]{4,16}$/.test(c) ? c : null;
+}
+
 export function buildRecipientValues(
   globalValues: Record<string, string>,
   recipient: { name: string | null; inviteCode: string | null },
@@ -697,8 +749,10 @@ export function buildRecipientValues(
   // Empty when the name is blank or the import placeholder — the greeting then
   // falls back to a neutral "Hey," instead of "Hi Xyra waitlist member,".
   const firstName = usableFirstName(recipient.name);
-  // Their own invite link (a friend gets a free week). The old waitlist /ref/
+  // Their own invite link (a friend gets a free week); people without an
+  // account get the shared fallback code instead. The old waitlist /ref/
   // links only moved people up a list that no longer exists, so they're gone.
-  const referralLink = recipient.inviteCode ? `${siteBaseUrl.replace(/\/$/, "")}/invite/${encodeURIComponent(recipient.inviteCode)}` : "";
+  const code = recipient.inviteCode || cleanCode(globalValues.fallback_invite_code);
+  const referralLink = code ? `${siteBaseUrl.replace(/\/$/, "")}/invite/${encodeURIComponent(code)}` : "";
   return { ...globalValues, first_name: firstName, referral_link: referralLink };
 }

@@ -74,3 +74,13 @@ export async function resolveRecipients(emails: string[]): Promise<{ known: Map<
 
   return { known };
 }
+
+/** Is this code live (an active trial code, or someone's personal invite)? */
+export async function isLiveInviteCode(code: string): Promise<boolean> {
+  if (!supabaseAppAdmin) return false;
+  const [trial, personal] = await Promise.all([
+    supabaseAppAdmin.from("trial_codes").select("code").eq("code", code).eq("active", true).maybeSingle(),
+    supabaseAppAdmin.from("invite_codes").select("code").eq("code", code).maybeSingle(),
+  ]);
+  return Boolean(trial.data || personal.data);
+}
