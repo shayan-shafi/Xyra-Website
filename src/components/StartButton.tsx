@@ -9,6 +9,7 @@
 // `from` names the button (site_<from> on the app side, cta_location here).
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   fireXConversion,
@@ -66,7 +67,7 @@ function suggestEmail(value: string): string | null {
 }
 
 /** The app sign-up link for this button, carrying the visit's UTM tags (no personal data). */
-function signUpHref(from: string): string {
+export function signUpHref(from: string): string {
   const base = signUpUrl(from);
   if (typeof window === "undefined") return base;
   const ft = adTouch();
@@ -94,6 +95,8 @@ export default function StartButton({
   children?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false); // the portal needs <body>, so only after hydration
+  useEffect(() => setMounted(true), []);
   const where = location ?? from;
 
   return (
@@ -114,12 +117,77 @@ export default function StartButton({
       >
         {children ?? label}
       </a>
-      <AnimatePresence>{open && <HandoffSheet from={from} location={where} onClose={() => setOpen(false)} />}</AnimatePresence>
+      {/* Portaled to <body>: inside the hero's animated (transformed) wrapper its
+          z-index was trapped, and the cookie notice covered the email field. */}
+      {mounted &&
+        createPortal(
+          <AnimatePresence>{open && <HandoffSheet from={from} location={where} onClose={() => setOpen(false)} />}</AnimatePresence>,
+          document.body,
+        )}
     </>
   );
 }
 
 function HandoffSheet({ from, location, onClose }: { from: string; location: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  return (
+    <motion.div
+      // z-205: above the cookie notice (z-200), below its privacy-settings modal (z-210)
+      className="fixed inset-0 z-[205] flex items-end justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="send it to my laptop"
+    >
+      <button aria-label="close" className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <motion.div
+        className="relative w-full max-w-md rounded-t-[28px] bg-[#fbfaf8] px-6 pb-[max(28px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_40px_rgba(0,0,0,0.18)]"
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 32, stiffness: 320 }}
+      >
+        <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-black/15" />
+        <HandoffForm from={from} location={location} onDone={onClose} autoFocus />
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/**
+ * The "send it to my laptop" form on its own: email → /api/handoff → X sign-up
+ * conversion → the sent state. The sheet wraps it; the X ad page (/x) shows it
+ * inline. Without `intro`, it opens with the sheet's two lines.
+ */
+export function HandoffForm({
+  from,
+  location,
+  onDone,
+  autoFocus = false,
+  intro,
+  submitLabel = "send it to my laptop",
+}: {
+  from: string;
+  location: string;
+  /** Shows a "done" button on the sent state (the sheet closes on it). */
+  onDone?: () => void;
+  autoFocus?: boolean;
+  /** Replaces the two opening lines; null = no intro (the page says it above). */
+  intro?: ReactNode;
+  submitLabel?: string;
+}) {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [problem, setProblem] = useState<string | null>(null);
@@ -128,17 +196,10 @@ function HandoffSheet({ from, location, onClose }: { from: string; location: str
   const suggestion = state !== "sent" ? suggestEmail(email.trim()) : null;
 
   useEffect(() => {
+    if (!autoFocus) return;
     const t = setTimeout(() => inputRef.current?.focus(), 250);
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [onClose]);
+    return () => clearTimeout(t);
+  }, [autoFocus]);
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,55 +250,42 @@ function HandoffSheet({ from, location, onClose }: { from: string; location: str
   );
 
   return (
-    <motion.div
-      className="fixed inset-0 z-[200] flex items-end justify-center"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="send it to my laptop"
-    >
-      <button aria-label="close" className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <motion.div
-        className="relative w-full max-w-md rounded-t-[28px] bg-[#fbfaf8] px-6 pb-[max(28px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_40px_rgba(0,0,0,0.18)]"
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 32, stiffness: 320 }}
-      >
-        <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-black/15" />
-        {state === "sent" ? (
-          <div>
-            <p className={`${SERIF} text-[28px] font-medium leading-[1.1] tracking-tight text-black`}>sent. open it on your laptop.</p>
-            <p className={`${MONO} mt-4 break-all rounded-full border border-black/10 bg-white px-4 py-2.5 text-[13px] text-black`}>{sentTo}</p>
-            <button
-              type="button"
-              onClick={() => {
-                track("handoff_fix_email", { cta_location: location });
-                setState("idle");
-                setTimeout(() => {
-                  inputRef.current?.focus();
-                  inputRef.current?.select();
-                }, 50);
-              }}
-              className={`${MONO} mt-2 px-1 text-[11px] text-black/55 underline underline-offset-4 decoration-black/25`}
-            >
-              wrong email? fix it
-            </button>
-            <p className={`${PROSE} mt-3 text-[17px] leading-snug text-black/60`}>
-              it&apos;s from shayan@xyra.dev. not there in a minute? check promotions or spam.
-            </p>
-            <button
-              onClick={onClose}
-              className={`${MONO} mt-7 inline-flex w-full items-center justify-center rounded-full bg-black px-6 py-3.5 text-xs tracking-wide text-white`}
-            >
-              done
-            </button>
-            <div className="mt-5 text-center">{skip}</div>
-          </div>
-        ) : (
-          <form onSubmit={send} noValidate>
+    <>
+    {state === "sent" ? (
+      <div>
+        <p className={`${SERIF} text-[28px] font-medium leading-[1.1] tracking-tight text-black`}>sent. open it on your laptop.</p>
+        <p className={`${MONO} mt-4 break-all rounded-full border border-black/10 bg-white px-4 py-2.5 text-[13px] text-black`}>{sentTo}</p>
+        <button
+          type="button"
+          onClick={() => {
+            track("handoff_fix_email", { cta_location: location });
+            setState("idle");
+            setTimeout(() => {
+              inputRef.current?.focus();
+              inputRef.current?.select();
+            }, 50);
+          }}
+          className={`${MONO} mt-2 px-1 text-[11px] text-black/55 underline underline-offset-4 decoration-black/25`}
+        >
+          wrong email? fix it
+        </button>
+        <p className={`${PROSE} mt-3 text-[17px] leading-snug text-black/60`}>
+          it&apos;s from shayan@xyra.dev. not there in a minute? check promotions or spam.
+        </p>
+        {onDone && (
+          <button
+            onClick={onDone}
+            className={`${MONO} mt-7 inline-flex w-full items-center justify-center rounded-full bg-black px-6 py-3.5 text-xs tracking-wide text-white`}
+          >
+            done
+          </button>
+        )}
+        <div className="mt-5 text-center">{skip}</div>
+      </div>
+    ) : (
+      <form onSubmit={send} noValidate>
+        {intro !== undefined ? intro : (
+          <>
             <p className={`${SERIF} text-[28px] font-medium leading-[1.1] tracking-tight text-black`}>xyra&apos;s built for your laptop.</p>
             <p className={`${PROSE} mt-3 text-[17px] leading-snug text-black/60`}>
               leave your email and we&apos;ll send the link there. no card until you&apos;ve seen it.
@@ -245,48 +293,49 @@ function HandoffSheet({ from, location, onClose }: { from: string; location: str
             <p className={`${PROSE} mt-2 text-[17px] leading-snug text-black/60`}>
               don&apos;t worry, you can download the phone version after you sign in on your laptop.
             </p>
-            <input
-              ref={inputRef}
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              autoCapitalize="none"
-              spellCheck={false}
-              placeholder="your@email.com"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (problem) setProblem(null);
-              }}
-              className={`${MONO} mt-6 w-full rounded-full border border-black/15 bg-white px-5 py-3.5 text-[16px] text-black outline-none placeholder:text-black/30 focus:border-black/50`}
-            />
-            {problem && <p className={`${MONO} mt-2 px-2 text-[11px] text-red-600`}>{problem}</p>}
-            {suggestion && (
-              <button
-                type="button"
-                onClick={() => {
-                  track("handoff_typo_fix", { cta_location: location });
-                  setEmail(suggestion);
-                }}
-                className={`${MONO} mt-2 px-2 text-left text-[11px] text-black/60`}
-              >
-                did you mean <span className="text-black underline underline-offset-4">{suggestion}</span>?
-              </button>
-            )}
-            <button
-              type="submit"
-              disabled={state === "sending"}
-              className={`${MONO} mt-3 inline-flex w-full items-center justify-center rounded-full bg-black px-6 py-3.5 text-xs tracking-wide text-white disabled:opacity-60`}
-            >
-              {state === "sending" ? "sending…" : "send it to my laptop"}
-            </button>
-            <p className={`${MONO} mt-4 text-center text-[10px] leading-relaxed text-black/40`}>
-              the link plus two reminders at most. stop them anytime. <a href="/privacy" className="underline">privacy</a>
-            </p>
-            <div className="mt-4 text-center">{skip}</div>
-          </form>
+          </>
         )}
-      </motion.div>
-    </motion.div>
+        <input
+          ref={inputRef}
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          placeholder="your@email.com"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (problem) setProblem(null);
+          }}
+          className={`${MONO} ${intro === null ? "" : "mt-6"} w-full rounded-full border border-black/15 bg-white px-5 py-3.5 text-[16px] text-black outline-none placeholder:text-black/30 focus:border-black/50`}
+        />
+        {problem && <p className={`${MONO} mt-2 px-2 text-[11px] text-red-600`}>{problem}</p>}
+        {suggestion && (
+          <button
+            type="button"
+            onClick={() => {
+              track("handoff_typo_fix", { cta_location: location });
+              setEmail(suggestion);
+            }}
+            className={`${MONO} mt-2 px-2 text-left text-[11px] text-black/60`}
+          >
+            did you mean <span className="text-black underline underline-offset-4">{suggestion}</span>?
+          </button>
+        )}
+        <button
+          type="submit"
+          disabled={state === "sending"}
+          className={`${MONO} mt-3 inline-flex w-full items-center justify-center rounded-full bg-black px-6 py-3.5 text-xs tracking-wide text-white disabled:opacity-60`}
+        >
+          {state === "sending" ? "sending…" : submitLabel}
+        </button>
+        <p className={`${MONO} mt-4 text-center text-[10px] leading-relaxed text-black/40`}>
+          the link plus two reminders at most. stop them anytime. <a href="/privacy" className="underline">privacy</a>
+        </p>
+        <div className="mt-4 text-center">{skip}</div>
+      </form>
+    )}
+    </>
   );
 }
