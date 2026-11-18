@@ -35,7 +35,7 @@ function Nav() {
         <a
           href={SIGN_IN_URL}
           onClick={() => track("cta_click", { cta_location: "hero_nav", button_label: "sign in" })}
-          className="text-black/60 hover:text-black transition-colors"
+          className="hidden sm:inline text-black/60 hover:text-black transition-colors"
         >
           sign in
         </a>
