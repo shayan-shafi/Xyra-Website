@@ -155,9 +155,9 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
   }, [filtered]);
 
   const exportCsv = useCallback(() => {
-    const header = ["email", "name", "status", "signed_up", "last_active", "days_since_active", "active_days_30", "dashboards", "items", "chats", "dumps", "feedback", "web_opens_30", "phone_opens_30", "push", "subscription", "alpha_status", "source"];
+    const header = ["email", "name", "status", "signed_up", "last_active", "days_since_active", "active_days_30", "dashboards", "items", "chats", "dumps", "feedback", "web_opens_30", "phone_opens_30", "memories", "notes", "agent_actions_30", "agent_last_used", "agents", "push", "subscription", "alpha_status", "source"];
     const rows = targets.map((u) =>
-      [u.email, u.name, u.status, u.signedUpAt?.slice(0, 10), u.lastActiveAt?.slice(0, 10), u.daysSinceActive, u.activeDays30, u.dashboards, u.items, u.chats, u.dumps, u.feedback, u.webOpens30, u.phoneOpens30, u.pushEnabled ? "on" : "off", u.subscription, u.alphaStatus, u.source]
+      [u.email, u.name, u.status, u.signedUpAt?.slice(0, 10), u.lastActiveAt?.slice(0, 10), u.daysSinceActive, u.activeDays30, u.dashboards, u.items, u.chats, u.dumps, u.feedback, u.webOpens30, u.phoneOpens30, u.memories, u.notes, u.agentActions30, u.agentLastUsedAt?.slice(0, 10), u.agentNames.join(" / "), u.pushEnabled ? "on" : "off", u.subscription, u.alphaStatus, u.source]
         .map(csvCell).join(","),
     );
     const blob = new Blob([[header.join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -349,6 +349,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
                     {u.hasAccount && <span className={u.pushEnabled ? "text-green-600" : "text-gray-300"} title={u.pushEnabled ? "push notifications on" : "no push token"}>push</span>}
                     {u.webOpens30 > 0 && <span className="text-sky-600" title={`opened the laptop web app ${u.webOpens30}× in the last 30 days`}>web</span>}
                     {u.phoneOpens30 > 0 && <span className="text-amber-600" title={`opened the phone app ${u.phoneOpens30}× in the last 30 days`}>phone</span>}
+                    {u.agentNames.length > 0 && <span className="text-violet-600" title={`outside AI used the brain in the last 30 days: ${u.agentNames.join(", ")} · ${u.agentActions30} writes · last call ${fmtDate(u.agentLastUsedAt)}`}>agent</span>}
                     {u.subscription && <span className="text-indigo-600" title={`subscription: ${u.subscription}`}>{u.subscription}</span>}
                     {u.adminNotes && <span className="text-gray-400" title={u.adminNotes}>note</span>}
                   </td>
@@ -360,7 +361,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
       </div>
 
       <p className="text-[11px] text-gray-400">
-        Activity = any dashboard, item, chat message, or brain dump the user created. Active ≤7d · Cooling 8–30d · Dormant &gt;30d ·
+        Activity = any dashboard, item, chat message, brain dump, memory or note the user created (background connector syncs excluded), an app open, or an outside AI reading/writing the brain over MCP. Active ≤7d · Cooling 8–30d · Dormant &gt;30d ·
         “Never used” = account with zero activity. Waitlist rows are matched to accounts by email. Snapshot {new Date(data.generatedAt).toLocaleTimeString()}.
       </p>
     </div>
