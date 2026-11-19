@@ -325,7 +325,9 @@ export async function fetchFunnelData(w: ResolvedWindow, includeInternal: boolea
   // ── per creative ───────────────────────────────────────────────────────
   const rows = new Map<string, CreativeRow>();
   const row = (key: string | null | undefined, source?: string | null, campaign?: string | null) => {
-    const k = key || NO_TAGS;
+    // X's ad link field has slipped spaces into pasted links ("first-dat   e-h1"),
+    // so a key is the tag with all whitespace removed: one row per ad either way.
+    const k = (key ?? "").replace(/\s+/g, "") || NO_TAGS;
     let r = rows.get(k);
     if (!r) {
       r = { key: k, source: source ?? null, campaign: campaign ?? null, visitors: 0, ctaClicks: 0, emails: 0, accounts: 0, activated: 0, paid: 0 };
@@ -340,7 +342,9 @@ export async function fetchFunnelData(w: ResolvedWindow, includeInternal: boolea
     return c ? row(c.content, c.source, c.campaign) : row(visitorUntagged.get(v) ?? `${NO_TAGS} · direct`);
   };
   pageviewVisitors.forEach((v) => { rowFor(v).visitors++; });
-  new Set([...Array.from(ctaPhone), ...Array.from(ctaLaptop), ...Array.from(ctaUntyped)]).forEach((v) => { rowFor(v).ctaClicks++; });
+  // The X landing (/x) has its email form inline, with no start button before it,
+  // so anyone who sent an email counts as having pressed start.
+  new Set([...Array.from(ctaPhone), ...Array.from(ctaLaptop), ...Array.from(ctaUntyped), ...Array.from(emailSent)]).forEach((v) => { rowFor(v).ctaClicks++; });
   for (const h of handoffs) row(h.first_utm_content, h.first_utm_source, h.first_utm_campaign).emails++;
   for (const u of siteAccounts) {
     const r = row(u.attr.utm_content, u.attr.utm_source, u.attr.utm_campaign);
