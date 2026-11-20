@@ -11,7 +11,7 @@ const GROUPS_API = "/admin/growth/email/recipient-groups";
 const LABEL = "font-[family-name:var(--font-jetbrains)] text-[10px] uppercase tracking-[0.12em] text-gray-400";
 const TH = "pb-2 text-left font-[family-name:var(--font-jetbrains)] text-[10px] font-medium text-gray-400 uppercase tracking-[0.1em] whitespace-nowrap";
 
-type SortKey = "lastActive" | "signedUp" | "activeDays" | "dashboards" | "chats" | "email";
+type SortKey = "lastActive" | "signedUp" | "activeDays" | "stored" | "dashboards" | "chats" | "email";
 
 const STATUS_META: Record<UserStatus, { label: string; hint: string; pill: string; dot: string }> = {
   active: { label: "Active", hint: "used the app in the last 7 days", pill: "bg-green-100 text-green-700", dot: "bg-green-500" },
@@ -129,6 +129,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
         case "lastActive": return t(b.lastActiveAt) - t(a.lastActiveAt);
         case "signedUp": return t(b.signedUpAt ?? b.waitlistedAt) - t(a.signedUpAt ?? a.waitlistedAt);
         case "activeDays": return b.activeDays30 - a.activeDays30;
+        case "stored": return b.stored - a.stored;
         case "dashboards": return b.dashboards - a.dashboards;
         case "chats": return b.chats + b.dumps - (a.chats + a.dumps);
         case "email": return a.email.localeCompare(b.email);
@@ -155,9 +156,9 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
   }, [filtered]);
 
   const exportCsv = useCallback(() => {
-    const header = ["email", "name", "status", "signed_up", "last_active", "days_since_active", "active_days_30", "dashboards", "items", "chats", "dumps", "feedback", "web_opens_30", "phone_opens_30", "memories", "notes", "agent_actions_30", "agent_last_used", "agents", "push", "subscription", "alpha_status", "source"];
+    const header = ["email", "name", "status", "signed_up", "last_active", "days_since_active", "active_days_30", "dashboards", "items", "chats", "dumps", "feedback", "web_opens_30", "phone_opens_30", "memories_stored", "stored_facts", "stored_board_rows", "stored_note_memories", "memories", "notes", "agent_actions_30", "agent_last_used", "agents", "push", "subscription", "alpha_status", "source"];
     const rows = targets.map((u) =>
-      [u.email, u.name, u.status, u.signedUpAt?.slice(0, 10), u.lastActiveAt?.slice(0, 10), u.daysSinceActive, u.activeDays30, u.dashboards, u.items, u.chats, u.dumps, u.feedback, u.webOpens30, u.phoneOpens30, u.memories, u.notes, u.agentActions30, u.agentLastUsedAt?.slice(0, 10), u.agentNames.join(" / "), u.pushEnabled ? "on" : "off", u.subscription, u.alphaStatus, u.source]
+      [u.email, u.name, u.status, u.signedUpAt?.slice(0, 10), u.lastActiveAt?.slice(0, 10), u.daysSinceActive, u.activeDays30, u.dashboards, u.items, u.chats, u.dumps, u.feedback, u.webOpens30, u.phoneOpens30, u.stored, u.storedFacts, u.storedRows, u.storedNoteMemories, u.memories, u.notes, u.agentActions30, u.agentLastUsedAt?.slice(0, 10), u.agentNames.join(" / "), u.pushEnabled ? "on" : "off", u.subscription, u.alphaStatus, u.source]
         .map(csvCell).join(","),
     );
     const blob = new Blob([[header.join(","), ...rows].join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -268,6 +269,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
           <option value="lastActive">Sort: last active</option>
           <option value="signedUp">Sort: signed up</option>
           <option value="activeDays">Sort: days used (30d)</option>
+          <option value="stored">Sort: memories stored</option>
           <option value="dashboards">Sort: dashboards</option>
           <option value="chats">Sort: chats + dumps</option>
           <option value="email">Sort: email</option>
@@ -304,7 +306,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
             )}
           </div>
         ) : (
-          <table className="w-full min-w-[980px]">
+          <table className="w-full min-w-[1040px]">
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="pb-2 pr-2 w-6"><input type="checkbox" aria-label="Select all" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} /></th>
@@ -312,6 +314,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
                 <th className={TH}>Status</th>
                 <th className={TH}>Last active</th>
                 <th className={`${TH} text-right`} title="Distinct days with activity in the last 30">Days/30</th>
+                <th className={`${TH} text-right`} title="Memory meter: 1 per fact, 1 per board row, 1 per 280 chars of a note">Memories</th>
                 <th className={`${TH} text-right`}>Boards</th>
                 <th className={`${TH} text-right`}>Items</th>
                 <th className={`${TH} text-right`} title="User chat messages + brain dumps">Chats</th>
@@ -334,6 +337,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
                     {u.hasAccount ? <><span className="font-medium">{fmtAgo(u.daysSinceActive)}</span>{u.lastActiveAt && <span className="text-gray-400"> · {fmtDate(u.lastActiveAt)}</span>}</> : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-800">{u.hasAccount ? u.activeDays30 : "—"}</td>
+                  <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-900 font-medium" title={u.hasAccount ? `${u.storedFacts} facts · ${u.storedRows} board rows · ${u.storedNoteMemories} from notes` : undefined}>{u.hasAccount ? u.stored : "—"}</td>
                   <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-600">{u.hasAccount ? u.dashboards : "—"}</td>
                   <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-600">{u.hasAccount ? u.items : "—"}</td>
                   <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-600">{u.hasAccount ? u.chats + u.dumps : "—"}</td>
@@ -362,7 +366,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
 
       <p className="text-[11px] text-gray-400">
         Activity = any dashboard, item, chat message, brain dump, memory or note the user created (background connector syncs excluded), an app open, or an outside AI reading/writing the brain over MCP. Active ≤7d · Cooling 8–30d · Dormant &gt;30d ·
-        “Never used” = account with zero activity. Waitlist rows are matched to accounts by email. Snapshot {new Date(data.generatedAt).toLocaleTimeString()}.
+        “Never used” = account with zero activity. Waitlist rows are matched to accounts by email. Memories = the memory meter: 1 per fact, 1 per row on a live board, 1 per 280 chars of a note, from any source; reads, edits, chat history and passive syncs don't count. Snapshot {new Date(data.generatedAt).toLocaleTimeString()}.
       </p>
     </div>
   );

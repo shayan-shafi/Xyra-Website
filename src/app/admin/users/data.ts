@@ -8,7 +8,7 @@ import { fetchAll } from "@/lib/fetchAll";
 //   • the XYRA APP project (service role): auth users + activity signals
 //     (dashboards, items, chat, brain dumps, feedback, push tokens, billing,
 //     and app_opened events: opening the web or phone app counts as use;
-//     memories + notes, and anything an outside AI does through the brain
+//     memories + notes, the memory meter (rpc memory_usage_all), and anything an outside AI does through the brain
 //     MCP: writes via agent_events, reads via agent_tokens.last_used_at)
 //   • the marketing site's own project: the waitlist (alpha_status, invite
 //     date, acquisition source)
@@ -47,6 +47,13 @@ export type AlphaUser = {
   phoneOpens30: number; // app_opened from the phone app, last 30 days
   memories: number; // user_facts the user (or their AI) added — background connector syncs excluded
   notes: number; // brain_notes, same rule
+  // Memory meter (app db memory_usage_all, 2026-11-19): everything kept in the
+  // brain, the unit pricing is built on. 1 per active fact, 1 per row on a
+  // live board, 1 per 280 chars of a note. Every source counts, connectors too.
+  stored: number;
+  storedFacts: number;
+  storedRows: number;
+  storedNoteMemories: number;
   agentActions30: number; // MCP writes by outside AIs (agent_events), last 30 days
   agentLastUsedAt: string | null; // latest MCP call of any kind, reads included (agent_tokens.last_used_at)
   agentNames: string[]; // connected AIs that used the brain in the last 30 days
@@ -152,6 +159,7 @@ export async function fetchUsersData(): Promise<UsersData | null> {
     noteRows,
     agentEventRows,
     agentTokenRows,
+    meterRows,
     pushRows,
     subRows,
     waitlistRows,
@@ -194,6 +202,8 @@ export async function fetchUsersData(): Promise<UsersData | null> {
     fetchAll<{ user_id: string; name: string | null; last_used_at: string | null }>((from, to) =>
       app.from("agent_tokens").select("user_id, name, last_used_at").not("last_used_at", "is", null)
         .range(from, to), "agent_tokens"),
+    fetchAll<{ user_id: string; facts: number; board_rows: number; note_memories: number; total: number }>((from, to) =>
+      app.rpc("memory_usage_all").range(from, to), "memory_usage_all"),
     fetchAll<{ user_id: string }>((from, to) => app.from("push_tokens").select("user_id").range(from, to), "push_tokens"),
     fetchAll<{ user_id: string; status: string }>(
       (from, to) => app.from("subscriptions").select("user_id, status").range(from, to),
@@ -270,6 +280,8 @@ export async function fetchUsersData(): Promise<UsersData | null> {
     if (by) by.set(r.user_id, (by.get(r.user_id) ?? 0) + 1);
   }
 
+  const meterByUser = new Map(meterRows.map((m) => [m.user_id, m]));
+
   const profileByAuth = new Map<string, { name: string | null; created_at: string | null }>();
   for (const p of profileRows) if (p.auth_id) profileByAuth.set(p.auth_id, { name: p.name, created_at: p.created_at });
   const pushUsers = new Set(pushRows.map((r) => r.user_id));
@@ -299,6 +311,7 @@ export async function fetchUsersData(): Promise<UsersData | null> {
     // Putting something in the brain counts, whoever typed it — the app or an outside AI.
     const activated = nDash + nItems + nChats + nDumps + nFacts + nNotes + nAgentWrites > 0;
     const since = daysAgo(lastActiveAt, now);
+    const meter = meterByUser.get(id);
 
     const activeDaySet = new Set<string>();
     for (const r of [dash, items, chats, dumps, opens, facts, notes, agentWrites, agentUse]) for (const d of r.days.get(id) ?? []) activeDaySet.add(d);
@@ -332,6 +345,10 @@ export async function fetchUsersData(): Promise<UsersData | null> {
       phoneOpens30: phoneOpens.get(id) ?? 0,
       memories: nFacts,
       notes: nNotes,
+      stored: Number(meter?.total ?? 0),
+      storedFacts: Number(meter?.facts ?? 0),
+      storedRows: Number(meter?.board_rows ?? 0),
+      storedNoteMemories: Number(meter?.note_memories ?? 0),
       agentActions30: agentWrites30.get(id) ?? 0,
       agentLastUsedAt: maxIso(agentUse.latest.get(id), agentWrites.latest.get(id)),
       agentNames: [...(agentNames.get(id) ?? [])],
@@ -374,6 +391,10 @@ export async function fetchUsersData(): Promise<UsersData | null> {
       phoneOpens30: 0,
       memories: 0,
       notes: 0,
+      stored: 0,
+      storedFacts: 0,
+      storedRows: 0,
+      storedNoteMemories: 0,
       agentActions30: 0,
       agentLastUsedAt: null,
       agentNames: [],
