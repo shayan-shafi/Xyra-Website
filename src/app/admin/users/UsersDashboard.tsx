@@ -366,7 +366,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
 
       <p className="text-[11px] text-gray-400">
         Activity = any dashboard, item, chat message, brain dump, memory or note the user created (background connector syncs excluded), an app open, or an outside AI reading/writing the brain over MCP. Active ≤7d · Cooling 8–30d · Dormant &gt;30d ·
-        “Never used” = account with zero activity. Waitlist rows are matched to accounts by email. Memories = the memory meter: 1 per fact, 1 per row on a live board, 1 per 280 chars of a note, from any source; reads, edits, chat history and passive syncs don't count. Snapshot {new Date(data.generatedAt).toLocaleTimeString()}.
+        “Never used” = account with zero activity. Waitlist rows are matched to accounts by email. Memories = the memory meter: 1 per fact, 1 per row on a live board, 1 per 280 chars of a note, from any source; reads, edits, chat history and passive syncs do not count. Snapshot {new Date(data.generatedAt).toLocaleTimeString()}.
       </p>
     </div>
   );
