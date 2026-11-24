@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import type { AlphaUser, UsersData, UserStatus } from "./data";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type { AlphaUser, UsersData, UserStatus, Plan } from "./data";
+import Overview, { MODE_META } from "./Overview";
 
 // sessionStorage key the Email Ops page reads to prefill recipients (same
 // contract as the Growth tab's "Email selected").
@@ -21,13 +22,31 @@ const STATUS_META: Record<UserStatus, { label: string; hint: string; pill: strin
   invited: { label: "Invited", hint: "invited to the alpha, no account yet", pill: "bg-blue-100 text-blue-700", dot: "bg-blue-500" },
   waitlist: { label: "Waitlist", hint: "on the waitlist, not invited", pill: "bg-gray-100 text-gray-500", dot: "bg-gray-300" },
 };
-const STATUS_ORDER: UserStatus[] = ["active", "cooling", "dormant", "idle", "invited", "waitlist"];
+type View = "accounts" | "waitlist";
+const VIEW_STATUSES: Record<View, UserStatus[]> = {
+  accounts: ["active", "cooling", "dormant", "idle"],
+  waitlist: ["invited", "waitlist"],
+};
+
+const PLAN_META: Record<Plan, { label: string; cls: string }> = {
+  paying: { label: "Paying", cls: "bg-green-50 text-green-700" },
+  trial: { label: "Trial", cls: "bg-blue-50 text-blue-700" },
+  comped: { label: "Comped", cls: "bg-gray-100 text-gray-600" },
+  lapsed: { label: "Lapsed", cls: "bg-red-50 text-red-600" },
+  free: { label: "Free", cls: "text-gray-400" },
+};
 
 // Ready-made segments — the "who do I email for what" presets.
 const SEGMENTS: { key: string; label: string; hint: string; match: (u: AlphaUser) => boolean }[] = [
-  { key: "all-accounts", label: "All accounts", hint: "everyone who signed up", match: (u) => u.hasAccount },
+  { key: "paying", label: "Paying", hint: "active subscription", match: (u) => u.plan === "paying" },
+  { key: "trial", label: "On trial", hint: "Stripe trial running", match: (u) => u.plan === "trial" },
+  { key: "checkout-unfinished", label: "Unfinished checkout", hint: "started Stripe checkout, never paid", match: (u) => u.subscription === "incomplete" },
+  { key: "paying-quiet", label: "Paying, gone quiet", hint: "paying, nothing in 8+ days: churn risk", match: (u) => u.plan === "paying" && (u.daysSinceActive === null || u.daysSinceActive > 7) },
+  { key: "ai-users", label: "Uses another AI", hint: "an outside AI used their brain in the last 30 days", match: (u) => u.aiDays30 > 0 },
+  { key: "app-only", label: "App only", hint: "used the app in the last 30 days, no outside AI", match: (u) => u.mode30 === "app" },
   { key: "power", label: "Power users", hint: "5+ active days in the last 30", match: (u) => u.activeDays30 >= 5 },
   { key: "winback", label: "Win-back", hint: "were active, now quiet 8+ days", match: (u) => u.status === "cooling" || u.status === "dormant" },
+  { key: "new-stuck", label: "New, nothing saved", hint: "signed up in the last 14 days, nothing in the brain yet", match: (u) => u.hasAccount && !u.activated && u.signedUpAt !== null && Date.now() - new Date(u.signedUpAt).getTime() < 14 * 86_400_000 },
   { key: "stuck", label: "Stuck at signup", hint: "account but never created anything", match: (u) => u.status === "idle" },
   { key: "invited-no-account", label: "Invited, no account", hint: "nudge them to install", match: (u) => u.status === "invited" },
   { key: "feedback-givers", label: "Gave feedback", hint: "sent at least one ticket", match: (u) => u.feedback > 0 },
@@ -76,7 +95,17 @@ function Pill({ status }: { status: UserStatus }) {
 }
 
 export default function UsersDashboard({ data }: { data: UsersData }) {
-  const { users, funnel, byStatus } = data;
+  const { funnel, overview } = data;
+
+  // Accounts and the waitlist are different questions, so they are different
+  // views; team/test accounts stay hidden unless asked for.
+  const [view, setView] = useState<View>("accounts");
+  const [showTeam, setShowTeam] = useState(false);
+  const users = useMemo(
+    () => data.users.filter((u) => (view === "accounts" ? u.hasAccount : !u.hasAccount) && (showTeam || !u.internal)),
+    [data.users, view, showTeam],
+  );
+  const switchView = (v: View) => { setView(v); setStatusFilter(""); setSegment(""); setSelected(new Set()); };
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<UserStatus | "">("");
@@ -86,6 +115,12 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [groupName, setGroupName] = useState("");
+  const rosterRef = useRef<HTMLDivElement>(null);
+  // From the "Needs attention" card: show exactly that group among real accounts.
+  const openSegment = useCallback((key: string) => {
+    setView("accounts"); setShowTeam(false); setStatusFilter(""); setSearch(""); setSelected(new Set()); setSegment(key);
+    rosterRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   const q = search.trim().toLowerCase();
   const seg = SEGMENTS.find((s) => s.key === segment);
@@ -210,18 +245,32 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
     } finally { setBusy(false); }
   }, [targets, groupName, segment, statusFilter, search]);
 
-  const activationPct = funnel.accounts ? Math.round((funnel.activated / funnel.accounts) * 100) : 0;
+  const viewSegments = view === "accounts" ? SEGMENTS.filter((s) => s.key !== "invited-no-account") : SEGMENTS.filter((s) => s.key === "invited-no-account");
 
   return (
     <div className="space-y-6">
-      {/* Funnel */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <StatCard label="Waitlist" value={funnel.waitlist} sub={`${funnel.invited} invited`} onClick={() => { setStatusFilter("waitlist"); setSegment(""); }} active={statusFilter === "waitlist" && !segment} />
-        <StatCard label="Accounts" value={funnel.accounts} sub="created an account" onClick={() => { setSegment("all-accounts"); setStatusFilter(""); }} active={segment === "all-accounts" && !statusFilter} />
-        <StatCard label="Activated" value={funnel.activated} sub={`${activationPct}% of accounts`} />
-        <StatCard label="Active 7d" value={funnel.active7} sub="used this week" onClick={() => { setStatusFilter("active"); setSegment(""); }} active={statusFilter === "active"} />
-        <StatCard label="Active 30d" value={funnel.active30} sub="used this month" />
-        <StatCard label="Gone quiet" value={byStatus.cooling + byStatus.dormant} sub="cooling + dormant" onClick={() => { setSegment("winback"); setStatusFilter(""); }} active={segment === "winback"} />
+      <Overview o={overview} onSegment={openSegment} />
+
+      {/* Roster */}
+      <div ref={rosterRef} className="flex flex-wrap items-end justify-between gap-3 pt-2 scroll-mt-4">
+        <div>
+          <h2 className="font-[family-name:var(--font-playfair)] text-2xl text-gray-900">Roster</h2>
+          <p className="text-xs text-gray-500">Filter, then email, copy or save a group.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="inline-flex rounded-full border border-gray-200 bg-white p-0.5">
+            <button type="button" onClick={() => switchView("accounts")} className={`px-3 py-1 rounded-full text-xs font-medium ${view === "accounts" ? "bg-black text-white" : "text-gray-600"}`}>
+              Accounts <span className="opacity-60 tabular-nums">{funnel.accounts}</span>
+            </button>
+            <button type="button" onClick={() => switchView("waitlist")} className={`px-3 py-1 rounded-full text-xs font-medium ${view === "waitlist" ? "bg-black text-white" : "text-gray-600"}`}>
+              Waitlist <span className="opacity-60 tabular-nums">{data.users.filter((u) => !u.hasAccount).length}</span>
+            </button>
+          </div>
+          <label className="inline-flex items-center gap-1.5 text-xs text-gray-500">
+            <input type="checkbox" checked={showTeam} onChange={(e) => setShowTeam(e.target.checked)} />
+            Team accounts
+          </label>
+        </div>
       </div>
 
       {/* Status strip */}
@@ -230,7 +279,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
           <button type="button" onClick={() => setStatusFilter("")} className={`px-3 py-1 rounded-full text-xs font-medium border ${statusFilter === "" ? "bg-black text-white border-black" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}`}>
             All <span className="opacity-60 tabular-nums">{allCount}</span>
           </button>
-          {STATUS_ORDER.map((s) => (
+          {VIEW_STATUSES[view].map((s) => (
             <button key={s} type="button" onClick={() => setStatusFilter(statusFilter === s ? "" : s)} title={STATUS_META[s].hint}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${statusFilter === s ? "bg-black text-white border-black" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${STATUS_META[s].dot}`} />
@@ -240,7 +289,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-100">
           <span className={`${LABEL} mr-1`}>Segments</span>
-          {SEGMENTS.map((s) => (
+          {viewSegments.map((s) => (
             <button key={s.key} type="button" onClick={() => setSegment(segment === s.key ? "" : s.key)} title={s.hint}
               className={`px-3 py-1 rounded-full text-xs font-medium border ${segment === s.key ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"}`}>
               {s.label} <span className="opacity-60 tabular-nums">{segmentCounts[s.key]}</span>
@@ -306,22 +355,28 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
             )}
           </div>
         ) : (
-          <table className="w-full min-w-[1040px]">
+          <table className="w-full min-w-[860px]">
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="pb-2 pr-2 w-6"><input type="checkbox" aria-label="Select all" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} /></th>
                 <th className={TH}>User</th>
                 <th className={TH}>Status</th>
-                <th className={TH}>Last active</th>
-                <th className={`${TH} text-right`} title="Distinct days with activity in the last 30">Days/30</th>
-                <th className={`${TH} text-right`} title="Memory meter: 1 per fact, 1 per board row, 1 per 280 chars of a note">Memories</th>
-                <th className={`${TH} text-right`}>Boards</th>
-                <th className={`${TH} text-right`}>Items</th>
-                <th className={`${TH} text-right`} title="User chat messages + brain dumps">Chats</th>
-                <th className={`${TH} text-right`}>Feedback</th>
-                <th className={TH}>Signed up</th>
-                <th className={TH}>Waitlist</th>
-                <th className={TH}>Signals</th>
+                {view === "accounts" ? (
+                  <>
+                    <th className={TH}>Plan</th>
+                    <th className={TH} title="How they used Xyra in the last 30 days">Uses Xyra via</th>
+                    <th className={TH}>Last active</th>
+                    <th className={`${TH} text-right`} title="Distinct days with activity in the last 30">Days/30</th>
+                    <th className={`${TH} text-right`} title="Memory meter: 1 per fact, 1 per board row, 1 per 280 chars of a note">Memories</th>
+                    <th className={TH}>Signed up</th>
+                  </>
+                ) : (
+                  <>
+                    <th className={TH}>Joined waitlist</th>
+                    <th className={TH}>Source</th>
+                    <th className={TH}>Invited</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -329,34 +384,44 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
                 <tr key={u.key} className={`border-b border-gray-50 last:border-0 align-top ${selected.has(u.key) ? "bg-gray-50" : ""}`}>
                   <td className="py-2.5 pr-2"><input type="checkbox" aria-label={`Select ${u.email}`} checked={selected.has(u.key)} onChange={() => toggle(u.key)} /></td>
                   <td className="py-2.5 pr-3">
-                    <div className="text-sm text-gray-900 font-medium leading-tight">{u.name ?? <span className="text-gray-400 italic">no name</span>}</div>
+                    <div className="text-sm text-gray-900 font-medium leading-tight">
+                      {u.name ?? <span className="text-gray-400 italic">no name</span>}
+                      {u.internal && <span className="ml-1.5 text-[10px] text-gray-400 uppercase">team</span>}
+                      {u.adminNotes && <span className="ml-1.5 text-[10px] text-gray-400" title={u.adminNotes}>note</span>}
+                    </div>
                     <div className="text-[11px] text-gray-500 font-mono">{u.email}</div>
                   </td>
                   <td className="py-2.5 pr-3"><Pill status={u.status} /></td>
-                  <td className="py-2.5 pr-3 text-xs text-gray-700 whitespace-nowrap">
-                    {u.hasAccount ? <><span className="font-medium">{fmtAgo(u.daysSinceActive)}</span>{u.lastActiveAt && <span className="text-gray-400"> · {fmtDate(u.lastActiveAt)}</span>}</> : <span className="text-gray-300">—</span>}
-                  </td>
-                  <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-800">{u.hasAccount ? u.activeDays30 : "—"}</td>
-                  <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-900 font-medium" title={u.hasAccount ? `${u.storedFacts} facts · ${u.storedRows} board rows · ${u.storedNoteMemories} from notes` : undefined}>{u.hasAccount ? u.stored : "—"}</td>
-                  <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-600">{u.hasAccount ? u.dashboards : "—"}</td>
-                  <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-600">{u.hasAccount ? u.items : "—"}</td>
-                  <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-600">{u.hasAccount ? u.chats + u.dumps : "—"}</td>
-                  <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-600">{u.feedback || <span className="text-gray-300">0</span>}</td>
-                  <td className="py-2.5 pr-3 text-xs text-gray-500 whitespace-nowrap">
-                    {u.signedUpAt ? fmtDate(u.signedUpAt) : <span className="text-gray-300">no account</span>}
-                    {u.provider && u.provider !== "email" && <span className="ml-1 text-[10px] text-gray-400 uppercase">{u.provider}</span>}
-                  </td>
-                  <td className="py-2.5 pr-3 text-xs text-gray-500 whitespace-nowrap">
-                    {u.onWaitlist ? <>{u.alphaStatus ?? "joined"} <span className="text-gray-400">· {fmtDate(u.waitlistedAt)}</span>{u.source && <span className="text-gray-400"> · {u.source}</span>}</> : <span className="text-gray-300">not on list</span>}
-                  </td>
-                  <td className="py-2.5 text-[10px] text-gray-500 whitespace-nowrap space-x-1.5">
-                    {u.hasAccount && <span className={u.pushEnabled ? "text-green-600" : "text-gray-300"} title={u.pushEnabled ? "push notifications on" : "no push token"}>push</span>}
-                    {u.webOpens30 > 0 && <span className="text-sky-600" title={`opened the laptop web app ${u.webOpens30}× in the last 30 days`}>web</span>}
-                    {u.phoneOpens30 > 0 && <span className="text-amber-600" title={`opened the phone app ${u.phoneOpens30}× in the last 30 days`}>phone</span>}
-                    {u.agentNames.length > 0 && <span className="text-violet-600" title={`outside AI used the brain in the last 30 days: ${u.agentNames.join(", ")} · ${u.agentActions30} writes · last call ${fmtDate(u.agentLastUsedAt)}`}>agent</span>}
-                    {u.subscription && <span className="text-indigo-600" title={`subscription: ${u.subscription}`}>{u.subscription}</span>}
-                    {u.adminNotes && <span className="text-gray-400" title={u.adminNotes}>note</span>}
-                  </td>
+                  {view === "accounts" ? (
+                    <>
+                      <td className="py-2.5 pr-3">
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${PLAN_META[u.plan].cls}`} title={u.subscription ? `subscription: ${u.subscription}` : "no subscription"}>{PLAN_META[u.plan].label}</span>
+                      </td>
+                      <td className="py-2.5 pr-3 text-xs whitespace-nowrap">
+                        <span className={`font-medium ${MODE_META[u.mode30].text}`} title={MODE_META[u.mode30].hint}>{MODE_META[u.mode30].label}</span>
+                        {u.mode30 !== "none" && (
+                          <div className="text-[10px] text-gray-400" title={u.agentNames.length ? `${u.agentNames.join(", ")} · ${u.agentActions30} AI writes · last AI call ${fmtDate(u.agentLastUsedAt)}` : undefined}>
+                            {u.appDays30 > 0 && `${u.appDays30}d app`}{u.appDays30 > 0 && u.aiDays30 > 0 && " · "}{u.aiDays30 > 0 && `${u.aiDays30}d ${u.agentNames.join("/") || "AI"}`}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-2.5 pr-3 text-xs text-gray-700 whitespace-nowrap">
+                        <span className="font-medium">{fmtAgo(u.daysSinceActive)}</span>{u.lastActiveAt && <span className="text-gray-400"> · {fmtDate(u.lastActiveAt)}</span>}
+                      </td>
+                      <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-800">{u.activeDays30}</td>
+                      <td className="py-2.5 pr-3 text-sm text-right tabular-nums text-gray-900 font-medium" title={`${u.storedFacts} facts · ${u.storedRows} board rows · ${u.storedNoteMemories} from notes · ${u.dashboards} boards · ${u.chats + u.dumps} chats/dumps`}>{u.stored}</td>
+                      <td className="py-2.5 pr-3 text-xs text-gray-500 whitespace-nowrap">
+                        {fmtDate(u.signedUpAt)}
+                        {u.source && <span className="text-gray-400"> · {u.source}</span>}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="py-2.5 pr-3 text-xs text-gray-500 whitespace-nowrap">{fmtDate(u.waitlistedAt)}</td>
+                      <td className="py-2.5 pr-3 text-xs text-gray-500">{u.source ?? "—"}</td>
+                      <td className="py-2.5 pr-3 text-xs text-gray-500 whitespace-nowrap">{u.alphaInvitedAt ? fmtDate(u.alphaInvitedAt) : <span className="text-gray-300">no</span>}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -365,7 +430,7 @@ export default function UsersDashboard({ data }: { data: UsersData }) {
       </div>
 
       <p className="text-[11px] text-gray-400">
-        Activity = any dashboard, item, chat message, brain dump, memory or note the user created (background connector syncs excluded), an app open, or an outside AI reading/writing the brain over MCP. Active ≤7d · Cooling 8–30d · Dormant &gt;30d ·
+        Team and test accounts (@xyraconsult.com, emails containing “test”, example/xyra.dev seeds, + RETENTION_INTERNAL_EMAILS) are left out of every number above. Paying = Stripe subscription status active. Activity = any dashboard, item, chat message, brain dump, memory or note the user created (background connector syncs excluded), an app open, or an outside AI reading/writing the brain over MCP. Active ≤7d · Cooling 8–30d · Dormant &gt;30d ·
         “Never used” = account with zero activity. Waitlist rows are matched to accounts by email. Memories = the memory meter: 1 per fact, 1 per row on a live board, 1 per 280 chars of a note, from any source; reads, edits, chat history and passive syncs do not count. Snapshot {new Date(data.generatedAt).toLocaleTimeString()}.
       </p>
     </div>

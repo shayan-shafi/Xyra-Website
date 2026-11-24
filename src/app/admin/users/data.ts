@@ -1,6 +1,7 @@
 import { supabaseAppAdmin } from "@/lib/supabaseAppAdmin";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { fetchAll } from "@/lib/fetchAll";
+import { isInternal } from "../retention/data";
 
 // Data layer for the admin Users tab — the alpha roster.
 //
@@ -30,6 +31,18 @@ import { fetchAll } from "@/lib/fetchAll";
  *   waitlist – on the waitlist, not invited, no account
  */
 export type UserStatus = "active" | "cooling" | "dormant" | "idle" | "invited" | "waitlist";
+
+/**
+ * How someone used Xyra in the last 30 days:
+ *   app  – only inside the Xyra app (chat, dumps, boards, opens)
+ *   ai   – only through an outside AI over the brain MCP (Claude, ChatGPT…)
+ *   both – both
+ *   none – neither in the last 30 days
+ */
+export type UseMode = "app" | "ai" | "both" | "none";
+
+/** Billing bucket from subscriptions.status. */
+export type Plan = "paying" | "trial" | "comped" | "lapsed" | "free";
 
 export type AlphaUser = {
   key: string; // auth user id, or `wl:<waitlist id>` for waitlist-only rows
@@ -64,6 +77,11 @@ export type AlphaUser = {
   feedback: number;
   pushEnabled: boolean;
   subscription: string | null;
+  plan: Plan;
+  internal: boolean; // team / test account (same rule as the Retention tab)
+  mode30: UseMode;
+  appDays30: number; // distinct days used inside the app, last 30
+  aiDays30: number; // distinct days an outside AI used the brain, last 30
   provider: string | null; // email / apple / google …
   // Waitlist side
   onWaitlist: boolean;
@@ -85,7 +103,30 @@ export type UsersData = {
     active30: number;
   };
   byStatus: Record<UserStatus, number>;
+  overview: Overview;
   generatedAt: string;
+};
+
+/** The "where are we" numbers. Team/test accounts are excluded throughout. */
+export type Overview = {
+  accounts: number;
+  paying: number;
+  trial: number;
+  comped: number;
+  lapsed: number; // canceled / past_due: had a subscription, not paying now
+  checkoutUnfinished: number; // started Stripe checkout, never paid (status incomplete)
+  payingActive7: number;
+  payingQuiet: number; // paying, nothing in 8+ days
+  activated: number;
+  active7: number;
+  active7Prev: number; // active in the 7 days before that
+  active30: number;
+  newThisWeek: number; // accounts created in the last 7 days
+  newStuck: number; // created in the last 14 days, nothing in the brain yet
+  modes: Record<UseMode, number>; // accounts by 30-day use mode
+  payingModes: Record<UseMode, number>; // same, paying only
+  agents: { name: string; users: number }[]; // outside AIs used in the last 30 days
+  weekly: { label: string; app: number; ai: number; both: number; signups: number }[]; // 8 rolling weeks, oldest first
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -97,6 +138,32 @@ type Stamp = { user_id: string; created_at: string };
 // don't count as use. Everything else does: chat extraction, quick replies,
 // and every `agent:<name>` write from an outside AI.
 const isBackgroundSource = (src: string | null) => !!src && src.startsWith("connector");
+// Written by an outside AI over MCP ("agent:claude", "agent:chatgpt" …).
+const isAgentSource = (src: string | null) => !!src && src.startsWith("agent");
+
+function planOf(status: string | null | undefined): Plan {
+  switch (status) {
+    case "active":
+      return "paying";
+    case "trialing":
+      return "trial";
+    case "comped":
+      return "comped";
+    case null:
+    case undefined:
+      return "free";
+    default:
+      return "lapsed"; // past_due, canceled, incomplete, unpaid …
+  }
+}
+
+const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
+// Test sign-ups (QA runs, smoke tests, demo seeds) inflate every count. Same
+// "team" bucket as internal accounts; anything this misses goes in
+// RETENTION_INTERNAL_EMAILS.
+const TEST_EMAIL = /test|@example\.com$|@xyra\.dev$|@xyraapp\.test$|^shayan\+/i;
+const isTeamOrTest = (email: string) => isInternal(email) || TEST_EMAIL.test(email);
 
 const DAY = 86_400_000;
 
@@ -106,18 +173,18 @@ function daysAgo(iso: string | null, now: number): number | null {
 }
 
 // Per-user rollup of one activity table: count, latest timestamp, and the set
-// of active days in the last 30 (for the "days used" signal).
+// of active days in the trend window (56 days; "days used" counts the last 30).
 class Rollup {
   count = new Map<string, number>();
   latest = new Map<string, string>();
   days = new Map<string, Set<string>>();
-  constructor(private cutoff30: number) {}
+  constructor(private cutoff: number) {}
   add(row: Stamp) {
     const u = row.user_id;
     this.count.set(u, (this.count.get(u) ?? 0) + 1);
     const prev = this.latest.get(u);
     if (!prev || row.created_at > prev) this.latest.set(u, row.created_at);
-    if (new Date(row.created_at).getTime() >= this.cutoff30) {
+    if (new Date(row.created_at).getTime() >= this.cutoff) {
       let s = this.days.get(u);
       if (!s) this.days.set(u, (s = new Set()));
       s.add(row.created_at.slice(0, 10));
@@ -138,6 +205,8 @@ export async function fetchUsersData(): Promise<UsersData | null> {
   const app = supabaseAppAdmin;
   const now = Date.now();
   const cutoff30 = now - 30 * DAY;
+  const day30 = isoDay(cutoff30);
+  const cutoffTrend = now - 56 * DAY; // 8 weeks for the trend
 
   const stamps = (table: string, extra?: (q: any) => any) =>
     fetchAll<Stamp>((from, to) => {
@@ -235,22 +304,30 @@ export async function fetchUsersData(): Promise<UsersData | null> {
       : Promise.resolve([]),
   ]);
 
-  const dash = new Rollup(cutoff30);
-  const items = new Rollup(cutoff30);
-  const chats = new Rollup(cutoff30);
-  const dumps = new Rollup(cutoff30);
-  const fb = new Rollup(cutoff30);
+  const dash = new Rollup(cutoffTrend);
+  const items = new Rollup(cutoffTrend);
+  const chats = new Rollup(cutoffTrend);
+  const dumps = new Rollup(cutoffTrend);
+  const fb = new Rollup(cutoffTrend);
   for (const r of dashRows) dash.add(r);
   for (const r of itemRows) items.add(r);
   for (const r of chatRows) chats.add(r);
   for (const r of dumpRows) dumps.add(r);
   for (const r of feedbackRows) fb.add(r);
-  const facts = new Rollup(cutoff30);
-  const notes = new Rollup(cutoff30);
+  // Facts/notes count as activity whoever wrote them; for the app-vs-AI split
+  // the ones an outside AI wrote also land in agentBrain.
+  const facts = new Rollup(cutoffTrend);
+  const notes = new Rollup(cutoffTrend);
+  const agentBrain = new Rollup(cutoffTrend);
+  const appBrain = new Rollup(cutoffTrend);
+  for (const r of [...factRows, ...noteRows]) {
+    if (isBackgroundSource(r.source)) continue;
+    (isAgentSource(r.source) ? agentBrain : appBrain).add(r);
+  }
   for (const r of factRows) if (!isBackgroundSource(r.source)) facts.add(r);
   for (const r of noteRows) if (!isBackgroundSource(r.source)) notes.add(r);
-  const agentWrites = new Rollup(cutoff30);
-  const agentUse = new Rollup(cutoff30); // reads + writes, one stamp per token
+  const agentWrites = new Rollup(cutoffTrend);
+  const agentUse = new Rollup(cutoffTrend); // reads + writes, one stamp per token
   const agentWrites30 = new Map<string, number>();
   const agentNames = new Map<string, Set<string>>();
   const nameAgent = (u: string, n: string | null) => {
@@ -270,7 +347,7 @@ export async function fetchUsersData(): Promise<UsersData | null> {
     agentUse.add({ user_id: t.user_id, created_at: t.last_used_at });
     if (new Date(t.last_used_at).getTime() >= cutoff30) nameAgent(t.user_id, t.name);
   }
-  const opens = new Rollup(cutoff30);
+  const opens = new Rollup(cutoffTrend);
   const webOpens = new Map<string, number>();
   const phoneOpens = new Map<string, number>();
   for (const r of openRows) {
@@ -290,6 +367,8 @@ export async function fetchUsersData(): Promise<UsersData | null> {
 
   const users: AlphaUser[] = [];
   const seenEmails = new Set<string>();
+  const appDaysById = new Map<string, Set<string>>();
+  const aiDaysById = new Map<string, Set<string>>();
 
   for (const u of authUsers) {
     const email = (u.email ?? "").toLowerCase();
@@ -313,8 +392,18 @@ export async function fetchUsersData(): Promise<UsersData | null> {
     const since = daysAgo(lastActiveAt, now);
     const meter = meterByUser.get(id);
 
-    const activeDaySet = new Set<string>();
-    for (const r of [dash, items, chats, dumps, opens, facts, notes, agentWrites, agentUse]) for (const d of r.days.get(id) ?? []) activeDaySet.add(d);
+    // Days in the app vs days an outside AI used the brain (56-day window).
+    const appDaySet = new Set<string>();
+    for (const r of [dash, items, chats, dumps, opens, appBrain]) for (const d of r.days.get(id) ?? []) appDaySet.add(d);
+    const aiDaySet = new Set<string>();
+    for (const r of [agentWrites, agentUse, agentBrain]) for (const d of r.days.get(id) ?? []) aiDaySet.add(d);
+    appDaysById.set(id, appDaySet);
+    aiDaysById.set(id, aiDaySet);
+    const in30 = (set: Set<string>) => [...set].filter((d) => d >= day30).length;
+    const activeDaySet = new Set([...appDaySet, ...aiDaySet].filter((d) => d >= day30));
+    const appDays30 = in30(appDaySet);
+    const aiDays30 = in30(aiDaySet);
+    const mode30: UseMode = appDays30 && aiDays30 ? "both" : appDays30 ? "app" : aiDays30 ? "ai" : "none";
 
     // "Activated" = created something (in the app or through an AI); opening
     // the app or an AI reading the brain keeps an account active (and out of idle).
@@ -359,6 +448,11 @@ export async function fetchUsersData(): Promise<UsersData | null> {
       feedback: fb.count.get(id) ?? 0,
       pushEnabled: pushUsers.has(id),
       subscription: subByUser.get(id) ?? null,
+      plan: planOf(subByUser.get(id)),
+      internal: isTeamOrTest(email),
+      mode30,
+      appDays30,
+      aiDays30,
       provider,
       onWaitlist: !!wl,
       waitlistedAt: wl?.created_at ?? null,
@@ -405,6 +499,11 @@ export async function fetchUsersData(): Promise<UsersData | null> {
       feedback: 0,
       pushEnabled: false,
       subscription: null,
+      plan: "free",
+      internal: isTeamOrTest(email),
+      mode30: "none",
+      appDays30: 0,
+      aiDays30: 0,
       provider: null,
       onWaitlist: true,
       waitlistedAt: w.created_at,
@@ -427,6 +526,64 @@ export async function fetchUsersData(): Promise<UsersData | null> {
   for (const u of users) byStatus[u.status] += 1;
 
   const accounts = users.filter((u) => u.hasAccount);
+  const real = accounts.filter((u) => !u.internal);
+  const paying = real.filter((u) => u.plan === "paying");
+  const countModes = (list: AlphaUser[]) => {
+    const m: Record<UseMode, number> = { app: 0, ai: 0, both: 0, none: 0 };
+    for (const u of list) m[u.mode30] += 1;
+    return m;
+  };
+  const agentUsers = new Map<string, number>();
+  for (const u of real) {
+    for (const n of new Set(u.agentNames.map((a) => a.trim().toLowerCase()))) agentUsers.set(n, (agentUsers.get(n) ?? 0) + 1);
+  }
+
+  // Did this user do anything (app or AI) on a day in (from, to]?
+  const usedBetween = (id: string, from: string, to: string) => {
+    const hit = (set?: Set<string>) => !!set && [...set].some((d) => d > from && d <= to);
+    return { app: hit(appDaysById.get(id)), ai: hit(aiDaysById.get(id)) };
+  };
+  // Rolling weeks, oldest first; the last bar is the 7 days ending today. A
+  // user counts once per week, in the bucket for how they used Xyra that week.
+  const weekly: Overview["weekly"] = [];
+  for (let w = 7; w >= 0; w--) {
+    const from = isoDay(now - (w + 1) * 7 * DAY);
+    const to = isoDay(now - w * 7 * DAY);
+    let app = 0, ai = 0, both = 0, signups = 0;
+    for (const u of real) {
+      const su = u.signedUpAt?.slice(0, 10);
+      if (su && su > from && su <= to) signups++;
+      const x = usedBetween(u.key, from, to);
+      if (x.app && x.ai) both++;
+      else if (x.app) app++;
+      else if (x.ai) ai++;
+    }
+    const start = new Date(now - (w + 1) * 7 * DAY + DAY);
+    weekly.push({ label: w === 0 ? "This wk" : start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }), app, ai, both, signups });
+  }
+  const prevFrom = isoDay(now - 14 * DAY), prevTo = isoDay(now - 7 * DAY);
+
+  const overview: Overview = {
+    accounts: real.length,
+    paying: paying.length,
+    trial: real.filter((u) => u.plan === "trial").length,
+    comped: real.filter((u) => u.plan === "comped").length,
+    lapsed: real.filter((u) => u.plan === "lapsed" && u.subscription !== "incomplete").length,
+    checkoutUnfinished: real.filter((u) => u.subscription === "incomplete").length,
+    payingActive7: paying.filter((u) => u.daysSinceActive !== null && u.daysSinceActive <= 7).length,
+    payingQuiet: paying.filter((u) => u.daysSinceActive === null || u.daysSinceActive > 7).length,
+    activated: real.filter((u) => u.activated).length,
+    active7: real.filter((u) => u.daysSinceActive !== null && u.daysSinceActive <= 7).length,
+    active7Prev: real.filter((u) => { const x = usedBetween(u.key, prevFrom, prevTo); return x.app || x.ai; }).length,
+    active30: real.filter((u) => u.daysSinceActive !== null && u.daysSinceActive <= 30).length,
+    newThisWeek: real.filter((u) => { const d = daysAgo(u.signedUpAt, now); return d !== null && d < 7; }).length,
+    newStuck: real.filter((u) => { const d = daysAgo(u.signedUpAt, now); return d !== null && d < 14 && !u.activated; }).length,
+    modes: countModes(real),
+    payingModes: countModes(paying),
+    agents: [...agentUsers.entries()].map(([name, users]) => ({ name, users })).sort((a, b) => b.users - a.users),
+    weekly,
+  };
+
   return {
     users,
     funnel: {
@@ -438,6 +595,7 @@ export async function fetchUsersData(): Promise<UsersData | null> {
       active30: accounts.filter((u) => u.daysSinceActive !== null && u.daysSinceActive <= 30).length,
     },
     byStatus,
+    overview,
     generatedAt: new Date(now).toISOString(),
   };
 }

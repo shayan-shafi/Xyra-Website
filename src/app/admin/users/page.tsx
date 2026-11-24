@@ -23,7 +23,7 @@ export default async function UsersPage() {
           <h1 className="font-[family-name:var(--font-playfair)] text-3xl text-gray-900">Alpha Users</h1>
           <p className="font-[family-name:var(--font-eb-garamond)] text-base text-gray-500 mt-1">
             {data
-              ? `${data.funnel.accounts} accounts · ${data.funnel.activated} activated · ${data.funnel.active7} active this week`
+              ? `${data.overview.paying} paying · ${data.overview.active7} active this week · ${data.overview.accounts} real accounts (team and test excluded)`
               : "Who has an account, who is using it, and who has gone quiet."}
           </p>
         </div>

@@ -24,7 +24,7 @@ const INTERNAL_DOMAINS = ["xyraconsult.com"];
 const INTERNAL_EMAILS = new Set(
   (process.env.RETENTION_INTERNAL_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean),
 );
-const isInternal = (email: string) => INTERNAL_EMAILS.has(email) || INTERNAL_DOMAINS.some((d) => email.endsWith(`@${d}`));
+export const isInternal = (email: string) => INTERNAL_EMAILS.has(email) || INTERNAL_DOMAINS.some((d) => email.endsWith(`@${d}`));
 
 type Stamp = { user_id: string; created_at: string };
 
