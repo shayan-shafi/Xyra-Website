@@ -67,7 +67,7 @@ export default function Pricing() {
         </motion.div>
 
         <p className={`${MONO} mt-5 text-[11px] text-black/40`}>
-          got an invite from a friend? their link adds a week of unlimited, free.
+          got an invite from a friend? your free brain holds 150 memories instead of 100.
         </p>
       </div>
     </section>

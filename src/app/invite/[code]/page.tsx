@@ -4,18 +4,20 @@ import { supabaseAppAdmin } from "@/lib/supabaseAppAdmin";
 
 // xyra.dev/invite/<code>: a friend's personal invite (the app's invite_codes),
 // or a shared trial code (trial_codes, e.g. the one Email Ops hands people who
-// don't have an account yet). Join on the web with the code carried along and
-// the paywall fills it in: a free trial, no card. Personal codes are good for 10.
+// don't have an account yet). Join on the web with the code carried along.
+// A friend's code = 150 free memories instead of 100 (2026-11-25, the app's
+// redeem_invite); a trial code still waits in the upgrade card as free days.
+// Personal codes are good for 10.
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "you're invited to xyra",
-  description: "a friend invited you to xyra. free up to 100 memories, plus a week of unlimited. no card.",
+  description: "a friend invited you to xyra. your free brain holds 150 memories instead of 100.",
   robots: { index: false, follow: false },
   openGraph: {
     title: "you're invited to xyra",
-    description: "a friend invited you to xyra. free up to 100 memories, plus a week of unlimited. no card.",
+    description: "a friend invited you to xyra. your free brain holds 150 memories instead of 100.",
     type: "website",
   },
 };
@@ -26,11 +28,13 @@ const mono = "font-[family-name:var(--font-jetbrains)]";
 
 export default async function InvitePage({ params }: { params: { code: string } }) {
   const code = cleanInviteCode(params.code);
-  const info: InviteInfo | null = code ? (await lookupInvite(code)) ?? (await trialCode(code)) : null;
+  const personal: InviteInfo | null = code ? await lookupInvite(code) : null;
+  const info: InviteInfo | null = personal ?? (code ? await trialCode(code) : null);
   const who = info?.firstName || "a friend";
   const days = info?.days ?? 7;
-  // Memory plans (2026-11-25): xyra is free up to 100 memories; the code adds unlimited on top.
-  const freeLine = days === 7 ? "Free up to 100 memories, plus a week of unlimited on us. No card." : `Free up to 100 memories, plus ${days} days of unlimited on us. No card.`;
+  const freeLine = personal
+    ? "Your free brain holds 150 memories instead of 100. No card."
+    : days === 7 ? "Free up to 100 memories, plus a week of unlimited on us. No card." : `Free up to 100 memories, plus ${days} days of unlimited on us. No card.`;
   const startHref = `${APP_ORIGIN}/create-account`;
 
   return (
@@ -86,7 +90,9 @@ export default async function InvitePage({ params }: { params: { code: string } 
               </a>
             </div>
             <p className={`${body} text-sm text-black/40 mt-6 leading-relaxed`}>
-              Your code waits in the upgrade card, so your week of unlimited starts when you want it. If it isn&apos;t there, type {code} under &ldquo;have a code?&rdquo;.
+              {personal
+                ? "Your 50 extra memories are added when you make your account."
+                : <>Your code waits in the upgrade card, so your week of unlimited starts when you want it. If it isn&apos;t there, type {code} under &ldquo;have a code?&rdquo;.</>}
             </p>
           </>
         )}
