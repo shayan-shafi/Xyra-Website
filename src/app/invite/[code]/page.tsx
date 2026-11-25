@@ -11,11 +11,11 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "you're invited to xyra",
-  description: "a friend invited you to xyra. one week free, no card.",
+  description: "a friend invited you to xyra. free up to 100 memories, plus a week of unlimited. no card.",
   robots: { index: false, follow: false },
   openGraph: {
     title: "you're invited to xyra",
-    description: "a friend invited you to xyra. one week free, no card.",
+    description: "a friend invited you to xyra. free up to 100 memories, plus a week of unlimited. no card.",
     type: "website",
   },
 };
@@ -29,7 +29,8 @@ export default async function InvitePage({ params }: { params: { code: string } 
   const info: InviteInfo | null = code ? (await lookupInvite(code)) ?? (await trialCode(code)) : null;
   const who = info?.firstName || "a friend";
   const days = info?.days ?? 7;
-  const freeLine = days === 7 ? "One week free, no card." : `${days} days free, no card.`;
+  // Memory plans (2026-11-25): xyra is free up to 100 memories; the code adds unlimited on top.
+  const freeLine = days === 7 ? "Free up to 100 memories, plus a week of unlimited on us. No card." : `Free up to 100 memories, plus ${days} days of unlimited on us. No card.`;
   const startHref = `${APP_ORIGIN}/create-account`;
 
   return (
@@ -85,7 +86,7 @@ export default async function InvitePage({ params }: { params: { code: string } 
               </a>
             </div>
             <p className={`${body} text-sm text-black/40 mt-6 leading-relaxed`}>
-              Your code is filled in when you get to the last step. If it isn&apos;t, type {code} in the free trial code box.
+              Your code waits in the upgrade card, so your week of unlimited starts when you want it. If it isn&apos;t there, type {code} under &ldquo;have a code?&rdquo;.
             </p>
           </>
         )}

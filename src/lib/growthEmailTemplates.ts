@@ -238,7 +238,7 @@ function pillButton(label: string, href: string): string {
     </td></tr></table>`;
 }
 
-// The invite link (xyra.dev/invite/<CODE>) gives a friend a free week. It is
+// The invite link (xyra.dev/invite/<CODE>) gives a friend a free week of unlimited. It is
 // filled per recipient: their own invite code, or for people without an
 // account the shared fallback code (a trial code). Neither → no block, never
 // a {{token}}.
@@ -499,7 +499,7 @@ const newsletter: GrowthTemplate = {
       ...(fixed ? [eyebrowHeader("What we fixed"), fixed] : []),
       ...behindScenes,
       ...(on("ask") && has(v, "ask") ? [eyebrowHeader("What we need from you"), prose(v.ask)] : []),
-      ...(on("referral") ? [inviteBlock(v, "Know someone who'd love this? Your invite link gives a friend a free week of xyra:")] : []),
+      ...(on("referral") ? [inviteBlock(v, "Know someone who'd love this? Your invite link gives a friend a free week of unlimited xyra:")] : []),
       signoffHtml(v),
     ].join("");
     return emailShell({ kicker: v.eyebrow ?? "", preheader: preheaderOf(v, (v.opening || v.quick_update || "").trim().slice(0, 120)), bodyHtml: body });
@@ -524,7 +524,7 @@ const newsletter: GrowthTemplate = {
         return [``, `Behind the scenes:`, ...(noteOn ? [raw(v, "behind_scenes_note")] : []), ...galleryTextLines(imgs)];
       })() : []),
       ...(on("ask") && has(v, "ask") ? [``, `What we need from you:`, v.ask.trim()] : []),
-      ...(on("referral") ? inviteText(v, "Know someone who'd love this? Your invite link gives a friend a free week of xyra:") : []),
+      ...(on("referral") ? inviteText(v, "Know someone who'd love this? Your invite link gives a friend a free week of unlimited xyra:") : []),
       ...signoffText(v),
       ...textFooter(),
     ].join("\n");
@@ -551,7 +551,7 @@ const generalMessage: GrowthTemplate = {
     { key: "message_images", label: "Photos", example: "", scope: "global", section: "images", type: "images", help: "Optional. Upload one or more images, one at a time, each with optional alt text and a caption. Two images sit side by side and stack on mobile." },
     { key: "cta_label", label: "Button label", example: "Read more", scope: "global", section: "cta", help: "Shown only if both button label and link are filled." },
     { key: "cta_link", label: "Button link", example: "", scope: "global", section: "cta", help: "Public HTTPS URL." },
-    { key: "referral_intro", label: "Invite line", example: "Your invite link gives a friend a free week of xyra:", scope: "global", section: "referral", multiline: true },
+    { key: "referral_intro", label: "Invite line", example: "Your invite link gives a friend a free week of unlimited xyra:", scope: "global", section: "referral", multiline: true },
     ...signoffFields(),
     { key: "fallback_invite_code", label: "Code for people without an account", example: "FRIENDWEEK", scope: "global", section: "referral", help: "People with an account get their own invite link. Everyone else gets xyra.dev/invite/ this code (a shared free-week code). Blank = they get no invite block." },
     { key: "referral_link", label: "Invite link", example: "https://xyra.dev/invite/ABC234", scope: "perRecipient", section: "referral", help: "Each person's own invite link, or the shared code above for people without an account." },
